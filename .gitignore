@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Private environment variables
+.env
+
+
+# Testing and coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# IDE
+.DS_Store
+.vscode/
+.idea/
+
+# SuperSecret specific
+#.gitsecrets.lock
+secret_results.json

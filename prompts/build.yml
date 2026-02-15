@@ -1,0 +1,27 @@
+Create a project for a cli tool named secretzero that is an interface for a secret management system for code repositories 
+that defines variables:, providers, secrets, templates, and targets. Use the local `Secretfile.yml` as the source of truth 
+for secret configuration, generation, and storage. Review the existing `Secretfile.yml` and refactor it to fit the new structure, 
+ensuring that it supports the generation, storage, and rotation of secrets across multiple platforms and storage locations.
+The structure should allow for the generation, storage, and rotation of secrets across multiple platforms and storage locations.
+ Include fields for secret configuration such as length, character requirements, and rotation periods, as well as target configuration 
+ for different storage methods (e.g. local files, AWS SSM, Vault, Azure Key Vault, Google Secret Manager). 
+ The structure should also allow for the definition of policies, labels, and annotations for each secret.
+ The resulting data structure should be in YAML format and should be designed to be extensible for future additions of 
+ variables, providers, secret types, and target types. variable interpolation should be supported for dynamic configuration of secrets and targets.
+ This project should include a continuously updated documentation that builds into a static website with examples and best practices 
+ for secret management in code repositories, the website to be published will be secret0.com. Ensure a comprehensive test suite is 
+ included to validate the functionality of the secret management system, as well as a CLI tool for managing the secrets defined in the YAML configuration.
+ Follow the comments in the example `Secretfile.yml` for guidance on the structure and fields to include in the new configuration format.
+ Ensure strongly typed data structures for secret definitions, provider configurations, and target configurations to enable validation and error handling in the CLI tool.
+ Support for secret rotation policies should be included, allowing users to define rotation intervals and automated rotation processes for secrets stored in various targets.
+ Secret templates should allow for the definition of complex secret generation logic, including the ability to reference external scripts or services for generating secret values, as well as support for common secret types such as passwords, API keys, and certificates.
+ Schema validation should be implemented to ensure that the YAML configuration adheres to the defined structure and includes all required fields, with clear error messages for any validation failures.
+
+ The CLI tool will allow for composable variable files that can be used to override default values in the `Secretfile.yml` at runtime, enabling dynamic configuration
+ of secrets and targets without modifying the base configuration file. This will allow for different environments 
+ (e.g. development, staging, production) to have different secret configurations while still using the same underlying 
+ structure and logic defined in the `Secretfile.yml`.
+
+ Ensure the tool can later be extended to support additional secret management platforms and storage methods as needed, 
+ with a modular design that allows for easy integration of new providers and target types. The tool should also be able to be turned into
+ an API service in the future, allowing for programmatic management of secrets in addition to the CLI interface.

@@ -1,0 +1,175 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+
+version: "3"
+silent: true
+env:
+  PROJECT:
+    sh: 'echo "$(basename $(pwd))" | tr "[:upper:]" "[:lower:]"'
+  LOCAL_BIN_PATH:
+    sh: 'echo "{{.ROOT_DIR}}/.venv/bin"'
+  BUILD_DATE:
+    sh: "date '+%Y-%m-%d-%H:%M:%S'"
+  BUILD_DATE_SHORT:
+    sh: "date '+%Y-%m-%d-%H%M%S'"
+  GIT_LATEST_TAG:
+    sh: 'git tag -l 2>/dev/null | sort -r -V | head -n 1 2>/dev/null || echo "not a git repo"'
+  TERM: screen-256color
+  DOCS_PATH: "{{.ROOT_DIR}}/docs"
+  PYTHON_VENV_PATH: "{{.ROOT_DIR}}/.venv"
+  SCRIPT_PATH: "{{.ROOT_DIR}}/scripts"
+  VERSION: '{{default "unknown" .GIT_LATEST_TAG}}'
+  COMPOSE_BAKE: true
+
+dotenv:
+  - ".env"
+
+includes:
+  github:
+    taskfile: ./tasks/Taskfile.github.yml
+    optional: true
+
+tasks:
+  default:
+    cmds:
+      - |
+        task -l
+
+  show:
+    desc: Show task variables
+    cmds:
+      - |
+        echo "ROOT_PATH: {{.ROOT_DIR}}"
+        echo "PROJECT: {{.PROJECT}}"
+        echo "VERSION: {{.VERSION}}"
+        echo "OS: {{OS}}"
+        echo "ARCH: {{ARCH}}"
+        echo "LOCAL_BIN_PATH: {{.LOCAL_BIN_PATH}}"
+        echo "PYTHON_VENV_PATH: {{.PYTHON_VENV_PATH}}"
+        echo "SCRIPT_PATH: {{.SCRIPT_PATH}}"
+        echo "BUILD_DATE: {{.BUILD_DATE}}"
+        echo "GIT_LATEST_TAG: {{.GIT_LATEST_TAG}}"
+
+  show:all:
+    desc: Show all variables for task namespaces
+    cmds:
+      - |
+        echo "## Show ##";
+        task show
+        echo ""
+        for taskitem in $(task -l | cut -d " " -f2 | grep show | sed 's/.$//'); do
+          if [[ "$taskitem" != "show:all" ]]; then
+            echo "## Show - ${taskitem} ##";
+            task $taskitem;
+            echo "";
+          fi
+        done
+
+  list:
+    desc: List tasks by namespace (task list -- <namespace>)
+    cmds:
+      - |
+        if [[ "{{.CLI_ARGS}}" != "" ]]; then
+          task -l | grep {{default "" .CLI_ARGS}}
+        else
+          task -l
+        fi
+
+  secrets:
+    desc: Create .env file if one does not already exist.
+    cmds:
+      - cp ./.env.EXAMPLE ./.env
+    status:
+      - "test -f .env"
+
+  autocomplete:
+    desc: Setup task autocomplete (zsh)
+    cmds:
+      - sudo curl https://raw.githubusercontent.com/go-task/task/main/completion/zsh/_task \
+        -o /usr/local/share/zsh/site-functions/_task
+    status:
+      - "test -f /usr/local/share/zsh/site-functions/_task"
+
+  secret:search:
+    desc: Find secrets in the codebase and in git history
+    cmds:
+      - |
+        gitleaks detect --source ./ -f json -r secret_results.json
+
+  clean:
+    desc: Clean the project
+    cmds:
+      - |
+        find . -type d -name "__pycache__" -exec rm -rf {} +
+        find . -type d -name "*.egg-info" -exec rm -rf {} +
+        find . -type f -name ".DS_Store" -delete
+        find . -type f -name "*.pyc" -delete
+        find . -type f -name "*.pyo" -delete
+        rm -rf .mypy_cache
+        rm -rf .pytest_cache
+        rm -rf .ruff_cache
+        rm -rf dist
+        rm -rf .coverage
+        rm -rf .coverage.*
+        rm -rf .coverage.xml
+        rm -rf .DS_Store
+        rm -rf .pytest_cache
+        rm -rf .venv
+        rm -rf src/terraform_ingest/_version.py
+        rm -rf chromadb
+        rm -rf ./output
+        rm -rf ./repos
+        rm -rf ./site
+
+  repomix:
+    desc: Run the repo mixin
+    cmds:
+      - |
+        repomix --style=markdown --output=docs/repomix.md --compress
+
+  build:image:
+    desc: Build Docker images
+    cmds:
+      - task: docker:build
+        vars:
+          DOCKER_BUILD_ARGS: "--build-arg DEPLOY_VERSION={{.VERSION}}-$(git rev-parse --short HEAD)"
+
+  mcp:inspector:
+    desc: Start MCP Inspector
+    cmds:
+      - npx -y @modelcontextprotocol/inspector
+    env:
+      DANGEROUSLY_OMIT_AUTH: true
+
+  update:github:actions:
+    desc: Update GitHub Actions in workflows
+    cmds:
+      - npx actions-up -y
+  
+  mcp:scan:
+    desc: Scan MCP package for issues
+    env:
+      MCP_SCANNER_LLM_API_KEY: test
+      MCP_SCANNER_API_KEY: test
+      MCP_SCANNER_LLM_ENDPOINT: http://linbox5:11434
+      MCP_SCANNER_LLM_MODEL: gemma3:12b
+    cmds:
+      - |
+        uv tool install cisco-ai-mcp-scanner
+        uv tool upgrade cisco-ai-mcp-scanner
+        mcp-scanner --format summary \
+          --stdio-command uvx \
+          --stdio-arg=pl-cli --stdio-arg=mcp --stdio-arg=-c --stdio-arg=config.yaml \
+          --stdio-arg=--no-ingest-on-startup \
+          --format table \
+          --analyzers yara \
+          -o security_scan_results.md
+
+  schema:to:yaml:
+    desc: Convert JSON schema files to YAML
+    cmds:
+      - |
+        for file in $(find ./schemas -type f -name "*.json"); do
+          uv run ./scripts/jsonschema-to-yaml.py "$file" --force > "${file%.json}.yaml"
+          #yq eval -P "$file" > "${file%.json}.yaml"
+          echo "Converted $file to ${file%.json}.yaml"
+        done
