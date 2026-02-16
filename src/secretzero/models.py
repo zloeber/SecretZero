@@ -37,6 +37,7 @@ class TargetKind(str, Enum):
     KUBERNETES_SECRET = "kubernetes_secret"
     GITHUB_SECRET = "github_secret"
     GITLAB_VARIABLE = "gitlab_variable"
+    JENKINS_CREDENTIAL = "jenkins_credential"
 
 
 class FileFormat(str, Enum):
