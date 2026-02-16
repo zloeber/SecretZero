@@ -2010,7 +2010,7 @@ templates:
         generator:
           kind: static
           config:
-            default: "{{ timestamp }}"
+            default: "2024-01-15T10:30:00Z"  # ISO 8601 timestamp
     targets:
       # AWS Secrets Manager
       - provider: aws_primary

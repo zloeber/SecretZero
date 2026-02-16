@@ -25,11 +25,127 @@
          <lastmod>2026-02-16</lastmod>
     </url>
     <url>
+         <loc>https://secret0.com/getting-started/concepts/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/getting-started/first-project/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
          <loc>https://secret0.com/getting-started/installation/</loc>
          <lastmod>2026-02-16</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/getting-started/quickstart/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/reference/architecture/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/reference/changelog/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/reference/faq/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/reference/troubleshooting/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/use-cases/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/use-cases/compliance/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/use-cases/github-actions/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/use-cases/gitlab-cicd/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/use-cases/jenkins/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/use-cases/kubernetes/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/use-cases/local-development/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/use-cases/migration/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/use-cases/multi-cloud/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/cli/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/cli/drift/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/cli/init/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/cli/policy/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/cli/rotate/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/cli/show/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/cli/sync/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/cli/test/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/cli/validate/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/configuration/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/configuration/secretfile/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/configuration/validation/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/configuration/variables/</loc>
          <lastmod>2026-02-16</lastmod>
     </url>
 </urlset>
