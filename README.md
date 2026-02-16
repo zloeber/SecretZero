@@ -23,13 +23,42 @@ If you have ever asked any of these questions about a new or existing codebase t
 
 ## Features
 
-- Idempotent bootstrap of initial secrets for one or more environments
-- A lockfile for your secrets handling
-- Dual-purpose providers that can both request/rotate new secrets and store them across a variety of environments.
-- Can be used enforce idempotency, auditability, and multi-target deployment patterns while maintaining strict type safety and validation at every layer.
-- Multiple profiles for targeting multiple environments independently.
-- If a secret cannot be automatically generated it can still be managed via manual prompts or environment variables when being generated (Think remote site API keys or existing secrets you need to start tracking).
-- Self-documenting secrets-as-code for your project that shows when secrets were created, from where, and where they are now.
+### Core Capabilities
+- **Idempotent bootstrap** of initial secrets for one or more environments
+- **Lockfile tracking** for secrets with rotation history and timestamps
+- **Dual-purpose providers** that can both request/rotate new secrets and store them across a variety of environments
+- **Type safety and validation** at every layer with strongly-typed Pydantic models
+- **Multiple profiles** for targeting multiple environments independently
+- **Manual secret fallbacks** via environment variables when automatic generation isn't possible
+- **Self-documenting** secrets-as-code showing when secrets were created, from where, and where they are now
+
+### Phase 6: Advanced Features (NEW)
+- **Secret Rotation Policies** - Automated rotation based on configurable time periods (90d, 2w, etc.)
+- **Policy Enforcement** - Validate secrets against rotation, compliance, and access control policies
+- **Compliance Support** - Built-in SOC2 and ISO27001 compliance policies
+- **Drift Detection** - Detect when secrets have been modified outside of SecretZero's control
+- **Rotation Tracking** - Track rotation history, count, and last rotation timestamp in lockfile
+- **One-time Secrets** - Support for secrets that should only be generated once
+
+### CLI Commands
+```bash
+# Initialize and validate
+secretzero init                    # Create new Secretfile from template
+secretzero validate                # Validate Secretfile configuration
+secretzero test                    # Test provider connectivity
+
+# Secret management
+secretzero sync                    # Generate and sync secrets to targets
+secretzero sync --dry-run         # Preview changes without applying
+secretzero show <secret>          # Show secret metadata
+
+# Rotation and policies (Phase 6)
+secretzero rotate                  # Rotate secrets based on policies
+secretzero rotate --dry-run       # Preview rotation status
+secretzero rotate --force         # Force rotation even if not due
+secretzero policy                  # Check policy compliance
+secretzero drift                   # Detect drift in secrets
+```
 
 ## How It Works
 
