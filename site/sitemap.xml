@@ -21,6 +21,18 @@
          <lastmod>2026-02-16</lastmod>
     </url>
     <url>
+         <loc>https://secret0.com/examples/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/examples/complete/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/examples/repository/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
          <loc>https://secret0.com/getting-started/</loc>
          <lastmod>2026-02-16</lastmod>
     </url>
@@ -94,6 +106,30 @@
     </url>
     <url>
          <loc>https://secret0.com/user-guide/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/api/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/api/authentication/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/api/deployment/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/api/endpoints/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/api/getting-started/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/api/python-client/</loc>
          <lastmod>2026-02-16</lastmod>
     </url>
     <url>
