@@ -39,6 +39,22 @@ dev = [
     "mypy>=1.0.0",
     "types-pyyaml",
 ]
+aws = [
+    "boto3>=1.26.0",
+]
+azure = [
+    "azure-identity>=1.12.0",
+    "azure-keyvault-secrets>=4.7.0",
+]
+vault = [
+    "hvac>=1.0.0",
+]
+all = [
+    "boto3>=1.26.0",
+    "azure-identity>=1.12.0",
+    "azure-keyvault-secrets>=4.7.0",
+    "hvac>=1.0.0",
+]
 
 [project.scripts]
 secretzero = "secretzero.cli:main"

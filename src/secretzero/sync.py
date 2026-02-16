@@ -1,7 +1,7 @@
 """Secret synchronization engine."""
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from secretzero.config import ConfigLoader
 from secretzero.generators import (
@@ -13,6 +13,9 @@ from secretzero.generators import (
 from secretzero.lockfile import Lockfile
 from secretzero.models import GeneratorKind, Secret, Secretfile, Template
 from secretzero.targets import FileTarget
+
+# Import providers
+from secretzero.providers.registry import get_registry
 
 
 class SyncEngine:
@@ -33,6 +36,69 @@ class SyncEngine:
             GeneratorKind.STATIC: StaticGenerator,
             GeneratorKind.SCRIPT: ScriptGenerator,
         }
+        self._providers = {}
+        self._initialize_providers()
+
+    def _initialize_providers(self) -> None:
+        """Initialize providers from secretfile configuration."""
+        if not self.secretfile.providers:
+            return
+
+        for provider_name, provider_config in self.secretfile.providers.items():
+            try:
+                # Convert Pydantic model to dict
+                config_dict = provider_config.model_dump()
+                provider = self._create_provider(provider_name, config_dict)
+                if provider:
+                    self._providers[provider_name] = provider
+            except Exception:
+                # Skip providers that can't be initialized
+                pass
+
+    def _create_provider(self, name: str, config: dict) -> Optional[Any]:
+        """Create a provider instance.
+        
+        Args:
+            name: Provider name
+            config: Provider configuration
+            
+        Returns:
+            Provider instance or None
+        """
+        # Determine provider type from config or name
+        provider_kind = config.get("kind", name)
+        
+        if provider_kind == "aws":
+            try:
+                from secretzero.providers.aws import AWSProvider
+                return AWSProvider(name=name, config=config)
+            except ImportError:
+                return None
+        elif provider_kind == "azure":
+            try:
+                from secretzero.providers.azure import AzureProvider
+                return AzureProvider(name=name, config=config)
+            except ImportError:
+                return None
+        elif provider_kind == "vault":
+            try:
+                from secretzero.providers.vault import VaultProvider
+                return VaultProvider(name=name, config=config)
+            except ImportError:
+                return None
+        
+        return None
+
+    def _get_provider(self, provider_name: str) -> Optional[Any]:
+        """Get a provider by name.
+        
+        Args:
+            provider_name: Name of the provider
+            
+        Returns:
+            Provider instance or None
+        """
+        return self._providers.get(provider_name)
 
     def sync(self, dry_run: bool = False) -> dict[str, Any]:
         """Synchronize all secrets to their targets.
@@ -266,11 +332,85 @@ class SyncEngine:
         }
 
         try:
-            # Currently only support local file targets
+            # Local file targets
             if target_config.provider == "local" and target_config.kind == "file":
                 target = FileTarget(target_config.config)
                 success = target.store(secret_name, secret_value)
                 result["status"] = "stored" if success else "failed"
+            
+            # AWS targets
+            elif target_config.provider == "aws":
+                provider = self._get_provider("aws")
+                if not provider:
+                    result["status"] = "error"
+                    result["message"] = "AWS provider not initialized"
+                    return result
+                
+                if target_config.kind == "ssm_parameter":
+                    try:
+                        from secretzero.targets.aws import SSMParameterTarget
+                        target = SSMParameterTarget(provider, target_config.config)
+                        success = target.store(secret_name, secret_value)
+                        result["status"] = "stored" if success else "failed"
+                    except ImportError:
+                        result["status"] = "error"
+                        result["message"] = "boto3 not installed. Install with: pip install secretzero[aws]"
+                
+                elif target_config.kind == "secrets_manager":
+                    try:
+                        from secretzero.targets.aws import SecretsManagerTarget
+                        target = SecretsManagerTarget(provider, target_config.config)
+                        success = target.store(secret_name, secret_value)
+                        result["status"] = "stored" if success else "failed"
+                    except ImportError:
+                        result["status"] = "error"
+                        result["message"] = "boto3 not installed. Install with: pip install secretzero[aws]"
+                else:
+                    result["status"] = "unsupported"
+                    result["message"] = f"AWS target kind '{target_config.kind}' not supported"
+            
+            # Azure targets
+            elif target_config.provider == "azure":
+                provider = self._get_provider("azure")
+                if not provider:
+                    result["status"] = "error"
+                    result["message"] = "Azure provider not initialized"
+                    return result
+                
+                if target_config.kind == "key_vault":
+                    try:
+                        from secretzero.targets.azure import KeyVaultTarget
+                        target = KeyVaultTarget(provider, target_config.config)
+                        success = target.store(secret_name, secret_value)
+                        result["status"] = "stored" if success else "failed"
+                    except ImportError:
+                        result["status"] = "error"
+                        result["message"] = "Azure SDK not installed. Install with: pip install secretzero[azure]"
+                else:
+                    result["status"] = "unsupported"
+                    result["message"] = f"Azure target kind '{target_config.kind}' not supported"
+            
+            # Vault targets
+            elif target_config.provider == "vault":
+                provider = self._get_provider("vault")
+                if not provider:
+                    result["status"] = "error"
+                    result["message"] = "Vault provider not initialized"
+                    return result
+                
+                if target_config.kind == "kv":
+                    try:
+                        from secretzero.targets.vault import VaultKVTarget
+                        target = VaultKVTarget(provider, target_config.config)
+                        success = target.store(secret_name, secret_value)
+                        result["status"] = "stored" if success else "failed"
+                    except ImportError:
+                        result["status"] = "error"
+                        result["message"] = "hvac not installed. Install with: pip install secretzero[vault]"
+                else:
+                    result["status"] = "unsupported"
+                    result["message"] = f"Vault target kind '{target_config.kind}' not supported"
+            
             else:
                 result["status"] = "unsupported"
                 result["message"] = f"Provider '{target_config.provider}' not yet implemented"
