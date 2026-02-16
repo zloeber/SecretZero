@@ -53,5 +53,11 @@ The CLI tool should also support a dry-run mode for testing configurations witho
 Create and maintain a project folder that includes a roadmap that outlines the planned features, milestones, and timelines for the
 development of the secret management system and CLI tool. Each stage should be its own file in the project folder, with clear documentation 
 and tracking of progress towards the overall goals of the project. The roadmap should be regularly updated to reflect changes in priorities,
- timelines, and feature development as the project progresses.
+timelines, and feature development as the project progresses. If you are at a point where you need to make decisions about the structure or
+features of the system, refer back to the roadmap and documentation to ensure that your decisions align with the overall 
+goals and vision for the project.
 
+Now review the ./project folder, follow the ROADMAP.md for the project, and begin implementing the next phase of the project. Update
+the ROADMAP.md as needed to reflect any changes in priorities, timelines, or feature development as you progress through the implementation 
+of the secret management system and CLI tool. Ensure that all changes and updates are well-documented and tracked in the 
+project folder for future reference. 
