@@ -9,7 +9,6 @@ from rich.table import Table
 
 from secretzero import __version__
 from secretzero.config import ConfigLoader
-from secretzero.models import GeneratorKind, TargetKind
 
 console = Console()
 
@@ -137,7 +136,7 @@ def validate(file: str) -> None:
 
         # Show summary of configuration
         config = loader.load_file(file_path)
-        console.print(f"\n[bold]Configuration Summary:[/bold]")
+        console.print("\n[bold]Configuration Summary:[/bold]")
         console.print(f"  Version: {config.version}")
         console.print(f"  Variables: {len(config.variables)}")
         console.print(f"  Providers: {len(config.providers)}")
@@ -279,7 +278,7 @@ def _show_type_details(type_name: str) -> None:
         for option, desc in details["config"].items():
             console.print(f"  • {option}: {desc}")
 
-        console.print(f"\n[cyan]Example:[/cyan]")
+        console.print("\n[cyan]Example:[/cyan]")
         console.print(f"[dim]{details['example']}[/dim]")
     else:
         console.print(f"[red]Unknown type:[/red] {type_name}")

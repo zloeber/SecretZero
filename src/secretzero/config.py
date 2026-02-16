@@ -1,8 +1,7 @@
 """Configuration loading and variable interpolation."""
 
-import re
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import yaml
 from jinja2 import Environment, StrictUndefined
@@ -46,7 +45,7 @@ class ConfigLoader:
         # Validate with Pydantic model
         return Secretfile(**interpolated_data)
 
-    def _interpolate_variables(self, data: Any, variables: Dict[str, Any]) -> Any:
+    def _interpolate_variables(self, data: Any, variables: dict[str, Any]) -> Any:
         """Recursively interpolate variables in the configuration.
 
         Supports Jinja2-style variable interpolation: {{var.name}}
@@ -69,7 +68,7 @@ class ConfigLoader:
             return self._interpolate_string(data, variables)
         return data
 
-    def _interpolate_string(self, text: str, variables: Dict[str, Any]) -> str:
+    def _interpolate_string(self, text: str, variables: dict[str, Any]) -> str:
         """Interpolate variables in a string.
 
         Args:
@@ -86,19 +85,19 @@ class ConfigLoader:
         try:
             # Create Jinja2 template with undefined handler that returns None
             from jinja2 import Undefined
-            
+
             class SilentUndefined(Undefined):
                 def __bool__(self) -> bool:
                     return False
-                    
+
                 def __str__(self) -> str:
                     return ""
-            
+
             env = Environment(undefined=SilentUndefined)
             template = env.from_string(text)
             context = {"var": variables}
             return template.render(context)
-        except Exception as e:
+        except Exception:
             # If interpolation fails, return original string
             # This allows for graceful degradation
             return text

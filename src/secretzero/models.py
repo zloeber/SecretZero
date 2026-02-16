@@ -1,7 +1,7 @@
 """Pydantic models for SecretZero configuration."""
 
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -52,16 +52,16 @@ class AuthProfile(BaseModel):
     """Authentication profile configuration."""
 
     kind: AuthKind
-    config: Dict[str, Any] = Field(default_factory=dict)
+    config: dict[str, Any] = Field(default_factory=dict)
 
 
 class ProviderAuth(BaseModel):
     """Provider authentication configuration."""
 
     kind: Optional[AuthKind] = None
-    config: Dict[str, Any] = Field(default_factory=dict)
+    config: dict[str, Any] = Field(default_factory=dict)
     fallback_generator: Optional[str] = None
-    profiles: Dict[str, AuthProfile] = Field(default_factory=dict)
+    profiles: dict[str, AuthProfile] = Field(default_factory=dict)
 
 
 class Provider(BaseModel):
@@ -69,7 +69,7 @@ class Provider(BaseModel):
 
     kind: Optional[str] = None
     auth: Optional[ProviderAuth] = None
-    config: Dict[str, Any] = Field(default_factory=dict)
+    config: dict[str, Any] = Field(default_factory=dict)
     fallback_generator: Optional[str] = None
 
 
@@ -77,7 +77,7 @@ class GeneratorConfig(BaseModel):
     """Generator configuration for secret values."""
 
     kind: GeneratorKind
-    config: Dict[str, Any] = Field(default_factory=dict)
+    config: dict[str, Any] = Field(default_factory=dict)
 
 
 class TargetConfig(BaseModel):
@@ -85,7 +85,7 @@ class TargetConfig(BaseModel):
 
     provider: str
     kind: Union[TargetKind, str]
-    config: Dict[str, Any] = Field(default_factory=dict)
+    config: dict[str, Any] = Field(default_factory=dict)
 
 
 class TemplateField(BaseModel):
@@ -93,15 +93,15 @@ class TemplateField(BaseModel):
 
     description: str
     generator: GeneratorConfig
-    targets: List[TargetConfig] = Field(default_factory=list)
+    targets: list[TargetConfig] = Field(default_factory=list)
 
 
 class Template(BaseModel):
     """Secret template definition."""
 
     description: str
-    fields: Dict[str, TemplateField]
-    targets: List[TargetConfig] = Field(default_factory=list)
+    fields: dict[str, TemplateField]
+    targets: list[TargetConfig] = Field(default_factory=list)
 
 
 class Secret(BaseModel):
@@ -109,11 +109,11 @@ class Secret(BaseModel):
 
     name: str
     kind: str
-    vars: Dict[str, Any] = Field(default_factory=dict)
-    config: Dict[str, Any] = Field(default_factory=dict)
+    vars: dict[str, Any] = Field(default_factory=dict)
+    config: dict[str, Any] = Field(default_factory=dict)
     one_time: bool = False
     rotation_period: Optional[str] = None
-    targets: List[TargetConfig] = Field(default_factory=list)
+    targets: list[TargetConfig] = Field(default_factory=list)
 
 
 class Metadata(BaseModel):
@@ -121,22 +121,22 @@ class Metadata(BaseModel):
 
     project: Optional[str] = None
     owner: Optional[str] = None
-    environments: List[str] = Field(default_factory=list)
-    compliance: List[str] = Field(default_factory=list)
+    environments: list[str] = Field(default_factory=list)
+    compliance: list[str] = Field(default_factory=list)
 
 
 class Secretfile(BaseModel):
     """Root configuration model for Secretfile.yml."""
 
     version: str
-    variables: Dict[str, Any] = Field(default_factory=dict)
+    variables: dict[str, Any] = Field(default_factory=dict)
     metadata: Optional[Metadata] = None
-    providers: Dict[str, Provider] = Field(default_factory=dict)
-    secrets: List[Secret] = Field(default_factory=list)
-    templates: Dict[str, Template] = Field(default_factory=dict)
-    policies: Dict[str, Any] = Field(default_factory=dict)
-    labels: Dict[str, Any] = Field(default_factory=dict)
-    annotations: Dict[str, Any] = Field(default_factory=dict)
+    providers: dict[str, Provider] = Field(default_factory=dict)
+    secrets: list[Secret] = Field(default_factory=list)
+    templates: dict[str, Template] = Field(default_factory=dict)
+    policies: dict[str, Any] = Field(default_factory=dict)
+    labels: dict[str, Any] = Field(default_factory=dict)
+    annotations: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("version")
     @classmethod
