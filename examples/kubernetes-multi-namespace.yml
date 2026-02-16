@@ -1,0 +1,168 @@
+# Kubernetes Multi-Namespace Example
+# Deploy secrets across multiple namespaces in a cluster
+
+version: '1.0'
+
+variables:
+  cluster: production
+  namespaces:
+    - production
+    - staging
+    - development
+
+providers:
+  kubernetes:
+    kind: kubernetes
+    auth:
+      kind: ambient
+      config:
+        context: "{{ var.cluster }}"
+
+secrets:
+  # Shared database password across all namespaces
+  - name: postgres_admin_password
+    kind: random_password
+    config:
+      length: 32
+      special: true
+    one_time: true  # Only generate once
+    targets:
+      # Production namespace
+      - provider: kubernetes
+        kind: kubernetes_secret
+        config:
+          namespace: production
+          secret_name: postgres-admin
+          data_key: password
+          labels:
+            app: postgres
+            tier: database
+            environment: production
+      
+      # Staging namespace
+      - provider: kubernetes
+        kind: kubernetes_secret
+        config:
+          namespace: staging
+          secret_name: postgres-admin
+          data_key: password
+          labels:
+            app: postgres
+            tier: database
+            environment: staging
+      
+      # Development namespace
+      - provider: kubernetes
+        kind: kubernetes_secret
+        config:
+          namespace: development
+          secret_name: postgres-admin
+          data_key: password
+          labels:
+            app: postgres
+            tier: database
+            environment: development
+
+  # Different secrets per environment
+  - name: app_secret_key_production
+    kind: random_string
+    config:
+      length: 64
+      charset: base64
+    targets:
+      - provider: kubernetes
+        kind: kubernetes_secret
+        config:
+          namespace: production
+          secret_name: app-config
+          data_key: secret-key
+          labels:
+            app: myapp
+            environment: production
+
+  - name: app_secret_key_staging
+    kind: random_string
+    config:
+      length: 64
+      charset: base64
+    targets:
+      - provider: kubernetes
+        kind: kubernetes_secret
+        config:
+          namespace: staging
+          secret_name: app-config
+          data_key: secret-key
+          labels:
+            app: myapp
+            environment: staging
+
+  - name: app_secret_key_development
+    kind: random_string
+    config:
+      length: 64
+      charset: base64
+    targets:
+      - provider: kubernetes
+        kind: kubernetes_secret
+        config:
+          namespace: development
+          secret_name: app-config
+          data_key: secret-key
+          labels:
+            app: myapp
+            environment: development
+
+  # Docker registry credentials (all namespaces)
+  - name: docker_registry_auth
+    kind: templates.docker_config
+
+templates:
+  docker_config:
+    description: Docker registry authentication
+    fields:
+      .dockerconfigjson:
+        description: Docker config JSON
+        generator:
+          kind: static
+          config:
+            # Replace with actual registry credentials
+            default: |
+              {
+                "auths": {
+                  "registry.example.com": {
+                    "username": "robot-account",
+                    "password": "secret-token",
+                    "auth": "cm9ib3QtYWNjb3VudDpzZWNyZXQtdG9rZW4="
+                  }
+                }
+              }
+    targets:
+      - provider: kubernetes
+        kind: kubernetes_secret
+        config:
+          namespace: production
+          secret_name: registry-credentials
+          secret_type: kubernetes.io/dockerconfigjson
+          labels:
+            app: registry
+      - provider: kubernetes
+        kind: kubernetes_secret
+        config:
+          namespace: staging
+          secret_name: registry-credentials
+          secret_type: kubernetes.io/dockerconfigjson
+          labels:
+            app: registry
+      - provider: kubernetes
+        kind: kubernetes_secret
+        config:
+          namespace: development
+          secret_name: registry-credentials
+          secret_type: kubernetes.io/dockerconfigjson
+          labels:
+            app: registry
+
+metadata:
+  project: multi-namespace-deployment
+  owner: platform-team
+  description: Multi-namespace secret management for different environments

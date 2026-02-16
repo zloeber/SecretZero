@@ -1,0 +1,259 @@
+# Kubernetes Complete Example
+# Comprehensive example with multiple secret types and patterns
+
+version: '1.0'
+
+variables:
+  cluster: production
+  namespace: myapp
+  domain: example.com
+
+providers:
+  kubernetes:
+    kind: kubernetes
+    auth:
+      kind: ambient
+      config:
+        context: "{{ var.cluster }}"
+
+secrets:
+  # 1. Basic Opaque Secret
+  - name: app_secrets
+    kind: templates.app_credentials
+
+  # 2. TLS Certificate
+  - name: ingress_tls
+    kind: templates.tls_certificate
+
+  # 3. Docker Registry Credentials
+  - name: docker_registry
+    kind: templates.docker_registry
+
+  # 4. Basic Authentication
+  - name: basic_auth
+    kind: templates.basic_auth
+
+  # 5. SSH Key
+  - name: deploy_key
+    kind: templates.ssh_key
+
+  # 6. Service Account Token
+  - name: service_account_token
+    kind: random_string
+    config:
+      length: 64
+      charset: base64
+    targets:
+      - provider: kubernetes
+        kind: kubernetes_secret
+        config:
+          namespace: "{{ var.namespace }}"
+          secret_name: service-account-token
+          data_key: token
+          secret_type: Opaque
+          labels:
+            app: myapp
+            type: service-account
+
+templates:
+  # Application credentials template
+  app_credentials:
+    description: Application secrets
+    fields:
+      database_url:
+        generator:
+          kind: static
+          config:
+            default: postgresql://user:pass@postgres:5432/myapp
+      redis_url:
+        generator:
+          kind: static
+          config:
+            default: redis://redis:6379/0
+      secret_key:
+        generator:
+          kind: random_string
+          config:
+            length: 64
+            charset: base64
+      api_token:
+        generator:
+          kind: random_string
+          config:
+            length: 32
+            charset: hex
+    targets:
+      - provider: kubernetes
+        kind: kubernetes_secret
+        config:
+          namespace: "{{ var.namespace }}"
+          secret_name: app-credentials
+          secret_type: Opaque
+          labels:
+            app: myapp
+            component: application
+          annotations:
+            description: Application runtime credentials
+
+  # TLS certificate template
+  tls_certificate:
+    description: TLS certificate for ingress
+    fields:
+      tls.crt:
+        generator:
+          kind: static
+          config:
+            # Use cert-manager or provide real certificate
+            default: |
+              -----BEGIN CERTIFICATE-----
+              MIICljCCAX4CCQCExample...
+              -----END CERTIFICATE-----
+      tls.key:
+        generator:
+          kind: static
+          config:
+            # Use cert-manager or provide real key
+            default: |
+              -----BEGIN PRIVATE KEY-----
+              MIIEvgIBADANExample...
+              -----END PRIVATE KEY-----
+    targets:
+      - provider: kubernetes
+        kind: kubernetes_secret
+        config:
+          namespace: "{{ var.namespace }}"
+          secret_name: ingress-tls
+          secret_type: kubernetes.io/tls
+          labels:
+            app: myapp
+            cert-manager.io/issuer-name: letsencrypt-prod
+          annotations:
+            description: TLS certificate for {{ var.domain }}
+
+  # Docker registry credentials template
+  docker_registry:
+    description: Docker registry authentication
+    fields:
+      .dockerconfigjson:
+        generator:
+          kind: static
+          config:
+            default: |
+              {
+                "auths": {
+                  "registry.example.com": {
+                    "username": "myapp-robot",
+                    "password": "secret-token",
+                    "email": "robot@example.com",
+                    "auth": "bXlhcHAtcm9ib3Q6c2VjcmV0LXRva2Vu"
+                  }
+                }
+              }
+    targets:
+      - provider: kubernetes
+        kind: kubernetes_secret
+        config:
+          namespace: "{{ var.namespace }}"
+          secret_name: registry-credentials
+          secret_type: kubernetes.io/dockerconfigjson
+          labels:
+            app: myapp
+            type: registry
+          annotations:
+            description: Docker registry credentials for pulling images
+
+  # Basic authentication template
+  basic_auth:
+    description: HTTP basic authentication
+    fields:
+      username:
+        generator:
+          kind: static
+          config:
+            default: admin
+      password:
+        generator:
+          kind: random_password
+          config:
+            length: 24
+            special: true
+    targets:
+      - provider: kubernetes
+        kind: kubernetes_secret
+        config:
+          namespace: "{{ var.namespace }}"
+          secret_name: basic-auth
+          secret_type: kubernetes.io/basic-auth
+          labels:
+            app: myapp
+            type: auth
+          annotations:
+            description: Basic auth credentials for admin panel
+
+  # SSH key template
+  ssh_key:
+    description: SSH deployment key
+    fields:
+      ssh-privatekey:
+        generator:
+          kind: static
+          config:
+            # Generate with: ssh-keygen -t ed25519 -C "deploy@example.com"
+            default: |
+              -----BEGIN OPENSSH PRIVATE KEY-----
+              b3BlbnNzaC1rZXktdjEAExample...
+              -----END OPENSSH PRIVATE KEY-----
+      ssh-publickey:
+        generator:
+          kind: static
+          config:
+            default: ssh-ed25519 AAAAC3NzaC1lZExample... deploy@example.com
+    targets:
+      - provider: kubernetes
+        kind: kubernetes_secret
+        config:
+          namespace: "{{ var.namespace }}"
+          secret_name: deploy-key
+          secret_type: kubernetes.io/ssh-auth
+          labels:
+            app: myapp
+            type: deploy-key
+          annotations:
+            description: SSH key for Git deployments
+
+metadata:
+  project: kubernetes-complete
+  owner: platform-team
+  description: |
+    Complete Kubernetes secret management example covering all major secret types.
+    
+    Secret Types:
+    - Opaque: General-purpose secrets (passwords, API keys, etc.)
+    - kubernetes.io/tls: TLS certificates for ingress/services
+    - kubernetes.io/dockerconfigjson: Docker registry credentials
+    - kubernetes.io/basic-auth: HTTP basic authentication
+    - kubernetes.io/ssh-auth: SSH keys for Git operations
+    
+    Usage:
+    1. Review and customize secret values
+    2. Run: secretzero sync -f examples/kubernetes-complete.yml
+    3. Verify secrets in cluster: kubectl get secrets -n myapp
+    4. Check secret contents: kubectl get secret <name> -n myapp -o yaml
+    
+    RBAC Requirements:
+    The service account needs permissions to:
+    - create/update/get secrets in target namespace(s)
+    - list namespaces (for validation)
+    
+    Example RBAC:
+    ```yaml
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      namespace: myapp
+      name: secretzero-manager
+    rules:
+    - apiGroups: [""]
+      resources: ["secrets"]
+      verbs: ["get", "list", "create", "update", "patch"]
+    ```
