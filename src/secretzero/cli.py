@@ -312,11 +312,68 @@ def test(file: str) -> None:
 
     console.print("[bold]Testing Provider Connectivity:[/bold]\n")
 
-    for provider_name, provider in config.providers.items():
-        console.print(f"  • {provider_name}: ", end="")
-        console.print("[yellow]Not implemented yet[/yellow]")
+    if not config.providers:
+        console.print("[dim]No providers configured[/dim]")
+        return
 
-    console.print("\n[dim]Note: Provider testing will be implemented in a future phase[/dim]")
+    all_passed = True
+    for provider_name, provider_config in config.providers.items():
+        console.print(f"  • {provider_name}: ", end="")
+        
+        # Determine provider type - provider_config is a Provider model
+        provider_kind = provider_config.kind if provider_config.kind else provider_name
+        
+        # Create provider instance
+        provider = None
+        if provider_kind == "aws":
+            try:
+                from secretzero.providers.aws import AWSProvider
+                # Convert Pydantic model to dict for provider initialization
+                config_dict = provider_config.model_dump()
+                provider = AWSProvider(name=provider_name, config=config_dict)
+            except ImportError:
+                console.print("[yellow]boto3 not installed[/yellow]")
+                all_passed = False
+                continue
+        elif provider_kind == "azure":
+            try:
+                from secretzero.providers.azure import AzureProvider
+                config_dict = provider_config.model_dump()
+                provider = AzureProvider(name=provider_name, config=config_dict)
+            except ImportError:
+                console.print("[yellow]Azure SDK not installed[/yellow]")
+                all_passed = False
+                continue
+        elif provider_kind == "vault":
+            try:
+                from secretzero.providers.vault import VaultProvider
+                config_dict = provider_config.model_dump()
+                provider = VaultProvider(name=provider_name, config=config_dict)
+            except ImportError:
+                console.print("[yellow]hvac not installed[/yellow]")
+                all_passed = False
+                continue
+        elif provider_kind == "local":
+            console.print("[green]✓ Local provider (always available)[/green]")
+            continue
+        else:
+            console.print(f"[yellow]Unknown provider type: {provider_kind}[/yellow]")
+            all_passed = False
+            continue
+        
+        # Test connectivity
+        if provider:
+            success, message = provider.test_connection()
+            if success:
+                console.print(f"[green]✓ {message}[/green]")
+            else:
+                console.print(f"[red]✗ {message}[/red]")
+                all_passed = False
+
+    if all_passed:
+        console.print("\n[green]All provider tests passed![/green]")
+    else:
+        console.print("\n[yellow]Some provider tests failed. Check the messages above.[/yellow]")
 
 
 @main.command()

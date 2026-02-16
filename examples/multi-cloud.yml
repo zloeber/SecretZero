@@ -1,0 +1,149 @@
+# SecretZero Example: Multi-Cloud Secret Distribution
+# This example demonstrates how to distribute secrets across AWS, Azure, and HashiCorp Vault
+
+version: '1.0'
+
+# Variables can be overridden at runtime
+variables:
+  environment: dev
+  aws_region: us-east-1
+  app_name: demo-app
+
+# Provider configurations
+providers:
+  # AWS Provider - Uses ambient authentication (IAM roles, environment vars, profiles)
+  aws:
+    kind: aws
+    auth:
+      kind: ambient
+      region: "{{var.aws_region}}"
+    
+  # Azure Provider - Uses default Azure credential chain
+  azure:
+    kind: azure
+    auth:
+      kind: default  # Tries managed identity, CLI, environment vars in order
+    
+  # HashiCorp Vault - Uses token authentication
+  vault:
+    kind: vault
+    auth:
+      kind: token
+      token: ${VAULT_TOKEN}  # From environment variable
+      url: ${VAULT_ADDR:-http://localhost:8200}
+
+# Secrets configuration
+secrets:
+  # Example 1: Database Password
+  # Generated once and stored in multiple locations
+  - name: database_password
+    kind: random_password
+    one_time: true  # Generate once, never rotate
+    rotation_period: 90d
+    config:
+      length: 32
+      special: true
+      upper: true
+      lower: true
+      number: true
+      exclude_characters: '"@/\`'
+    targets:
+      # Local development file
+      - provider: local
+        kind: file
+        config:
+          path: .env.local
+          format: dotenv
+          merge: true
+      
+      # AWS SSM Parameter Store (production)
+      - provider: aws
+        kind: ssm_parameter
+        config:
+          name: /{{var.app_name}}/{{var.environment}}/db/password
+          type: SecureString
+          overwrite: true
+          description: Database password for {{var.app_name}}
+      
+      # Azure Key Vault (backup/DR)
+      - provider: azure
+        kind: key_vault
+        config:
+          vault_url: https://myapp-secrets.vault.azure.net
+          secret_name: "{{var.app_name}}-db-password"
+  
+  # Example 2: API Key
+  # Stored in AWS Secrets Manager and Vault
+  - name: external_api_key
+    kind: random_string
+    config:
+      length: 32
+      charset: alphanumeric
+    targets:
+      # AWS Secrets Manager (primary)
+      - provider: aws
+        kind: secrets_manager
+        config:
+          name: "{{var.app_name}}/{{var.environment}}/api-key"
+          description: External API key for {{var.app_name}}
+      
+      # HashiCorp Vault (secondary)
+      - provider: vault
+        kind: kv
+        config:
+          path: "{{var.app_name}}/{{var.environment}}/api-key"
+          mount_point: secret
+          version: 2
+
+  # Example 3: Multi-field template secret
+  - name: service_account
+    kind: templates.service_credentials
+
+# Templates for complex secrets
+templates:
+  service_credentials:
+    description: Service account credentials with username and password
+    fields:
+      username:
+        description: Service account username
+        generator:
+          kind: static
+          config:
+            default: "svc_{{var.app_name}}_{{var.environment}}"
+      password:
+        generator:
+          kind: random_password
+          config:
+            length: 24
+            special: true
+      api_endpoint:
+        generator:
+          kind: static
+          config:
+            default: "https://api.example.com"
+    targets:
+      # Store complete credentials in local file as JSON
+      - provider: local
+        kind: file
+        config:
+          path: .service-account.json
+          format: json
+      
+      # Store in AWS Secrets Manager
+      - provider: aws
+        kind: secrets_manager
+        config:
+          name: "{{var.app_name}}/service-account"
+          description: Service account credentials
+
+# Metadata for tracking and compliance
+metadata:
+  project: "{{var.app_name}}"
+  owner: platform-security
+  environments:
+    - dev
+    - staging
+    - prod
+  compliance:
+    - soc2
+    - iso27001

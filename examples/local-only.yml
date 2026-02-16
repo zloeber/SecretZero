@@ -1,0 +1,70 @@
+# Local Development Example
+# Simple example for local development without cloud providers
+
+version: '1.0'
+
+variables:
+  environment: local
+
+secrets:
+  # Database password for local development
+  - name: db_password
+    kind: random_password
+    config:
+      length: 16
+      special: false  # Easier to work with locally
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: .env
+          format: dotenv
+          merge: true
+
+  # API key placeholder
+  - name: api_key
+    kind: random_string
+    config:
+      length: 32
+      charset: hex
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: .env
+          format: dotenv
+          merge: true
+
+  # Configuration as JSON
+  - name: app_config
+    kind: templates.app_settings
+
+templates:
+  app_settings:
+    description: Application configuration
+    fields:
+      database_url:
+        generator:
+          kind: static
+          config:
+            default: postgresql://user:pass@localhost:5432/mydb
+      redis_url:
+        generator:
+          kind: static
+          config:
+            default: redis://localhost:6379/0
+      debug:
+        generator:
+          kind: static
+          config:
+            default: "true"
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: config.json
+          format: json
+
+metadata:
+  project: local-development
+  owner: developer
