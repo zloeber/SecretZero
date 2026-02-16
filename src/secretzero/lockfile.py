@@ -15,6 +15,8 @@ class SecretLockEntry(BaseModel):
     hash: str
     created_at: str
     updated_at: str
+    last_rotated: Optional[str] = None
+    rotation_count: int = 0
     targets: dict[str, str] = Field(default_factory=dict)  # target_id -> hash
 
 
@@ -30,6 +32,7 @@ class Lockfile(BaseModel):
         secret_name: str,
         secret_value: str,
         target_id: Optional[str] = None,
+        is_rotation: bool = False,
     ) -> None:
         """Add or update a secret in the lockfile.
 
@@ -37,6 +40,7 @@ class Lockfile(BaseModel):
             secret_name: Name of the secret
             secret_value: Value to hash and track
             target_id: Optional target identifier
+            is_rotation: Whether this update is a rotation
         """
         value_hash = self._hash_value(secret_value)
         now = datetime.now(UTC).isoformat()
@@ -44,8 +48,14 @@ class Lockfile(BaseModel):
         if secret_name in self.secrets:
             # Update existing entry
             entry = self.secrets[secret_name]
+            old_hash = entry.hash
             entry.hash = value_hash
             entry.updated_at = now
+            
+            # Track rotation if value changed
+            if is_rotation and old_hash != value_hash:
+                entry.last_rotated = now
+                entry.rotation_count += 1
         else:
             # Create new entry
             entry = SecretLockEntry(
@@ -99,6 +109,17 @@ class Lockfile(BaseModel):
         new_hash = self._hash_value(new_value)
 
         return current_hash != new_hash
+
+    def get_secret_info(self, secret_name: str) -> Optional[SecretLockEntry]:
+        """Get full lockfile entry for a secret.
+
+        Args:
+            secret_name: Name of the secret
+
+        Returns:
+            SecretLockEntry if found, None otherwise
+        """
+        return self.secrets.get(secret_name)
 
     @staticmethod
     def _hash_value(value: str) -> str:

@@ -9,7 +9,10 @@ from rich.table import Table
 
 from secretzero import __version__
 from secretzero.config import ConfigLoader
+from secretzero.drift import DriftDetector
 from secretzero.lockfile import Lockfile
+from secretzero.policy import PolicyEngine
+from secretzero.rotation import format_rotation_status, should_rotate_secret
 from secretzero.sync import SyncEngine
 
 console = Console()
@@ -591,6 +594,282 @@ def show(secret_name: str, file: str, lockfile: str) -> None:
         console.print("\n[bold]Targets:[/bold]")
         for target in info['targets']:
             console.print(f"  • {target['provider']} / {target['kind']}")
+
+
+@main.command()
+@click.option(
+    "--file",
+    "-f",
+    type=click.Path(exists=True),
+    default="Secretfile.yml",
+    help="Path to Secretfile",
+)
+@click.option(
+    "--lockfile",
+    "-l",
+    type=click.Path(),
+    default=".gitsecrets.lock",
+    help="Path to lockfile",
+)
+@click.option(
+    "--force",
+    is_flag=True,
+    help="Force rotation even if not due",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Show what would be rotated without making changes",
+)
+@click.argument("secret_name", required=False)
+def rotate(file: str, lockfile: str, force: bool, dry_run: bool, secret_name: Optional[str]) -> None:
+    """Rotate secrets based on rotation policies.
+
+    This command checks which secrets need rotation and regenerates them.
+    Respects rotation_period settings and one_time flags.
+    """
+    file_path = Path(file)
+    lockfile_path = Path(lockfile)
+    loader = ConfigLoader()
+
+    # Load configuration
+    try:
+        config = loader.load_file(file_path)
+    except Exception as e:
+        console.print(f"[red]Error loading Secretfile:[/red] {e}")
+        raise click.Abort()
+
+    # Load lockfile
+    lock = Lockfile.load(lockfile_path)
+
+    console.print("[bold]Checking secrets for rotation...[/bold]\n")
+
+    # Filter secrets
+    secrets_to_check = config.secrets
+    if secret_name:
+        secrets_to_check = [s for s in config.secrets if s.name == secret_name]
+        if not secrets_to_check:
+            console.print(f"[red]Error:[/red] Secret '{secret_name}' not found")
+            raise click.Abort()
+
+    secrets_to_rotate = []
+    
+    for secret in secrets_to_check:
+        # Check if secret has rotation period
+        if not secret.rotation_period:
+            continue
+        
+        # Get lockfile entry
+        entry = lock.get_secret_info(secret.name)
+        if not entry:
+            continue
+        
+        # Check if one_time secret
+        if secret.one_time:
+            console.print(f"  ⚠️  {secret.name}: one_time secret (rotation disabled)")
+            continue
+        
+        # Check if rotation needed
+        should_rotate_flag, reason = should_rotate_secret(
+            secret.rotation_period,
+            entry.last_rotated,
+            entry.created_at,
+        )
+        
+        if should_rotate_flag or force:
+            secrets_to_rotate.append(secret)
+            status = "⚠️" if should_rotate_flag else "ℹ️"
+            console.print(f"  {status}  {secret.name}: {reason}")
+        else:
+            console.print(f"  ✓  {secret.name}: {reason}")
+
+    if not secrets_to_rotate:
+        console.print("\n[green]No secrets need rotation.[/green]")
+        return
+
+    console.print(f"\n[yellow]Found {len(secrets_to_rotate)} secret(s) to rotate[/yellow]")
+
+    if dry_run:
+        console.print("\n[yellow]DRY RUN:[/yellow] No changes will be made")
+        for secret in secrets_to_rotate:
+            console.print(f"  Would rotate: {secret.name}")
+        return
+
+    # Perform rotation via sync with force flag
+    console.print("\n[bold]Rotating secrets...[/bold]\n")
+    
+    engine = SyncEngine(config, lock)
+    
+    # Filter secrets for rotation
+    original_secrets = config.secrets
+    config.secrets = secrets_to_rotate
+    
+    try:
+        results = engine.sync(dry_run=False, force_rotation=True)
+        
+        console.print(f"[green]✓[/green] Rotated {results['secrets_generated']} secrets")
+        
+        if results["errors"]:
+            console.print(f"\n[red]Errors:[/red]")
+            for error in results["errors"]:
+                console.print(f"  • {error}")
+        
+        # Save lockfile
+        lock.save(lockfile_path)
+        console.print(f"\n[green]✓[/green] Lockfile updated: {lockfile_path}")
+        
+    except Exception as e:
+        console.print(f"\n[red]Error during rotation:[/red] {e}")
+        raise click.Abort()
+    finally:
+        # Restore original secrets list
+        config.secrets = original_secrets
+
+
+@main.command()
+@click.option(
+    "--file",
+    "-f",
+    type=click.Path(exists=True),
+    default="Secretfile.yml",
+    help="Path to Secretfile",
+)
+@click.option(
+    "--lockfile",
+    "-l",
+    type=click.Path(),
+    default=".gitsecrets.lock",
+    help="Path to lockfile",
+)
+@click.option(
+    "--fail-on-warning",
+    is_flag=True,
+    help="Exit with error code on policy warnings",
+)
+def policy(file: str, lockfile: str, fail_on_warning: bool) -> None:
+    """Check secrets against policy rules.
+
+    This command validates secrets against rotation, compliance, and
+    access control policies defined in the Secretfile.
+    """
+    file_path = Path(file)
+    lockfile_path = Path(lockfile)
+    loader = ConfigLoader()
+
+    # Load configuration
+    try:
+        config = loader.load_file(file_path)
+    except Exception as e:
+        console.print(f"[red]Error loading Secretfile:[/red] {e}")
+        raise click.Abort()
+
+    # Load lockfile
+    lock = None
+    if lockfile_path.exists():
+        lock = Lockfile.load(lockfile_path)
+
+    console.print("[bold]Checking policy compliance...[/bold]\n")
+
+    # Create policy engine
+    engine = PolicyEngine(config)
+    
+    # Validate all secrets
+    violations = engine.validate_all(lock)
+
+    if not violations:
+        console.print("[green]✓ All secrets comply with policies[/green]")
+        return
+
+    # Group violations by severity
+    errors = [v for v in violations if v.severity == "error"]
+    warnings = [v for v in violations if v.severity == "warning"]
+    infos = [v for v in violations if v.severity == "info"]
+
+    # Display violations
+    if errors:
+        console.print("[red bold]Errors:[/red bold]")
+        for violation in errors:
+            console.print(f"  ✗ {violation.secret_name}: {violation.message}")
+            if violation.suggestion:
+                console.print(f"    → {violation.suggestion}")
+        console.print()
+
+    if warnings:
+        console.print("[yellow bold]Warnings:[/yellow bold]")
+        for violation in warnings:
+            console.print(f"  ⚠  {violation.secret_name}: {violation.message}")
+            if violation.suggestion:
+                console.print(f"    → {violation.suggestion}")
+        console.print()
+
+    if infos:
+        console.print("[blue bold]Info:[/blue bold]")
+        for violation in infos:
+            console.print(f"  ℹ  {violation.secret_name}: {violation.message}")
+        console.print()
+
+    # Summary
+    console.print(f"[bold]Summary:[/bold]")
+    console.print(f"  Errors: {len(errors)}")
+    console.print(f"  Warnings: {len(warnings)}")
+    console.print(f"  Info: {len(infos)}")
+
+    # Exit with error if needed
+    if errors or (fail_on_warning and warnings):
+        raise click.Abort()
+
+
+@main.command()
+@click.option(
+    "--file",
+    "-f",
+    type=click.Path(exists=True),
+    default="Secretfile.yml",
+    help="Path to Secretfile",
+)
+@click.option(
+    "--lockfile",
+    "-l",
+    type=click.Path(),
+    default=".gitsecrets.lock",
+    help="Path to lockfile",
+)
+@click.argument("secret_name", required=False)
+def drift(file: str, lockfile: str, secret_name: Optional[str]) -> None:
+    """Detect drift between lockfile and actual targets.
+
+    This command checks if secrets have been modified outside of
+    SecretZero's control.
+    """
+    file_path = Path(file)
+    lockfile_path = Path(lockfile)
+
+    if not lockfile_path.exists():
+        console.print(f"[red]Error:[/red] Lockfile not found: {lockfile_path}")
+        console.print("Run 'secretzero sync' first to generate secrets")
+        raise click.Abort()
+
+    console.print("[bold]Checking for drift...[/bold]\n")
+
+    detector = DriftDetector(file_path, lockfile_path)
+    results = detector.check_drift(secret_name)
+
+    # Display results
+    drift_found = False
+    for result in results:
+        if result.has_drift:
+            drift_found = True
+            console.print(f"  ⚠️  {result.secret_name}: {result.message}")
+            if result.details:
+                for key, value in result.details.items():
+                    console.print(f"      {key}: {value}")
+        else:
+            console.print(f"  ✓  {result.secret_name}: {result.message}")
+
+    if drift_found:
+        console.print("\n[yellow]Drift detected. Run 'secretzero sync --force' to remediate.[/yellow]")
+    else:
+        console.print("\n[green]No drift detected.[/green]")
 
 
 if __name__ == "__main__":
