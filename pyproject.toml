@@ -49,11 +49,31 @@ azure = [
 vault = [
     "hvac>=1.0.0",
 ]
+github = [
+    "PyGithub>=2.1.0",
+    "PyNaCl>=1.5.0",
+]
+gitlab = [
+    "python-gitlab>=4.0.0",
+]
+jenkins = [
+    "python-jenkins>=1.8.0",
+]
+cicd = [
+    "PyGithub>=2.1.0",
+    "PyNaCl>=1.5.0",
+    "python-gitlab>=4.0.0",
+    "python-jenkins>=1.8.0",
+]
 all = [
     "boto3>=1.26.0",
     "azure-identity>=1.12.0",
     "azure-keyvault-secrets>=4.7.0",
     "hvac>=1.0.0",
+    "PyGithub>=2.1.0",
+    "PyNaCl>=1.5.0",
+    "python-gitlab>=4.0.0",
+    "python-jenkins>=1.8.0",
 ]
 
 [project.scripts]

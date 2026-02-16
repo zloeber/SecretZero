@@ -211,6 +211,7 @@ def _list_all_types(verbose: bool) -> None:
         "kubernetes_secret": "Kubernetes Secret",
         "github_secret": "GitHub Actions Secret",
         "gitlab_variable": "GitLab CI/CD Variable",
+        "jenkins_credential": "Jenkins Credential",
     }
 
     for target_type, description in targets.items():
@@ -351,6 +352,33 @@ def test(file: str) -> None:
                 provider = VaultProvider(name=provider_name, config=config_dict)
             except ImportError:
                 console.print("[yellow]hvac not installed[/yellow]")
+                all_passed = False
+                continue
+        elif provider_kind == "github":
+            try:
+                from secretzero.providers.github import GitHubProvider
+                config_dict = provider_config.model_dump()
+                provider = GitHubProvider(name=provider_name, config=config_dict)
+            except ImportError:
+                console.print("[yellow]PyGithub not installed[/yellow]")
+                all_passed = False
+                continue
+        elif provider_kind == "gitlab":
+            try:
+                from secretzero.providers.gitlab import GitLabProvider
+                config_dict = provider_config.model_dump()
+                provider = GitLabProvider(name=provider_name, config=config_dict)
+            except ImportError:
+                console.print("[yellow]python-gitlab not installed[/yellow]")
+                all_passed = False
+                continue
+        elif provider_kind == "jenkins":
+            try:
+                from secretzero.providers.jenkins import JenkinsProvider
+                config_dict = provider_config.model_dump()
+                provider = JenkinsProvider(name=provider_name, config=config_dict)
+            except ImportError:
+                console.print("[yellow]python-jenkins not installed[/yellow]")
                 all_passed = False
                 continue
         elif provider_kind == "local":

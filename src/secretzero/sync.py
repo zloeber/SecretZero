@@ -86,6 +86,24 @@ class SyncEngine:
                 return VaultProvider(name=name, config=config)
             except ImportError:
                 return None
+        elif provider_kind == "github":
+            try:
+                from secretzero.providers.github import GitHubProvider
+                return GitHubProvider(name=name, config=config)
+            except ImportError:
+                return None
+        elif provider_kind == "gitlab":
+            try:
+                from secretzero.providers.gitlab import GitLabProvider
+                return GitLabProvider(name=name, config=config)
+            except ImportError:
+                return None
+        elif provider_kind == "jenkins":
+            try:
+                from secretzero.providers.jenkins import JenkinsProvider
+                return JenkinsProvider(name=name, config=config)
+            except ImportError:
+                return None
         
         return None
 
@@ -410,6 +428,69 @@ class SyncEngine:
                 else:
                     result["status"] = "unsupported"
                     result["message"] = f"Vault target kind '{target_config.kind}' not supported"
+            
+            # GitHub targets
+            elif target_config.provider == "github":
+                provider = self._get_provider("github")
+                if not provider:
+                    result["status"] = "error"
+                    result["message"] = "GitHub provider not initialized"
+                    return result
+                
+                if target_config.kind == "github_secret":
+                    try:
+                        from secretzero.targets.github import GitHubSecretTarget
+                        target = GitHubSecretTarget(provider, target_config.config)
+                        success = target.store(secret_name, secret_value)
+                        result["status"] = "stored" if success else "failed"
+                    except ImportError:
+                        result["status"] = "error"
+                        result["message"] = "PyGithub not installed. Install with: pip install secretzero[github]"
+                else:
+                    result["status"] = "unsupported"
+                    result["message"] = f"GitHub target kind '{target_config.kind}' not supported"
+            
+            # GitLab targets
+            elif target_config.provider == "gitlab":
+                provider = self._get_provider("gitlab")
+                if not provider:
+                    result["status"] = "error"
+                    result["message"] = "GitLab provider not initialized"
+                    return result
+                
+                if target_config.kind == "gitlab_variable":
+                    try:
+                        from secretzero.targets.gitlab import GitLabVariableTarget
+                        target = GitLabVariableTarget(provider, target_config.config)
+                        success = target.store(secret_name, secret_value)
+                        result["status"] = "stored" if success else "failed"
+                    except ImportError:
+                        result["status"] = "error"
+                        result["message"] = "python-gitlab not installed. Install with: pip install secretzero[gitlab]"
+                else:
+                    result["status"] = "unsupported"
+                    result["message"] = f"GitLab target kind '{target_config.kind}' not supported"
+            
+            # Jenkins targets
+            elif target_config.provider == "jenkins":
+                provider = self._get_provider("jenkins")
+                if not provider:
+                    result["status"] = "error"
+                    result["message"] = "Jenkins provider not initialized"
+                    return result
+                
+                if target_config.kind == "jenkins_credential":
+                    try:
+                        from secretzero.targets.jenkins import JenkinsCredentialTarget
+                        target = JenkinsCredentialTarget(provider, target_config.config)
+                        success = target.store(secret_name, secret_value)
+                        result["status"] = "stored" if success else "failed"
+                    except ImportError:
+                        result["status"] = "error"
+                        result["message"] = "python-jenkins not installed. Install with: pip install secretzero[jenkins]"
+                else:
+                    result["status"] = "unsupported"
+                    result["message"] = f"Jenkins target kind '{target_config.kind}' not supported"
             
             else:
                 result["status"] = "unsupported"
