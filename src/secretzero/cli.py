@@ -381,6 +381,15 @@ def test(file: str) -> None:
                 console.print("[yellow]python-jenkins not installed[/yellow]")
                 all_passed = False
                 continue
+        elif provider_kind == "kubernetes":
+            try:
+                from secretzero.providers.kubernetes import KubernetesProvider
+                config_dict = provider_config.model_dump()
+                provider = KubernetesProvider(name=provider_name, config=config_dict)
+            except ImportError:
+                console.print("[yellow]kubernetes not installed[/yellow]")
+                all_passed = False
+                continue
         elif provider_kind == "local":
             console.print("[green]✓ Local provider (always available)[/green]")
             continue
