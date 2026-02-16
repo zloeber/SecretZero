@@ -26,6 +26,8 @@ htmlcov/
 .vscode/
 .idea/
 
-# SuperSecret specific
+# SecretZero specific
 #.gitsecrets.lock
 secret_results.json
+.env.*
+!.env.EXAMPLE
