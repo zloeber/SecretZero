@@ -1,0 +1,119 @@
+# Kubernetes Secrets Example
+# Basic example for storing secrets in Kubernetes cluster
+
+version: '1.0'
+
+variables:
+  namespace: default
+  cluster_context: my-cluster
+
+providers:
+  kubernetes:
+    kind: kubernetes
+    auth:
+      kind: ambient
+      config:
+        # Use kubeconfig file (default: ~/.kube/config)
+        # kubeconfig: /path/to/kubeconfig
+        # context: my-cluster
+        
+        # Or use in-cluster authentication (when running inside a pod)
+        # in_cluster: true
+
+secrets:
+  # Basic Opaque secret
+  - name: database_password
+    kind: random_password
+    config:
+      length: 24
+      special: true
+    targets:
+      - provider: kubernetes
+        kind: kubernetes_secret
+        config:
+          namespace: "{{ var.namespace }}"
+          secret_name: postgres-credentials
+          data_key: password
+          secret_type: Opaque
+          labels:
+            app: myapp
+            component: database
+          annotations:
+            description: PostgreSQL database password
+            managed-by: secretzero
+
+  # API key secret
+  - name: api_key
+    kind: random_string
+    config:
+      length: 32
+      charset: hex
+    targets:
+      - provider: kubernetes
+        kind: kubernetes_secret
+        config:
+          namespace: "{{ var.namespace }}"
+          secret_name: app-secrets
+          data_key: api-key
+          labels:
+            app: myapp
+
+  # Multiple secrets in same Secret object
+  - name: redis_password
+    kind: random_password
+    config:
+      length: 16
+      special: false
+    targets:
+      - provider: kubernetes
+        kind: kubernetes_secret
+        config:
+          namespace: "{{ var.namespace }}"
+          secret_name: app-secrets  # Same secret object
+          data_key: redis-password
+          labels:
+            app: myapp
+
+  # TLS certificate (for ingress/service)
+  - name: tls_certificate
+    kind: templates.tls_cert
+
+templates:
+  tls_cert:
+    description: TLS certificate and key
+    fields:
+      tls.crt:
+        description: TLS certificate
+        generator:
+          kind: static
+          config:
+            # In production, use a real certificate or cert-manager
+            default: |
+              -----BEGIN CERTIFICATE-----
+              MIICljCCAX4CCQCKz...example...
+              -----END CERTIFICATE-----
+      tls.key:
+        description: TLS private key
+        generator:
+          kind: static
+          config:
+            # In production, use a real key or cert-manager
+            default: |
+              -----BEGIN PRIVATE KEY-----
+              MIIEvgIBADANBgkqh...example...
+              -----END PRIVATE KEY-----
+    targets:
+      - provider: kubernetes
+        kind: kubernetes_secret
+        config:
+          namespace: "{{ var.namespace }}"
+          secret_name: myapp-tls
+          secret_type: kubernetes.io/tls
+          labels:
+            app: myapp
+            type: tls
+
+metadata:
+  project: kubernetes-secrets
+  owner: platform-team
+  description: Basic Kubernetes secret management

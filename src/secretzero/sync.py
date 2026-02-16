@@ -104,6 +104,12 @@ class SyncEngine:
                 return JenkinsProvider(name=name, config=config)
             except ImportError:
                 return None
+        elif provider_kind == "kubernetes":
+            try:
+                from secretzero.providers.kubernetes import KubernetesProvider
+                return KubernetesProvider(name=name, config=config)
+            except ImportError:
+                return None
         
         return None
 
@@ -491,6 +497,36 @@ class SyncEngine:
                 else:
                     result["status"] = "unsupported"
                     result["message"] = f"Jenkins target kind '{target_config.kind}' not supported"
+            
+            # Kubernetes targets
+            elif target_config.provider == "kubernetes":
+                provider = self._get_provider("kubernetes")
+                if not provider:
+                    result["status"] = "error"
+                    result["message"] = "Kubernetes provider not initialized"
+                    return result
+                
+                if target_config.kind == "kubernetes_secret":
+                    try:
+                        from secretzero.targets.kubernetes import KubernetesSecretTarget
+                        target = KubernetesSecretTarget(provider, target_config.config)
+                        success = target.store(secret_name, secret_value)
+                        result["status"] = "stored" if success else "failed"
+                    except ImportError:
+                        result["status"] = "error"
+                        result["message"] = "kubernetes not installed. Install with: pip install secretzero[kubernetes]"
+                elif target_config.kind == "external_secret":
+                    try:
+                        from secretzero.targets.kubernetes import ExternalSecretTarget
+                        target = ExternalSecretTarget(provider, target_config.config)
+                        success = target.store(secret_name, secret_value)
+                        result["status"] = "stored" if success else "failed"
+                    except ImportError:
+                        result["status"] = "error"
+                        result["message"] = "kubernetes not installed. Install with: pip install secretzero[kubernetes]"
+                else:
+                    result["status"] = "unsupported"
+                    result["message"] = f"Kubernetes target kind '{target_config.kind}' not supported"
             
             else:
                 result["status"] = "unsupported"
