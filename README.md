@@ -40,6 +40,13 @@ If you have ever asked any of these questions about a new or existing codebase t
 - **Rotation Tracking** - Track rotation history, count, and last rotation timestamp in lockfile
 - **One-time Secrets** - Support for secrets that should only be generated once
 
+### Phase 7: API Service (NEW)
+- **REST API** - FastAPI-based HTTP API for programmatic secret management
+- **OpenAPI Documentation** - Interactive API docs with Swagger UI and ReDoc
+- **API Authentication** - Secure API key-based authentication
+- **Audit Logging** - Comprehensive audit trail for all API operations
+- **Remote Management** - Manage secrets from CI/CD pipelines, scripts, or applications
+
 ### CLI Commands
 ```bash
 # Initialize and validate
@@ -58,6 +65,33 @@ secretzero rotate --dry-run       # Preview rotation status
 secretzero rotate --force         # Force rotation even if not due
 secretzero policy                  # Check policy compliance
 secretzero drift                   # Detect drift in secrets
+
+# API Server (Phase 7)
+secretzero-api                     # Start REST API server
+```
+
+### API Endpoints
+```bash
+# Health and documentation
+GET  /                             # API info
+GET  /health                       # Health check
+GET  /docs                         # Interactive Swagger UI
+GET  /redoc                        # ReDoc documentation
+
+# Secret management
+GET  /secrets                      # List all secrets
+GET  /secrets/{name}/status        # Get secret status
+POST /sync                         # Sync/generate secrets
+POST /config/validate              # Validate configuration
+
+# Rotation and policies
+POST /rotation/check               # Check rotation status
+POST /rotation/execute             # Execute rotation
+POST /policy/check                 # Check policy compliance
+POST /drift/check                  # Check for drift
+
+# Audit and monitoring
+GET  /audit/logs                   # Get audit logs
 ```
 
 ## How It Works
@@ -280,6 +314,39 @@ Providers are similar to terraform providers and are often an authentication poi
 
 Secret sources are provider bound. If authentication fails, the user is (optionally) prompted for secrets manually as a failover. This is often necessary if there is a manual request somewhere in your bootstrap process.
 
+## Installation
+
+### Basic Installation
+
+```bash
+pip install secretzero
+```
+
+### With Provider Support
+
+```bash
+# AWS support
+pip install secretzero[aws]
+
+# Azure support
+pip install secretzero[azure]
+
+# Vault support
+pip install secretzero[vault]
+
+# Kubernetes support
+pip install secretzero[kubernetes]
+
+# CI/CD support (GitHub, GitLab, Jenkins)
+pip install secretzero[cicd]
+
+# API server support
+pip install secretzero[api]
+
+# Everything
+pip install secretzero[all]
+```
+
 ## Installation (Development)
 
 ```bash
@@ -296,6 +363,8 @@ uv pip install -e ".[dev]"
 ```
 
 ## Quick Start
+
+### CLI Usage
 
 ```bash
 # List supported secret types
@@ -315,6 +384,47 @@ secretzero test
 
 # Generate and sync secrets (dry-run)
 secretzero sync --dry-run
+```
+
+### API Server
+
+```bash
+# Install API dependencies
+pip install secretzero[api]
+
+# Set API key (optional, enables authentication)
+export SECRETZERO_API_KEY=$(python -c "import secrets; print(secrets.token_urlsafe(32))")
+
+# Start server
+secretzero-api
+
+# Server runs on http://localhost:8000
+# Visit http://localhost:8000/docs for interactive API documentation
+```
+
+### API Usage Examples
+
+```bash
+# Health check
+curl http://localhost:8000/health
+
+# List secrets (with authentication)
+curl -H "X-API-Key: $SECRETZERO_API_KEY" http://localhost:8000/secrets
+
+# Sync secrets
+curl -X POST -H "X-API-Key: $SECRETZERO_API_KEY" \
+  -H "Content-Type: application/json" \
+  http://localhost:8000/sync \
+  -d '{"dry_run": true, "force": false}'
+
+# Check rotation status
+curl -X POST -H "X-API-Key: $SECRETZERO_API_KEY" \
+  -H "Content-Type: application/json" \
+  http://localhost:8000/rotation/check \
+  -d '{}'
+```
+
+For more API examples, see [docs/api-getting-started.md](docs/api-getting-started.md).
 
 # Actually create and deploy secrets
 secretzero sync

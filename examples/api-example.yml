@@ -1,0 +1,180 @@
+# Example Secretfile for API Usage
+# This demonstrates a complete configuration for managing secrets via the API
+
+version: '1.0'
+
+# Variables for configuration
+variables:
+  environment: development
+  region: us-east-1
+  project_name: api-example
+
+# Metadata
+metadata:
+  project: secretzero-api-demo
+  owner: platform-team
+  description: Example configuration for SecretZero API
+  environments:
+    - development
+    - staging
+    - production
+  compliance:
+    - soc2
+    - iso27001
+
+# Provider configurations
+providers:
+  # Local provider for development
+  local:
+    kind: local
+    config: {}
+  
+  # AWS provider (optional - requires AWS credentials)
+  # aws:
+  #   kind: aws
+  #   auth:
+  #     profile: default
+  #   config:
+  #     region: "{{var.region}}"
+  
+  # Vault provider (optional - requires Vault setup)
+  # vault:
+  #   kind: vault
+  #   auth:
+  #     token: "${VAULT_TOKEN}"
+  #   config:
+  #     url: https://vault.example.com
+
+# Secret definitions
+secrets:
+  # API keys with rotation
+  - name: api_key
+    kind: random_string
+    config:
+      length: 32
+      charset: "alphanumeric"
+    rotation_period: 90d
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: .env.local
+          format: dotenv
+          merge: true
+  
+  # Database password with strict rotation
+  - name: db_password
+    kind: random_password
+    config:
+      length: 32
+      special: true
+      upper: true
+      lower: true
+      number: true
+    rotation_period: 30d
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: .env.local
+          format: dotenv
+          merge: true
+  
+  # JWT secret - one time generation
+  - name: jwt_secret
+    kind: random_string
+    config:
+      length: 64
+      charset: "base64"
+    one_time: true
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: .env.local
+          format: dotenv
+          merge: true
+  
+  # Admin password with long rotation
+  - name: admin_password
+    kind: random_password
+    config:
+      length: 24
+      special: true
+      upper: true
+      lower: true
+      number: true
+    rotation_period: 180d
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: secrets/admin.txt
+          format: raw
+  
+  # Encryption key for data at rest
+  - name: encryption_key
+    kind: random_string
+    config:
+      length: 32
+      charset: "hex"
+    one_time: true
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: .env.local
+          format: dotenv
+          merge: true
+
+# Policy definitions
+policies:
+  # Require rotation periods on all secrets
+  rotation_required:
+    kind: rotation
+    require_rotation_period: true
+    max_age: 90d
+    severity: warning
+  
+  # Compliance policy for SOC2
+  soc2_compliance:
+    kind: compliance
+    standard: soc2
+    severity: error
+  
+  # Access control for production
+  production_security:
+    kind: access
+    allowed_targets:
+      - file
+      - aws_secrets_manager
+      - vault
+    severity: warning
+
+# API Usage Examples:
+# 
+# 1. List all secrets:
+#    curl -H "X-API-Key: $API_KEY" http://localhost:8000/secrets
+#
+# 2. Sync secrets (dry run):
+#    curl -X POST -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
+#         http://localhost:8000/sync -d '{"dry_run": true}'
+#
+# 3. Check rotation status:
+#    curl -X POST -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
+#         http://localhost:8000/rotation/check -d '{}'
+#
+# 4. Check policy compliance:
+#    curl -X POST -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
+#         http://localhost:8000/policy/check -d '{"fail_on_warning": false}'
+#
+# 5. Rotate specific secret:
+#    curl -X POST -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
+#         http://localhost:8000/rotation/execute -d '{"secret_name": "api_key", "force": false}'
+#
+# 6. Check for drift:
+#    curl -X POST -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
+#         http://localhost:8000/drift/check -d '{}'
+#
+# 7. Get audit logs:
+#    curl -H "X-API-Key: $API_KEY" "http://localhost:8000/audit/logs?limit=20"
