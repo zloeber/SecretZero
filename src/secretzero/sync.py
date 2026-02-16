@@ -124,11 +124,12 @@ class SyncEngine:
         """
         return self._providers.get(provider_name)
 
-    def sync(self, dry_run: bool = False) -> dict[str, Any]:
+    def sync(self, dry_run: bool = False, force_rotation: bool = False) -> dict[str, Any]:
         """Synchronize all secrets to their targets.
 
         Args:
             dry_run: If True, only simulate without making changes
+            force_rotation: If True, regenerate secrets even if they exist
 
         Returns:
             Dictionary with sync results and statistics
@@ -144,7 +145,7 @@ class SyncEngine:
 
         for secret in self.secretfile.secrets:
             try:
-                result = self._sync_secret(secret, dry_run)
+                result = self._sync_secret(secret, dry_run, force_rotation)
                 results["secrets_processed"] += 1
                 results["details"].append(result)
 
@@ -161,12 +162,13 @@ class SyncEngine:
 
         return results
 
-    def _sync_secret(self, secret: Secret, dry_run: bool) -> dict[str, Any]:
+    def _sync_secret(self, secret: Secret, dry_run: bool, force_rotation: bool = False) -> dict[str, Any]:
         """Sync a single secret.
 
         Args:
             secret: Secret definition
             dry_run: If True, only simulate
+            force_rotation: If True, regenerate even if exists
 
         Returns:
             Dictionary with sync details for this secret
@@ -185,10 +187,10 @@ class SyncEngine:
             template_name = secret.kind.replace("templates.", "")
             template = self.secretfile.templates.get(template_name)
             if template:
-                return self._sync_template_secret(secret, template, dry_run)
+                return self._sync_template_secret(secret, template, dry_run, force_rotation)
 
         # Check if secret needs generation (one_time check)
-        if secret.one_time and self.lockfile.has_secret(secret.name):
+        if secret.one_time and self.lockfile.has_secret(secret.name) and not force_rotation:
             result["skipped"] = True
             result["reason"] = "One-time secret already exists"
             return result
@@ -200,8 +202,8 @@ class SyncEngine:
         )
         result["generated"] = True
 
-        # Check if value has changed
-        if not self.lockfile.should_update(secret.name, secret_value):
+        # Check if value has changed (skip if force_rotation)
+        if not force_rotation and not self.lockfile.should_update(secret.name, secret_value):
             result["skipped"] = True
             result["reason"] = "Secret value unchanged"
             return result
@@ -214,8 +216,8 @@ class SyncEngine:
                 )
                 result["targets"].append(target_result)
 
-            # Update lockfile
-            self.lockfile.add_secret(secret.name, secret_value)
+            # Update lockfile with rotation flag
+            self.lockfile.add_secret(secret.name, secret_value, is_rotation=force_rotation)
             result["stored"] = True
         else:
             result["dry_run"] = True
@@ -231,7 +233,7 @@ class SyncEngine:
         return result
 
     def _sync_template_secret(
-        self, secret: Secret, template: Template, dry_run: bool
+        self, secret: Secret, template: Template, dry_run: bool, force_rotation: bool = False
     ) -> dict[str, Any]:
         """Sync a template-based secret with multiple fields.
 
@@ -239,6 +241,7 @@ class SyncEngine:
             secret: Secret definition
             template: Template definition
             dry_run: If True, only simulate
+            force_rotation: If True, regenerate even if exists
 
         Returns:
             Dictionary with sync details
