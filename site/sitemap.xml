@@ -184,4 +184,36 @@
          <loc>https://secret0.com/user-guide/configuration/variables/</loc>
          <lastmod>2026-02-16</lastmod>
     </url>
+    <url>
+         <loc>https://secret0.com/user-guide/providers/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/providers/aws/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/providers/azure/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/providers/github/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/providers/gitlab/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/providers/jenkins/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/providers/kubernetes/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/providers/vault/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
 </urlset>
