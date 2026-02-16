@@ -208,6 +208,7 @@ Bootstrap CI/CD pipeline secrets (GitHub Actions, GitLab CI, Jenkins) from centr
 ### Kubernetes Secret Seeding
 
 Generate and deploy secrets to multiple Kubernetes clusters/namespaces during cluster initialization or application deployment.
+- Generate externals secrets operator manifests for target secrets.
 
 ### Development Environment Setup
 
@@ -292,53 +293,12 @@ secretzero sync
 
 ## Example Manifest
 
-```yaml
-version: "1.0"
-
-profiles:
-  aws-prod:
-    provider: aws
-    region: us-east-1
-    ssm_path_prefix: /prod/myapp
-    tags:
-      Environment: production
-      ManagedBy: secretzero
-
-secrets:
-  - name: postgres-root-password
-    type: database-credential
-    profile: aws-prod
-    config:
-      username: postgres_admin
-      length: 32
-      include_special: true
-    targets:
-      - provider: aws-secrets-manager
-        secret_name: prod/db/postgres/root
-      - provider: template
-        template: config/database.env.j2
-        output: .env.db
-```
-
-## Testing
-
-```bash
-# Run all tests
-pytest
-
-# Run with coverage
-pytest --cov=secretzero --cov-report=html
-
-# Run schema validation tests only
-pytest tests/schemas/
-```
+** See [Secretfile.yml](./Secretfile.yml) **
 
 ## Documentation
 
-- **[User Guide](./GUIDE.md)** - Complete user guide and usage examples
-- **[Extending SecretZero](./EXTENDING.md)** - Guide for adding new secret types and providers
-- **[Schema Documentation](schemas/README.md)** - JSON Schema definitions and validation
-- **Phase Summaries** - See `PHASE*_COMPLETION_SUMMARY.md` files for implementation details
+- **[Docs][./docs]**
+- **[Extending SecretZero](./docs/extending.md)** - Guide for adding new secret types and providers
 
 ## Security
 
@@ -350,39 +310,9 @@ SecretZero is designed with security as a priority:
 - ✅ Idempotent operations to prevent accidental overwrites
 - ✅ Audit trail through lock file tracking
 
-## Contributing
-
-This project follows a strict phase-based development model. Each phase must be completed and validated before proceeding to the next.
-
-### Extending SecretZero
-
-Want to add a new secret type or target provider? See **[EXTENDING.md](docs/EXTENDING.md)** for comprehensive step-by-step instructions following our schema-first development approach.
-
-### Development Guidelines
-
-- All changes start with JSON Schema updates in `schemas/`
-- Follow the cascade: Schema → Model → Service → Provider → Interface
-- Write tests for all new functionality
-- Ensure schema-model alignment with validation tests
-- See `prompts/start.md` for detailed implementation guidelines
-
 ## License
 
-[License information to be added]
-
-## Acknowledgments
-
-Built with:
-- [Pydantic](https://docs.pydantic.dev/) - Data validation
-- [Click](https://click.palletsprojects.com/) - CLI framework
-- [FastAPI](https://fastapi.tiangolo.com/) - API framework
-- [JSON Schema](https://json-schema.org/) - Schema validation
-- [Rich](https://rich.readthedocs.io/) - Terminal formatting
-- Many other libraries for various providers (vault, aws, et cetera)
-
----
-
-**Note:** This project is in active development. Phase 0 (Schema Foundation) is complete. Core functionality will be available in Phase 1+.
+[Apache](./LICENSE)
 
 # FAQ
 
@@ -391,5 +321,3 @@ Built with:
 SecretZero is designed to complement, not replace, the External Secrets Operator.
 
 SecretZero manages secret creation, bootstrap, lifecycle, and auditability upstream, while External Secrets handles runtime projection into Kubernetes.
-
-SecretZero can optionally emit ExternalSecret manifests as deployment artifacts, allowing teams to integrate seamlessly with existing GitOps workflows.
