@@ -9,6 +9,8 @@ from rich.table import Table
 
 from secretzero import __version__
 from secretzero.config import ConfigLoader
+from secretzero.lockfile import Lockfile
+from secretzero.sync import SyncEngine
 
 console = Console()
 
@@ -315,6 +317,186 @@ def test(file: str) -> None:
         console.print("[yellow]Not implemented yet[/yellow]")
 
     console.print("\n[dim]Note: Provider testing will be implemented in a future phase[/dim]")
+
+
+@main.command()
+@click.option(
+    "--file",
+    "-f",
+    type=click.Path(exists=True),
+    default="Secretfile.yml",
+    help="Path to Secretfile",
+)
+@click.option(
+    "--lockfile",
+    "-l",
+    type=click.Path(),
+    default=".gitsecrets.lock",
+    help="Path to lockfile",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Show what would be done without making changes",
+)
+def sync(file: str, lockfile: str, dry_run: bool) -> None:
+    """Generate and synchronize secrets to targets.
+
+    This command generates secret values according to your Secretfile
+    configuration and stores them in the specified targets (local files,
+    cloud providers, etc.).
+    """
+    file_path = Path(file)
+    lockfile_path = Path(lockfile)
+    loader = ConfigLoader()
+
+    # Load configuration
+    try:
+        config = loader.load_file(file_path)
+    except Exception as e:
+        console.print(f"[red]Error loading Secretfile:[/red] {e}")
+        raise click.Abort()
+
+    # Load lockfile
+    lock = Lockfile.load(lockfile_path)
+
+    # Create sync engine and run
+    engine = SyncEngine(config, lock)
+
+    if dry_run:
+        console.print("[yellow]DRY RUN:[/yellow] No changes will be made\n")
+
+    console.print("[bold]Synchronizing secrets...[/bold]\n")
+
+    try:
+        results = engine.sync(dry_run=dry_run)
+
+        # Display results
+        console.print(f"[green]✓[/green] Processed {results['secrets_processed']} secrets")
+        console.print(f"  • Generated: {results['secrets_generated']}")
+        console.print(f"  • Skipped: {results['secrets_skipped']}")
+        console.print(f"  • Stored: {results['secrets_stored']}")
+
+        if results["errors"]:
+            console.print(f"\n[red]Errors:[/red]")
+            for error in results["errors"]:
+                console.print(f"  • {error}")
+
+        # Show detailed results if verbose or dry-run
+        if dry_run or results["secrets_generated"] > 0:
+            console.print("\n[bold]Details:[/bold]")
+            for detail in results["details"]:
+                status = "would generate" if dry_run else "generated"
+                if detail.get("skipped"):
+                    status = f"skipped ({detail.get('reason', 'unknown')})"
+
+                console.print(f"\n  {detail['name']} [{detail['kind']}]: {status}")
+
+                # Show template fields if applicable
+                if detail.get("template") and detail.get("fields"):
+                    for field in detail["fields"]:
+                        console.print(f"    • {field['name']}: ", end="")
+                        if field["generated"]:
+                            console.print("[green]generated[/green]")
+                        else:
+                            console.print("[yellow]skipped[/yellow]")
+
+                # Show target information
+                if detail.get("targets"):
+                    for target in detail["targets"]:
+                        target_status = target.get("status", "unknown")
+                        console.print(
+                            f"    → {target['provider']}/{target['kind']}: {target_status}"
+                        )
+                        if target.get("message"):
+                            console.print(f"      {target['message']}")
+
+        # Save lockfile if not dry run
+        if not dry_run and results["secrets_generated"] > 0:
+            lock.save(lockfile_path)
+            console.print(f"\n[green]✓[/green] Lockfile saved: {lockfile_path}")
+
+        if dry_run:
+            console.print("\n[yellow]This was a dry run. Use 'secretzero sync' to apply changes.[/yellow]")
+
+    except Exception as e:
+        console.print(f"\n[red]Error during sync:[/red] {e}")
+        raise click.Abort()
+
+
+@main.command()
+@click.argument("secret_name")
+@click.option(
+    "--file",
+    "-f",
+    type=click.Path(exists=True),
+    default="Secretfile.yml",
+    help="Path to Secretfile",
+)
+@click.option(
+    "--lockfile",
+    "-l",
+    type=click.Path(),
+    default=".gitsecrets.lock",
+    help="Path to lockfile",
+)
+def show(secret_name: str, file: str, lockfile: str) -> None:
+    """Show information about a specific secret.
+
+    This command displays metadata about a secret, including its
+    configuration, generation status, and target storage locations.
+    """
+    file_path = Path(file)
+    lockfile_path = Path(lockfile)
+    loader = ConfigLoader()
+
+    # Load configuration
+    try:
+        config = loader.load_file(file_path)
+    except Exception as e:
+        console.print(f"[red]Error loading Secretfile:[/red] {e}")
+        raise click.Abort()
+
+    # Load lockfile
+    lock = Lockfile.load(lockfile_path)
+
+    # Create sync engine
+    engine = SyncEngine(config, lock)
+
+    # Get secret info
+    info = engine.get_secret_info(secret_name)
+
+    if not info:
+        console.print(f"[red]Error:[/red] Secret '{secret_name}' not found in Secretfile")
+        raise click.Abort()
+
+    # Display information
+    console.print(f"[bold]Secret: {info['name']}[/bold]\n")
+
+    table = Table(show_header=False, box=None)
+    table.add_column("Property", style="cyan")
+    table.add_column("Value")
+
+    table.add_row("Kind", info['kind'])
+    table.add_row("One-time", "Yes" if info['one_time'] else "No")
+
+    if info.get('rotation_period'):
+        table.add_row("Rotation Period", info['rotation_period'])
+
+    table.add_row("Generated", "Yes" if info['exists_in_lockfile'] else "No")
+
+    if info['exists_in_lockfile']:
+        table.add_row("Created", info['created_at'])
+        table.add_row("Updated", info['updated_at'])
+        table.add_row("Hash", info['hash'][:16] + "...")
+
+    console.print(table)
+
+    # Show targets
+    if info['targets']:
+        console.print("\n[bold]Targets:[/bold]")
+        for target in info['targets']:
+            console.print(f"  • {target['provider']} / {target['kind']}")
 
 
 if __name__ == "__main__":
