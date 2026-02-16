@@ -54,10 +54,10 @@ secrets:
         config:
           name: /critical/system-password
 
-  # Standard application secret - 90 day rotation
+  # Standard application secret - 60 day rotation (within compliance)
   - name: app_secret
     kind: random_password
-    rotation_period: 90d
+    rotation_period: 60d
     config:
       length: 32
     targets:
