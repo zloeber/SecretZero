@@ -383,7 +383,7 @@ def sync(file: str, lockfile: str, dry_run: bool) -> None:
                 console.print(f"  • {error}")
 
         # Show detailed results if verbose or dry-run
-        if dry_run or results["secrets_generated"] > 0:
+        if dry_run or results["secrets_generated"] > 0 or results["secrets_skipped"] > 0:
             console.print("\n[bold]Details:[/bold]")
             for detail in results["details"]:
                 status = "would generate" if dry_run else "generated"

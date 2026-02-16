@@ -27,7 +27,7 @@ htmlcov/
 .idea/
 
 # SecretZero specific
-#.gitsecrets.lock
+.gitsecrets.lock
 secret_results.json
 .env.*
 !.env.EXAMPLE

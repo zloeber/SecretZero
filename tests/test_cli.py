@@ -129,3 +129,181 @@ templates: {}
         result = runner.invoke(main, ["test", "--file", str(secretfile)])
         assert result.exit_code == 0
         assert "Testing Provider" in result.output
+
+
+def test_sync_dry_run(runner: CliRunner) -> None:
+    """Test sync command with dry-run."""
+    with TemporaryDirectory() as tmpdir:
+        secretfile = Path(tmpdir) / "Secretfile.yml"
+        secretfile.write_text(
+            """
+version: '1.0'
+variables: {}
+providers:
+  local:
+    kind: local
+secrets:
+  - name: test_secret
+    kind: random_password
+    config:
+      length: 16
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: .env.test
+          format: dotenv
+templates: {}
+"""
+        )
+
+        result = runner.invoke(
+            main,
+            ["sync", "--file", str(secretfile), "--lockfile", str(Path(tmpdir) / ".lock"), "--dry-run"],
+        )
+        assert result.exit_code == 0
+        assert "DRY RUN" in result.output
+        assert "would generate" in result.output or "would_store" in result.output
+
+
+def test_sync_actual(runner: CliRunner) -> None:
+    """Test actual sync command."""
+    with TemporaryDirectory() as tmpdir:
+        secretfile = Path(tmpdir) / "Secretfile.yml"
+        lockfile = Path(tmpdir) / ".lock"
+        env_file = Path(tmpdir) / ".env.test"
+
+        secretfile.write_text(
+            """
+version: '1.0'
+variables: {}
+providers:
+  local:
+    kind: local
+secrets:
+  - name: test_secret
+    kind: random_password
+    config:
+      length: 16
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: """ + str(env_file) + """
+          format: dotenv
+templates: {}
+"""
+        )
+
+        result = runner.invoke(
+            main,
+            ["sync", "--file", str(secretfile), "--lockfile", str(lockfile)],
+        )
+        assert result.exit_code == 0
+        assert "✓" in result.output
+        assert lockfile.exists()
+        assert env_file.exists()
+
+
+def test_sync_one_time_secret(runner: CliRunner) -> None:
+    """Test sync with one-time secret."""
+    with TemporaryDirectory() as tmpdir:
+        secretfile = Path(tmpdir) / "Secretfile.yml"
+        lockfile = Path(tmpdir) / ".lock"
+
+        secretfile.write_text(
+            """
+version: '1.0'
+variables: {}
+providers: {}
+secrets:
+  - name: one_time_secret
+    kind: static
+    one_time: true
+    config:
+      default: "secret_value"
+    targets: []
+templates: {}
+"""
+        )
+
+        # First sync - should generate
+        result1 = runner.invoke(
+            main,
+            ["sync", "--file", str(secretfile), "--lockfile", str(lockfile)],
+        )
+        assert result1.exit_code == 0
+        assert "Generated: 1" in result1.output
+
+        # Second sync - should skip
+        result2 = runner.invoke(
+            main,
+            ["sync", "--file", str(secretfile), "--lockfile", str(lockfile)],
+        )
+        assert result2.exit_code == 0
+        assert "Skipped: 1" in result2.output
+        assert "One-time secret already exists" in result2.output
+
+
+def test_show_command(runner: CliRunner) -> None:
+    """Test show command."""
+    with TemporaryDirectory() as tmpdir:
+        secretfile = Path(tmpdir) / "Secretfile.yml"
+        lockfile = Path(tmpdir) / ".lock"
+
+        secretfile.write_text(
+            """
+version: '1.0'
+variables: {}
+providers: {}
+secrets:
+  - name: test_secret
+    kind: random_password
+    rotation_period: 90d
+    config:
+      length: 16
+    targets: []
+templates: {}
+"""
+        )
+
+        # First sync to create the secret
+        runner.invoke(
+            main,
+            ["sync", "--file", str(secretfile), "--lockfile", str(lockfile)],
+        )
+
+        # Show the secret
+        result = runner.invoke(
+            main,
+            ["show", "test_secret", "--file", str(secretfile), "--lockfile", str(lockfile)],
+        )
+        assert result.exit_code == 0
+        assert "test_secret" in result.output
+        assert "random_password" in result.output
+        assert "90d" in result.output
+
+
+def test_show_nonexistent_secret(runner: CliRunner) -> None:
+    """Test show command with non-existent secret."""
+    with TemporaryDirectory() as tmpdir:
+        secretfile = Path(tmpdir) / "Secretfile.yml"
+        lockfile = Path(tmpdir) / ".lock"
+
+        secretfile.write_text(
+            """
+version: '1.0'
+variables: {}
+providers: {}
+secrets: []
+templates: {}
+"""
+        )
+
+        result = runner.invoke(
+            main,
+            ["show", "nonexistent", "--file", str(secretfile), "--lockfile", str(lockfile)],
+        )
+        assert result.exit_code != 0
+        assert "not found" in result.output
+
