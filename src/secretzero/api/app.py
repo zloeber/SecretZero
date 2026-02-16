@@ -56,10 +56,13 @@ def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
         openapi_url="/openapi.json",
     )
 
-    # CORS middleware
+    # CORS middleware - DEVELOPMENT ONLY
+    # TODO: Configure restrictive CORS policy for production
+    # For production, set allow_origins to specific domains:
+    # allow_origins=["https://yourdomain.com"]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # Configure appropriately for production
+        allow_origins=["*"],  # ⚠️ SECURITY WARNING: Allow all origins (development only)
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

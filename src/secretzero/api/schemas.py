@@ -1,6 +1,6 @@
 """API request and response models."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
@@ -11,7 +11,7 @@ class HealthResponse(BaseModel):
 
     status: str = "healthy"
     version: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class ErrorResponse(BaseModel):
@@ -19,7 +19,7 @@ class ErrorResponse(BaseModel):
 
     error: str
     detail: Optional[str] = None
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class ConfigValidationRequest(BaseModel):
@@ -151,7 +151,7 @@ class SyncResponse(BaseModel):
 class AuditLogEntry(BaseModel):
     """Audit log entry."""
 
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
     action: str
     resource: str
     user: Optional[str] = None
