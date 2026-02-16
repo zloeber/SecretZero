@@ -1,0 +1,52 @@
+# AWS-Only Example
+# Simple example using only AWS SSM Parameter Store
+
+version: '1.0'
+
+variables:
+  aws_region: us-east-1
+  environment: production
+
+providers:
+  aws:
+    kind: aws
+    auth:
+      kind: ambient
+      region: "{{var.aws_region}}"
+
+secrets:
+  # Database credentials
+  - name: rds_master_password
+    kind: random_password
+    one_time: true
+    rotation_period: 90d
+    config:
+      length: 32
+      special: true
+      exclude_characters: '"@/\`'
+    targets:
+      - provider: aws
+        kind: ssm_parameter
+        config:
+          name: /{{var.environment}}/rds/master-password
+          type: SecureString
+          overwrite: true
+
+  # API Key for external service
+  - name: stripe_api_key
+    kind: static
+    config:
+      default: ${STRIPE_API_KEY}  # From environment
+      validation: ^sk_live_.*$
+    targets:
+      - provider: aws
+        kind: secrets_manager
+        config:
+          name: {{var.environment}}/stripe/api-key
+          description: Stripe API key for payment processing
+
+metadata:
+  project: e-commerce-platform
+  owner: backend-team
+  environments:
+    - production
