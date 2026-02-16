@@ -1,0 +1,79 @@
+# Example: Compliance-Driven Secret Management
+# Demonstrates SOC2 and ISO27001 compliance with strict policies
+
+version: '1.0'
+
+metadata:
+  project: compliance-demo
+  owner: compliance-team
+  compliance:
+    - soc2      # Automatically adds soc2_rotation policy
+    - iso27001  # Automatically adds iso27001_rotation policy
+
+variables:
+  environment: production
+
+providers:
+  aws:
+    auth:
+      kind: ambient
+
+# Custom compliance policies
+policies:
+  # Strict rotation requirements
+  critical_rotation:
+    kind: rotation
+    require_rotation_period: true
+    max_age: 60d
+    severity: error
+    enabled: true
+
+  # Access control for compliance
+  compliance_targets:
+    kind: access
+    allowed_targets:
+      - ssm_parameter
+      - secrets_manager
+      - vault_kv
+    denied_targets:
+      - file  # No local files in compliance mode
+    severity: error
+    enabled: true
+
+secrets:
+  # Critical system password - 60 day rotation
+  - name: critical_system_password
+    kind: random_password
+    rotation_period: 60d
+    config:
+      length: 32
+      special: true
+    targets:
+      - provider: aws
+        kind: secrets_manager
+        config:
+          name: /critical/system-password
+
+  # Standard application secret - 90 day rotation
+  - name: app_secret
+    kind: random_password
+    rotation_period: 90d
+    config:
+      length: 32
+    targets:
+      - provider: aws
+        kind: ssm_parameter
+        config:
+          name: /app/secret
+          type: SecureString
+
+# Usage:
+# 1. Check compliance:
+#    secretzero policy -f compliance.yml --fail-on-warning
+#
+# 2. Sync secrets:
+#    secretzero sync -f compliance.yml
+#
+# 3. Regular rotation check (in CI/CD):
+#    secretzero rotate -f compliance.yml --dry-run
+#    # Exit with error if any secrets need rotation

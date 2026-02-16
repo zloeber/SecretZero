@@ -1,0 +1,72 @@
+# Example: Drift Detection
+# Demonstrates how to detect and remediate drift in secrets
+
+version: '1.0'
+
+metadata:
+  project: drift-demo
+  owner: ops-team
+
+variables:
+  environment: staging
+
+providers:
+  local:
+    kind: local
+
+secrets:
+  # Local secrets for drift detection
+  - name: app_password
+    kind: random_password
+    config:
+      length: 32
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: .env.staging
+          format: dotenv
+          merge: true
+
+  - name: api_key
+    kind: random_string
+    config:
+      length: 40
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: .env.staging
+          format: dotenv
+          merge: true
+
+  - name: database_url
+    kind: static
+    config:
+      default: postgresql://localhost:5432/mydb
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: .env.staging
+          format: dotenv
+          merge: true
+
+# Usage:
+# 1. Generate secrets:
+#    secretzero sync -f drift-detection.yml
+#
+# 2. Manually modify .env.staging (simulating out-of-band change)
+#    
+# 3. Check for drift:
+#    secretzero drift -f drift-detection.yml
+#
+# 4. Check specific secret:
+#    secretzero drift -f drift-detection.yml app_password
+#
+# 5. Remediate drift (regenerate secrets):
+#    secretzero sync -f drift-detection.yml --force
+#
+# Note: Drift detection is limited to file targets that can be read.
+# For cloud targets (AWS, Azure, etc.), drift detection requires
+# retrieving and comparing the actual stored values.

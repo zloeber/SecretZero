@@ -1,0 +1,123 @@
+# Example: Secret Rotation with Policies
+# This example demonstrates rotation policies and compliance requirements
+
+version: '1.0'
+
+# Metadata with compliance requirements
+metadata:
+  project: production-app
+  owner: security-team
+  environments:
+    - production
+  compliance:
+    - soc2
+    - iso27001
+
+# Variables
+variables:
+  environment: production
+  aws_region: us-east-1
+
+# Providers
+providers:
+  aws:
+    auth:
+      kind: ambient
+      config:
+        region: "{{var.aws_region}}"
+
+# Policies
+policies:
+  # Rotation policy - all secrets must have rotation_period
+  rotation_required:
+    kind: rotation
+    require_rotation_period: true
+    severity: warning
+    enabled: true
+
+  # Maximum rotation age - no secret should rotate less than every 90 days
+  max_rotation_age:
+    kind: rotation
+    max_age: 90d
+    severity: error
+    enabled: true
+
+  # Access control - only allow secure targets in production
+  production_security:
+    kind: access
+    allowed_targets:
+      - ssm_parameter
+      - secrets_manager
+      - vault_kv
+      - kubernetes_secret
+    severity: error
+    enabled: true
+
+# Secrets with rotation policies
+secrets:
+  # Database password - rotates every 90 days
+  - name: db_root_password
+    kind: random_password
+    rotation_period: 90d
+    config:
+      length: 32
+      special: true
+      upper: true
+      lower: true
+      number: true
+    targets:
+      - provider: aws
+        kind: ssm_parameter
+        config:
+          name: /production/db/root-password
+          type: SecureString
+          overwrite: true
+
+  # API key - rotates every 30 days
+  - name: api_secret_key
+    kind: random_password
+    rotation_period: 30d
+    config:
+      length: 64
+      special: false
+      upper: true
+      lower: true
+      number: true
+    targets:
+      - provider: aws
+        kind: secrets_manager
+        config:
+          name: /production/api-secret-key
+          description: API secret key for authentication
+
+  # Service account token - one-time generation, manual rotation
+  - name: service_account_token
+    kind: random_password
+    one_time: true
+    rotation_period: 180d  # Warning emitted but not auto-rotated
+    config:
+      length: 48
+      special: false
+    targets:
+      - provider: aws
+        kind: ssm_parameter
+        config:
+          name: /production/service-account-token
+          type: SecureString
+
+# Usage:
+# 1. Validate configuration and check policies:
+#    secretzero validate -f rotation-policies.yml
+#    secretzero policy -f rotation-policies.yml
+#
+# 2. Sync secrets (initial generation):
+#    secretzero sync -f rotation-policies.yml
+#
+# 3. Check rotation status:
+#    secretzero rotate -f rotation-policies.yml --dry-run
+#
+# 4. Rotate secrets that are due:
+#    secretzero rotate -f rotation-policies.yml
+#
+# 5. Force rotate a specific secret:
+#    secretzero rotate -f rotation-policies.yml --force api_secret_key
