@@ -425,10 +425,7 @@ class TestGitHubTarget:
             mock_auth = Mock()
             mock_client = Mock()
             mock_repo = Mock()
-            mock_public_key = Mock()
-            mock_public_key.key = "test-public-key-base64"
             
-            mock_repo.get_public_key.return_value = mock_public_key
             mock_repo.create_secret = Mock(return_value=None)
             mock_client.get_repo.return_value = mock_repo
             mock_auth.get_client.return_value = mock_client
@@ -437,12 +434,13 @@ class TestGitHubTarget:
             config = {"owner": "testorg", "repo": "testrepo"}
             target = GitHubSecretTarget(provider, config)
             
-            with patch("base64.b64decode"), \
-                 patch("base64.b64encode"), \
-                 patch("nacl.public.SealedBox"), \
-                 patch("nacl.public.PublicKey"):
-                result = target.store("TEST_SECRET", "secret-value")
-                assert result is True
+            # PyGithub handles encryption internally
+            result = target.store("TEST_SECRET", "secret-value")
+            assert result is True
+            mock_repo.create_secret.assert_called_once_with(
+                secret_name="TEST_SECRET",
+                unencrypted_value="secret-value"
+            )
         except ImportError:
             pytest.skip("PyGithub not installed")
 

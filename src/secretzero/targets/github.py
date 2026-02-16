@@ -1,6 +1,5 @@
 """GitHub Actions secret targets."""
 
-import base64
 from typing import Any, Optional
 
 from secretzero.targets.base import BaseTarget
@@ -28,31 +27,6 @@ class GitHubSecretTarget(BaseTarget):
         if not self.owner or not self.repo:
             raise ValueError("GitHub target requires 'owner' and 'repo' in config")
 
-    def _encrypt_secret(self, public_key: str, secret_value: str) -> str:
-        """Encrypt a secret using the repository's public key.
-
-        Args:
-            public_key: Base64-encoded public key from GitHub.
-            secret_value: Secret value to encrypt.
-
-        Returns:
-            Base64-encoded encrypted value.
-        """
-        try:
-            from nacl import encoding, public
-        except ImportError:
-            raise ImportError("PyNaCl not installed (pip install PyNaCl)")
-
-        # Decode the public key
-        public_key_bytes = base64.b64decode(public_key)
-        sealed_box = public.SealedBox(public.PublicKey(public_key_bytes))
-        
-        # Encrypt the secret
-        encrypted = sealed_box.encrypt(secret_value.encode("utf-8"))
-        
-        # Base64 encode the encrypted value
-        return base64.b64encode(encrypted).decode("utf-8")
-
     def store(self, secret_name: str, secret_value: str) -> bool:
         """Store secret in GitHub Actions.
 
@@ -69,22 +43,14 @@ class GitHubSecretTarget(BaseTarget):
 
             if self.environment:
                 # Store as environment secret
-                # Get public key for environment
-                public_key = repo.get_environment(self.environment).get_secrets_public_key()
-                encrypted_value = self._encrypt_secret(public_key.key, secret_value)
-                
-                # Create or update environment secret
+                # PyGithub handles encryption automatically
                 repo.get_environment(self.environment).create_secret(
                     secret_name=secret_name,
                     unencrypted_value=secret_value
                 )
             else:
                 # Store as repository secret
-                # Get public key for repository
-                public_key = repo.get_public_key()
-                encrypted_value = self._encrypt_secret(public_key.key, secret_value)
-                
-                # Create or update repository secret
+                # PyGithub handles encryption automatically
                 repo.create_secret(
                     secret_name=secret_name,
                     unencrypted_value=secret_value
@@ -132,31 +98,6 @@ class GitHubOrganizationSecretTarget(BaseTarget):
         if not self.org:
             raise ValueError("GitHub organization target requires 'org' in config")
 
-    def _encrypt_secret(self, public_key: str, secret_value: str) -> str:
-        """Encrypt a secret using the organization's public key.
-
-        Args:
-            public_key: Base64-encoded public key from GitHub.
-            secret_value: Secret value to encrypt.
-
-        Returns:
-            Base64-encoded encrypted value.
-        """
-        try:
-            from nacl import encoding, public
-        except ImportError:
-            raise ImportError("PyNaCl not installed (pip install PyNaCl)")
-
-        # Decode the public key
-        public_key_bytes = base64.b64decode(public_key)
-        sealed_box = public.SealedBox(public.PublicKey(public_key_bytes))
-        
-        # Encrypt the secret
-        encrypted = sealed_box.encrypt(secret_value.encode("utf-8"))
-        
-        # Base64 encode the encrypted value
-        return base64.b64encode(encrypted).decode("utf-8")
-
     def store(self, secret_name: str, secret_value: str) -> bool:
         """Store secret in GitHub Organization Actions.
 
@@ -171,11 +112,8 @@ class GitHubOrganizationSecretTarget(BaseTarget):
             client = self.provider.auth.get_client()
             org = client.get_organization(self.org)
 
-            # Get public key for organization
-            public_key = org.get_public_key()
-            encrypted_value = self._encrypt_secret(public_key.key, secret_value)
-            
             # Create or update organization secret
+            # PyGithub handles encryption automatically
             org.create_secret(
                 secret_name=secret_name,
                 unencrypted_value=secret_value,
