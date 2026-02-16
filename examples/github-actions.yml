@@ -1,0 +1,187 @@
+# GitHub Actions Integration Example
+
+This example demonstrates how to use SecretZero to manage GitHub Actions secrets.
+
+## Configuration
+
+```yaml
+version: '1.0'
+
+variables:
+  github_org: myorganization
+  github_repo: myrepo
+  environment: production
+
+providers:
+  github:
+    kind: github
+    auth:
+      kind: token
+      config:
+        token: ${GITHUB_TOKEN}
+        # Optional: custom GitHub API URL for GitHub Enterprise
+        # api_url: https://github.mycompany.com/api/v3
+
+secrets:
+  # API Key for production environment
+  - name: api_key
+    kind: random_string
+    config:
+      length: 32
+      charset: alphanumeric
+    targets:
+      # Store in local .env for development
+      - provider: local
+        kind: file
+        config:
+          path: .env
+          format: dotenv
+      
+      # Store as GitHub Actions repository secret
+      - provider: github
+        kind: github_secret
+        config:
+          owner: ${github_org}
+          repo: ${github_repo}
+      
+      # Store as environment-specific secret
+      - provider: github
+        kind: github_secret
+        config:
+          owner: ${github_org}
+          repo: ${github_repo}
+          environment: ${environment}
+
+  # Database password
+  - name: database_password
+    kind: random_password
+    config:
+      length: 32
+      special: true
+      exclude_characters: '"@/\`'
+    targets:
+      - provider: github
+        kind: github_secret
+        config:
+          owner: ${github_org}
+          repo: ${github_repo}
+          environment: production
+
+  # JWT signing key
+  - name: jwt_secret
+    kind: random_string
+    config:
+      length: 64
+      charset: alphanumeric
+    targets:
+      - provider: github
+        kind: github_secret
+        config:
+          owner: ${github_org}
+          repo: ${github_repo}
+```
+
+## Setup
+
+1. **Generate a GitHub Personal Access Token (PAT)**:
+   - Go to GitHub Settings → Developer settings → Personal access tokens → Tokens (classic)
+   - Create a token with the following scopes:
+     - `repo` (for repository secrets)
+     - `admin:org` (for organization secrets, if needed)
+   
+2. **Export the token as an environment variable**:
+   ```bash
+   export GITHUB_TOKEN=ghp_your_token_here
+   ```
+
+3. **Test provider connectivity**:
+   ```bash
+   secretzero test -f examples/github-actions.yml
+   ```
+
+4. **Sync secrets (dry-run first)**:
+   ```bash
+   secretzero sync -f examples/github-actions.yml --dry-run
+   ```
+
+5. **Sync secrets for real**:
+   ```bash
+   secretzero sync -f examples/github-actions.yml
+   ```
+
+## Features
+
+- **Repository Secrets**: Secrets available to all workflows in a repository
+- **Environment Secrets**: Secrets scoped to specific environments (production, staging, etc.)
+- **Organization Secrets**: Secrets shared across multiple repositories (see advanced example)
+- **Automatic Encryption**: Secrets are encrypted using the repository's public key before upload
+
+## Using Secrets in GitHub Actions
+
+Once synced, your secrets are available in workflows:
+
+```yaml
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Deploy with secrets
+        run: |
+          echo "API_KEY=${{ secrets.API_KEY }}" >> .env
+          echo "DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}" >> .env
+          ./deploy.sh
+```
+
+## Advanced: Organization-Level Secrets
+
+To store secrets at the organization level (available to multiple repositories):
+
+```yaml
+secrets:
+  - name: shared_api_key
+    kind: random_string
+    config:
+      length: 32
+    targets:
+      - provider: github
+        kind: github_secret
+        config:
+          org: myorganization
+          visibility: all  # or 'private' or 'selected'
+          # selected_repository_ids: [123, 456]  # if visibility is 'selected'
+```
+
+## Security Best Practices
+
+1. **Use environment secrets** for production credentials
+2. **Rotate secrets regularly** using SecretZero's rotation features
+3. **Use the lockfile** (.gitsecrets.lock) to track secret creation and updates
+4. **Never commit** the GITHUB_TOKEN to your repository
+5. **Use repository protection rules** to require reviews for workflow changes
+6. **Audit secret access** regularly through GitHub's audit log
+
+## Troubleshooting
+
+### Authentication Failed
+- Verify your GITHUB_TOKEN is valid and not expired
+- Ensure your token has the required scopes (`repo`, `admin:org`)
+- For GitHub Enterprise, ensure the `api_url` is correct
+
+### Permission Denied
+- Repository secrets require `repo` scope
+- Organization secrets require `admin:org` scope
+- Environment secrets require admin access to the repository
+
+### Secret Not Appearing in Workflows
+- Verify the secret name matches exactly (case-sensitive)
+- For environment secrets, ensure the workflow job uses the correct environment
+- Check repository settings → Secrets and variables → Actions

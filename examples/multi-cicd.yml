@@ -1,0 +1,472 @@
+# Multi-CI/CD Platform Integration Example
+
+This example demonstrates using SecretZero to manage secrets across GitHub Actions, GitLab CI/CD, and Jenkins simultaneously.
+
+## Use Case
+
+Many organizations use multiple CI/CD platforms:
+- GitHub Actions for open-source projects
+- GitLab CI/CD for internal projects
+- Jenkins for legacy pipelines
+
+SecretZero allows you to manage all these secrets from a single source of truth.
+
+## Configuration
+
+```yaml
+version: '1.0'
+
+variables:
+  # GitHub variables
+  github_org: myorg
+  github_repo: myrepo
+  
+  # GitLab variables
+  gitlab_project: mygroup/myproject
+  
+  # Jenkins variables
+  jenkins_url: https://jenkins.example.com
+
+providers:
+  github:
+    kind: github
+    auth:
+      kind: token
+      config:
+        token: ${GITHUB_TOKEN}
+  
+  gitlab:
+    kind: gitlab
+    auth:
+      kind: token
+      config:
+        token: ${GITLAB_TOKEN}
+  
+  jenkins:
+    kind: jenkins
+    auth:
+      kind: token
+      config:
+        url: ${jenkins_url}
+        username: ${JENKINS_USERNAME}
+        token: ${JENKINS_TOKEN}
+
+secrets:
+  # Shared API key across all platforms
+  - name: external_api_key
+    kind: random_string
+    config:
+      length: 40
+      charset: alphanumeric
+    one_time: true  # Generate once, never change
+    targets:
+      # Local development
+      - provider: local
+        kind: file
+        config:
+          path: .env
+          format: dotenv
+      
+      # GitHub Actions
+      - provider: github
+        kind: github_secret
+        config:
+          owner: ${github_org}
+          repo: ${github_repo}
+      
+      # GitLab CI/CD
+      - provider: gitlab
+        kind: gitlab_variable
+        config:
+          project: ${gitlab_project}
+          masked: true
+      
+      # Jenkins
+      - provider: jenkins
+        kind: jenkins_credential
+        config:
+          credential_id: external-api-key
+          description: External API Key (SecretZero managed)
+
+  # Database password - production only
+  - name: database_password
+    kind: random_password
+    config:
+      length: 32
+      special: true
+    rotation_period: 90d  # Rotate every 90 days
+    targets:
+      # GitHub environment secret
+      - provider: github
+        kind: github_secret
+        config:
+          owner: ${github_org}
+          repo: ${github_repo}
+          environment: production
+      
+      # GitLab protected variable
+      - provider: gitlab
+        kind: gitlab_variable
+        config:
+          project: ${gitlab_project}
+          protected: true
+          masked: true
+          environment_scope: production
+      
+      # Jenkins credential
+      - provider: jenkins
+        kind: jenkins_credential
+        config:
+          credential_id: db-password-prod
+          description: Production Database Password
+
+  # Docker registry credentials
+  - name: docker_registry_password
+    kind: static
+    config:
+      default: ${DOCKER_PASSWORD}
+    targets:
+      # GitHub Actions
+      - provider: github
+        kind: github_secret
+        config:
+          owner: ${github_org}
+          repo: ${github_repo}
+      
+      # GitLab CI/CD
+      - provider: gitlab
+        kind: gitlab_variable
+        config:
+          project: ${gitlab_project}
+          masked: true
+      
+      # Jenkins username/password
+      - provider: jenkins
+        kind: jenkins_credential
+        config:
+          credential_id: docker-registry
+          description: Docker Registry Credentials
+          credential_type: username_password
+          username: ${DOCKER_USERNAME}
+
+  # AWS credentials for deployment
+  - name: aws_access_key
+    kind: static
+    config:
+      default: ${AWS_ACCESS_KEY_ID}
+    targets:
+      - provider: github
+        kind: github_secret
+        config:
+          owner: ${github_org}
+          repo: ${github_repo}
+      
+      - provider: gitlab
+        kind: gitlab_variable
+        config:
+          project: ${gitlab_project}
+          masked: true
+      
+      - provider: jenkins
+        kind: jenkins_credential
+        config:
+          credential_id: aws-access-key
+          description: AWS Access Key
+  
+  - name: aws_secret_key
+    kind: static
+    config:
+      default: ${AWS_SECRET_ACCESS_KEY}
+    targets:
+      - provider: github
+        kind: github_secret
+        config:
+          owner: ${github_org}
+          repo: ${github_repo}
+      
+      - provider: gitlab
+        kind: gitlab_variable
+        config:
+          project: ${gitlab_project}
+          masked: true
+      
+      - provider: jenkins
+        kind: jenkins_credential
+        config:
+          credential_id: aws-secret-key
+          description: AWS Secret Key
+
+  # Slack webhook for notifications (all platforms)
+  - name: slack_webhook
+    kind: static
+    config:
+      default: ${SLACK_WEBHOOK_URL}
+    targets:
+      - provider: github
+        kind: github_secret
+        config:
+          owner: ${github_org}
+          repo: ${github_repo}
+      
+      - provider: gitlab
+        kind: gitlab_variable
+        config:
+          project: ${gitlab_project}
+      
+      - provider: jenkins
+        kind: jenkins_credential
+        config:
+          credential_id: slack-webhook
+          description: Slack Notification Webhook
+```
+
+## Setup
+
+1. **Install SecretZero with all CI/CD providers**:
+   ```bash
+   pip install secretzero[cicd]
+   ```
+
+2. **Set up authentication for all platforms**:
+   ```bash
+   # GitHub
+   export GITHUB_TOKEN=ghp_your_github_token
+   
+   # GitLab
+   export GITLAB_TOKEN=glpat-your_gitlab_token
+   
+   # Jenkins
+   export JENKINS_USERNAME=admin
+   export JENKINS_TOKEN=your_jenkins_token
+   
+   # External service credentials
+   export DOCKER_USERNAME=myuser
+   export DOCKER_PASSWORD=mypassword
+   export AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
+   export AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+   export SLACK_WEBHOOK_URL=https://hooks.slack.com/services/xxx/yyy/zzz
+   ```
+
+3. **Test all provider connections**:
+   ```bash
+   secretzero test -f examples/multi-cicd.yml
+   ```
+
+4. **Perform a dry-run**:
+   ```bash
+   secretzero sync -f examples/multi-cicd.yml --dry-run
+   ```
+
+5. **Sync secrets to all platforms**:
+   ```bash
+   secretzero sync -f examples/multi-cicd.yml
+   ```
+
+## Usage in Different Platforms
+
+### GitHub Actions Workflow
+
+```yaml
+name: Deploy
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Login to Docker
+        run: echo "${{ secrets.DOCKER_REGISTRY_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+      
+      - name: Deploy to AWS
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}
+        run: ./deploy-aws.sh
+      
+      - name: Notify Slack
+        run: |
+          curl -X POST ${{ secrets.SLACK_WEBHOOK }} \
+            -H 'Content-Type: application/json' \
+            -d '{"text": "Deployment completed"}'
+```
+
+### GitLab CI/CD Pipeline
+
+```yaml
+stages:
+  - build
+  - deploy
+
+deploy:
+  stage: deploy
+  environment:
+    name: production
+  script:
+    - echo "$DOCKER_REGISTRY_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+    - export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY
+    - export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_KEY
+    - ./deploy-aws.sh
+    - 'curl -X POST $SLACK_WEBHOOK -H "Content-Type: application/json" -d "{\"text\": \"Deployment completed\"}"'
+  only:
+    - main
+```
+
+### Jenkins Pipeline
+
+```groovy
+pipeline {
+    agent any
+    
+    stages {
+        stage('Deploy') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'docker-registry',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    ),
+                    string(credentialsId: 'aws-access-key', variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-key', variable: 'AWS_SECRET_ACCESS_KEY'),
+                    string(credentialsId: 'slack-webhook', variable: 'SLACK_WEBHOOK')
+                ]) {
+                    sh '''
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                        ./deploy-aws.sh
+                        curl -X POST $SLACK_WEBHOOK -H "Content-Type: application/json" -d '{"text": "Deployment completed"}'
+                    '''
+                }
+            }
+        }
+    }
+}
+```
+
+## Benefits
+
+### Single Source of Truth
+- All secrets defined in one configuration file
+- Consistent naming across platforms
+- Centralized secret management
+
+### Automated Synchronization
+- Update secrets in all platforms with one command
+- Ensure consistency across CI/CD systems
+- Reduce manual secret management errors
+
+### Audit Trail
+- Lockfile tracks all secret changes
+- Know when secrets were created and last updated
+- Compliance-friendly documentation
+
+### Easy Rotation
+- Rotate secrets across all platforms simultaneously
+- No need to manually update each platform
+- Automated rotation policies
+
+## Secret Lifecycle
+
+### Initial Bootstrap
+```bash
+# First time setup - generates and distributes all secrets
+secretzero sync -f examples/multi-cicd.yml
+```
+
+### Secret Rotation
+```bash
+# After 90 days (or based on rotation_period)
+secretzero sync -f examples/multi-cicd.yml --force-rotate
+```
+
+### Adding New Platform
+```yaml
+# Add a new target to existing secret
+targets:
+  - provider: new_provider
+    kind: new_target_type
+    config:
+      ...
+```
+
+```bash
+# Sync to distribute to new platform
+secretzero sync -f examples/multi-cicd.yml
+```
+
+## Migration Strategy
+
+### Migrating from Manual Secret Management
+
+1. **Inventory existing secrets** in each platform
+2. **Create Secretfile.yml** with all secrets
+3. **Use `one_time: true`** for secrets that shouldn't change
+4. **Run dry-run** to verify what will be updated
+5. **Sync in stages** (one platform at a time if preferred)
+6. **Verify** in each platform's UI
+7. **Update** pipelines to use new secret names if needed
+
+### Example Migration
+
+```yaml
+secrets:
+  # Existing secret - preserve current value
+  - name: legacy_api_key
+    kind: static
+    config:
+      default: ${LEGACY_API_KEY}  # Read from environment
+    one_time: true  # Don't regenerate
+    targets:
+      # Add to all platforms
+```
+
+## Best Practices
+
+1. **Use descriptive names** that work across all platforms
+2. **Set `one_time: true`** for external service credentials
+3. **Use `rotation_period`** for generated secrets
+4. **Test connectivity** before syncing
+5. **Use dry-run** before making changes
+6. **Commit Secretfile.yml** to version control
+7. **Never commit** the lockfile or authentication tokens
+8. **Use environment-specific** secrets where appropriate
+9. **Document** secret purposes in descriptions
+10. **Rotate regularly** according to security policies
+
+## Troubleshooting
+
+### Secret Mismatch
+If secrets differ between platforms:
+```bash
+# Force resync to all platforms
+secretzero sync -f examples/multi-cicd.yml --force
+```
+
+### Platform-Specific Issues
+Test each provider independently:
+```bash
+secretzero test -f examples/multi-cicd.yml
+```
+
+### Partial Sync Failure
+If one platform fails, others may succeed. Check the output for errors and retry the failed platform.
+
+## Security Considerations
+
+1. **Token Storage**: Store authentication tokens securely (1Password, HashiCorp Vault, etc.)
+2. **Token Rotation**: Rotate platform tokens regularly
+3. **Access Control**: Limit who can run `secretzero sync`
+4. **Audit Logs**: Review platform audit logs for unexpected changes
+5. **Encryption**: All secrets are encrypted in transit and at rest by the platforms
+6. **Principle of Least Privilege**: Grant minimum required permissions to service accounts
+
+## Cost Optimization
+
+- GitHub: Repository secrets are free, organization secrets may require GitHub Enterprise
+- GitLab: All tiers include CI/CD variables
+- Jenkins: Free, but consider infrastructure costs
+- SecretZero: Open source, free to use
