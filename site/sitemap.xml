@@ -216,4 +216,36 @@
          <loc>https://secret0.com/user-guide/providers/vault/</loc>
          <lastmod>2026-02-16</lastmod>
     </url>
+    <url>
+         <loc>https://secret0.com/user-guide/targets/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/targets/aws/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/targets/azure/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/targets/github/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/targets/gitlab/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/targets/jenkins/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/targets/local/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/targets/vault/</loc>
+         <lastmod>2026-02-16</lastmod>
+    </url>
 </urlset>
