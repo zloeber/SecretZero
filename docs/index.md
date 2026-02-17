@@ -70,14 +70,14 @@ secrets:
 - **Environment Fallbacks** - Manual secret override via environment variables
 - **Self-Documenting** - Secrets-as-code showing provenance and distribution
 
-### 🔄 Secret Rotation (Phase 6)
+### 🔄 Secret Rotation
 
 - **Automated Rotation** - Policy-based rotation (90d, 2w, custom periods)
 - **Rotation Tracking** - History, count, and timestamps in lockfile
 - **One-Time Secrets** - Support for secrets that should never rotate
 - **Compliance Policies** - Built-in SOC2 and ISO27001 support
 
-### 🌐 API Service (Phase 7)
+### 🌐 API Service
 
 - **REST API** - FastAPI-based HTTP API for programmatic management
 - **OpenAPI Docs** - Interactive Swagger UI and ReDoc

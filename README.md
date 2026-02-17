@@ -453,10 +453,14 @@ SecretZero is designed with security as a priority:
 
 [Apache](./LICENSE)
 
-# FAQ
+# FAQs
 
 ## Relationship to External Secrets Operator
 
-SecretZero is designed to complement, not replace, the External Secrets Operator.
+SecretZero is designed to complement, not replace, the External Secrets Operator. 
 
 SecretZero manages secret creation, bootstrap, lifecycle, and auditability upstream, while External Secrets handles runtime projection into Kubernetes.
+
+## Relationship to [Vault|Infiscal|Others]
+
+A secrets management solution like Infisical is a strong control plane for secret storage and policy. SecretZero compliments this and other secrets solutions by adding deterministic orchestration and cross-provider lifecycle modeling. We simply map out the secrets from inception to usage and beyond.

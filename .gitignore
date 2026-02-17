@@ -34,3 +34,5 @@ secret_results.json
 
 # Documentation build output
 site/
+localstack-data/
+data/

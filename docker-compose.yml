@@ -1,0 +1,79 @@
+services:
+  localstack-aws:
+    container_name: secretzero-localstack-aws
+    image: localstack/localstack:latest
+    ports:
+      - "4566"       # LocalStack Gateway
+      - "4510-4559"  # External services port range
+    environment:
+      - SERVICES=secretsmanager,kms,iam,sts
+      - DEBUG=1
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - AWS_DEFAULT_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+    volumes:
+      - ./data/localstack/aws:/var/lib/localstack
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - secretzero-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  openbao:
+    image: quay.io/openbao/openbao:latest
+    container_name: openbao
+    cap_add:
+      - IPC_LOCK
+    user: root
+    ports:
+      - "8200:8200"
+    volumes:
+      - ./data/bao/config:/bao/config:ro
+      - ./data/bao/data:/bao/data
+    environment:
+      - BAO_ADDR=http://0.0.0.0:8200
+      - BAO_API_ADDR=http://0.0.0.0:8200
+      - SKIP_SETCAP=true
+    command: server -config=/bao/config/openbao.hcl
+    restart: unless-stopped
+    networks:
+      - secretzero-network
+
+  # localstack-azure:
+  #   container_name: secretzero-localstack-azure
+  #   image: localstack/localstack-azure-alpha:latest
+  #   platform: linux/amd64
+  #   ports:
+  #     - "4566"
+  #   environment:
+  #     - SERVICES=keyvault,storage
+  #     - DEBUG=1
+  #     - DOCKER_HOST=unix:///var/run/docker.sock
+  #     - AZURE_TENANT_ID=test-tenant-id
+  #     - AZURE_SUBSCRIPTION_ID=test-subscription-id
+  #     - ACTIVATE_PRO=0
+  #     - LOCALSTACK_AUTH_TOKEN=mytoken
+  #   volumes:
+  #     - "${LOCALSTACK_VOLUME_DIR:-./localstack-data/azure}:/var/lib/localstack"
+  #     - "/var/run/docker.sock:/var/run/docker.sock"
+  #   networks:
+  #     - secretzero-network
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #     start_period: 10s
+
+networks:
+  secretzero-network:
+    driver: bridge
+
+# volumes:
+#   localstack-aws-data:
+#   localstack-azure-data:

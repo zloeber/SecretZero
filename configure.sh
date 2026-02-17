@@ -20,3 +20,5 @@ else
 fi
 mise trust
 mise install -y
+
+uv sync
