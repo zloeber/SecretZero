@@ -1,0 +1,53 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+
+version: "3"
+silent: true
+vars:
+  GITHUB_PATH:
+    sh: |
+      git remote get-url origin 2>/dev/null | sed -Ee 's/.*:(.+)\.git/\1/'
+  GITHUB_URL:
+    sh: 'echo ${GITHUB_URL:-"https://www.github.com"}'
+  GITHUB_UI_PATH: "{{.GITHUB_URL}}/{{.GITHUB_PATH}}"
+  GITHUB_TOKEN:
+    sh: echo ${GITHUB_TOKEN:-""}
+
+tasks:
+  show:
+    desc: Show github variables for this task
+    cmds:
+      - |
+        echo "GITHUB_PATH: {{.GITHUB_PATH}}"
+        echo "GITHUB_UI_PATH: {{.GITHUB_UI_PATH}}"
+
+  ui:
+    desc: Open website for github project
+    cmds:
+      - |
+        GITHUB_UI_PATH=$(git remote get-url origin 2>/dev/null | sed -Ee 's/.*:(.+)\.git/\1/' | awk '{print "https://www.github.com/" $1}')
+        echo "path: ${GITHUB_UI_PATH}"
+        if [[ "{{OS}}" == "darwin"* ]]; then
+          open ${GITHUB_UI_PATH}
+        else
+          xdg-open ${GITHUB_UI_PATH}
+        fi
+
+  actions:ui:
+    desc: Open website for github project actions
+    cmds:
+      - |
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+          open {{.GITHUB_UI_PATH}}/actions
+        else
+          xdg-open {{.GITHUB_UI_PATH}}/actions
+        fi
+
+  models:init:
+    desc: Initialize models for github project
+    cmds:
+      - gh extension install https://github.com/github/gh-models || true
+
+  models:list:
+    desc: List models for github project
+    cmds:
+      - gh models list

@@ -133,6 +133,44 @@ tasks:
         vars:
           DOCKER_BUILD_ARGS: "--build-arg DEPLOY_VERSION={{.VERSION}}-$(git rev-parse --short HEAD)"
 
+  build:all:
+    desc: Build CLI package, docs site, and Docker image
+    cmds:
+      - task: cli:build
+      - task: docs:build
+      - task: build:image
+
+  cli:build:
+    desc: Build CLI package (sdist + wheel)
+    cmds:
+      - uv build
+
+  docs:build:
+    desc: Build the MkDocs site into ./site
+    cmds:
+      - uv sync --extra docs
+      - uv run mkdocs build --clean
+
+  docs:serve:
+    desc: Serve MkDocs locally with live reload
+    cmds:
+      - uv sync --extra docs
+      - uv run mkdocs serve --dev-addr 127.0.0.1:8001
+
+  docker:build:
+    desc: Build a Docker image from a Dockerfile
+    vars:
+      DOCKER_IMAGE: '{{default "secretzero:latest" .DOCKER_IMAGE}}'
+      DOCKERFILE: '{{default "Dockerfile" .DOCKERFILE}}'
+      DOCKER_CONTEXT: '{{default "." .DOCKER_CONTEXT}}'
+      DOCKER_BUILD_ARGS: '{{default "" .DOCKER_BUILD_ARGS}}'
+    preconditions:
+      - sh: 'test -f "{{.DOCKERFILE}}"'
+        msg: "Dockerfile not found. Create one or pass DOCKERFILE=path/to/Dockerfile."
+    cmds:
+      - |
+        docker build -f "{{.DOCKERFILE}}" -t "{{.DOCKER_IMAGE}}" {{.DOCKER_BUILD_ARGS}} "{{.DOCKER_CONTEXT}}"
+
   mcp:inspector:
     desc: Start MCP Inspector
     cmds:

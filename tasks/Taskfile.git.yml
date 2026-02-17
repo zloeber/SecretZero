@@ -1,0 +1,117 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+
+version: "3"
+silent: true
+tasks:
+  show:
+    desc: Show python variables for this task
+    cmds:
+      - |
+        echo "GIT_LATEST_TAG: {{.GIT_LATEST_TAG}}"
+        echo "VERSION: {{.VERSION}}"
+
+  lint:
+    desc: Lint
+    cmds:
+      - |
+        failedfiles=$(find . -type f \( -iname "*.tf" -o -iname "*.yml" -o -iname "checksum.*" ! -iname ".local" ! -iname "venv*" ! -iname "*inc/Taskfile.git.yml" ! -iname ".git" ! -iname "Makefile" ! -iname "Taskfile.git.yml" \) -exec grep -l "<<<<<<< HEAD" {} \;)
+        if [ "$failedfiles" ]; then
+          echo "Failed git/lint files: ${failedfiles} "
+          exit 1
+        fi
+        echo "Merge request conflict detrius not found!"
+
+  pre-commit:
+    desc: Install pre-commit hooks
+    cmds:
+      - pre-commit install --install-hooks
+      - pre-commit run
+
+  set:upstream:
+    desc: Set the current git branch upstream to a branch by the same name on the origin
+    cmds:
+      - |
+        GIT_COMMIT=$(git rev-parse --short=8 HEAD 2>/dev/null || echo local)
+        GIT_BRANCH=$(git branch --show-current 2>/dev/null || echo unknown)
+        git branch \
+          --set-upstream-to=origin/${GIT_BRANCH} ${GIT_BRANCH}
+
+  merge:renovate:
+    desc: Attempt to merge all renovate/* branches
+    cmds:
+      - |
+        branch=$(git symbolic-ref --short -q HEAD)
+        echo "Current Branch: ${branch}"
+        if [ "$branch" == "master" ]; then
+          echo "Cannot run this process against master branch!"
+          exit
+        fi
+        # Ensure working directory in version branch clean
+        git update-index -q --refresh
+        if ! git diff-index --quiet HEAD --; then
+          echo "Working directory not clean, Committing current changes."
+          git add . && git commit -m 'fix: merge in renovate updates'
+        fi
+
+        echo "Attempting to merge in all renovate/* branches found."
+        echo "Any merge conflicts will need to be resolved before proceeding."
+        for b in $(git branch -r | grep renovate/); do
+          git merge $b;
+          echo "Merged ${b} succesfully!"
+        done
+
+  # init:submodule:
+  #   desc: Iitialize all git submodules
+  #   cmds:
+  #     - |
+  #       git submodule init
+  #       git submodule update --recursive --init
+  #       git submodule foreach 'git checkout master || git checkout main'
+
+  # init:
+  #   desc: Initializes git with author information
+  #   cmds:
+  #     - |
+  #       git config user.name "{{.AUTHOR_NAME}}"
+  #       git config user.email "{{.AUTHOR_EMAIL}}"
+
+  security:scan:
+    desc: Perform security scan on local repo
+    cmds:
+      - |
+        docker run --rm \
+          -e "WORKSPACE=${PWD}" \
+          -e ENABLE_OSS_RISK=true \
+          -v $PWD:/app shiftleft/sast-scan scan \
+          --src /app \
+          --type credscan,nodejs,python,yaml,terraform,ansible,bash,dockerfile,bash,depscan \
+          --out_dir /app/.local/reports
+        echo "View results in ./.local/reports"
+
+  gitleaks:
+    desc: Perform gitleaks scan
+    cmds:
+      - |
+        docker pull ghcr.io/zricethezav/gitleaks:latest
+        docker run -v ${PWD}:/path zricethezav/gitleaks:latest \
+          detect -r /path/.local/reports \
+          --source="/path"
+
+  ignore:update:
+    desc: Adds a line to an existing .gitignore file if not already present
+    cmds:
+      - |
+        if [[ "{{.TO_IGNORE}}" != "" ]]; then
+          FILE=.gitignore
+          echo "Attempting to add {{.TO_IGNORE}} to $FILE"
+          if [ ! -f "$FILE" ]; then
+              echo "{{.TO_IGNORE}}" > "$FILE"
+          else
+              if ! grep -q '{{.TO_IGNORE}}' "$FILE"; then
+                echo -e "\n{{.TO_IGNORE}}" >> "$FILE"
+              fi
+          fi
+          sed -i '/^$/d' "$FILE"
+        else
+          echo "Need to define the TO_IGNORE variable"
+        fi
