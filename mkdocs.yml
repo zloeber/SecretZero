@@ -1,0 +1,229 @@
+site_name: SecretZero
+site_url: https://secret0.com
+site_description: Secrets orchestration, lifecycle, and bootstrap engine for code repositories
+site_author: Zachary Loeber
+repo_name: zloeber/SecretZero
+repo_url: https://github.com/zloeber/SecretZero
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    # Light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.path
+    - navigation.indexes
+    - toc.follow
+    - toc.integrate
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+    - content.code.copy
+    - content.code.annotate
+  icon:
+    repo: fontawesome/brands/github
+    logo: material/key-variant
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/zloeber/SecretZero
+  version:
+    provider: mike
+  analytics:
+    provider: google
+    property: !ENV GOOGLE_ANALYTICS_KEY
+
+extra_css:
+  - stylesheets/extra.css
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      toc_depth: 3
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.snippets:
+      check_paths: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+plugins:
+  - search:
+      lang: en
+  - include-markdown
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            members_order: source
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - getting-started/index.md
+      - Installation: getting-started/installation.md
+      - Quick Start: getting-started/quickstart.md
+      - Your First Project: getting-started/first-project.md
+      - Basic Concepts: getting-started/concepts.md
+  - User Guide:
+      - user-guide/index.md
+      - Configuration:
+          - user-guide/configuration/index.md
+          - Secretfile Reference: user-guide/configuration/secretfile.md
+          - Variables & Interpolation: user-guide/configuration/variables.md
+          - Schema Validation: user-guide/configuration/validation.md
+      - Providers:
+          - user-guide/providers/index.md
+          - AWS: user-guide/providers/aws.md
+          - Azure: user-guide/providers/azure.md
+          - HashiCorp Vault: user-guide/providers/vault.md
+          - GitHub: user-guide/providers/github.md
+          - GitLab: user-guide/providers/gitlab.md
+          - Jenkins: user-guide/providers/jenkins.md
+          - Kubernetes: user-guide/providers/kubernetes.md
+      - Targets:
+          - user-guide/targets/index.md
+          - Local Files: user-guide/targets/local.md
+          - AWS Secrets: user-guide/targets/aws.md
+          - Azure Key Vault: user-guide/targets/azure.md
+          - Vault KV: user-guide/targets/vault.md
+          - GitHub Secrets: user-guide/targets/github.md
+          - GitLab Variables: user-guide/targets/gitlab.md
+          - Jenkins Credentials: user-guide/targets/jenkins.md
+          - Kubernetes Secrets: user-guide/targets/kubernetes.md
+      - Secret Generation:
+          - user-guide/generators/index.md
+          - Password Generator: user-guide/generators/password.md
+          - Random String: user-guide/generators/string.md
+          - Static Values: user-guide/generators/static.md
+          - Script Generator: user-guide/generators/script.md
+      - CLI Reference:
+          - user-guide/cli/index.md
+          - init: user-guide/cli/init.md
+          - validate: user-guide/cli/validate.md
+          - sync: user-guide/cli/sync.md
+          - show: user-guide/cli/show.md
+          - rotate: user-guide/cli/rotate.md
+          - policy: user-guide/cli/policy.md
+          - drift: user-guide/cli/drift.md
+          - test: user-guide/cli/test.md
+      - API Reference:
+          - user-guide/api/index.md
+          - Getting Started: user-guide/api/getting-started.md
+          - Authentication: user-guide/api/authentication.md
+          - Endpoints: user-guide/api/endpoints.md
+          - Python Client: user-guide/api/python-client.md
+          - Deployment: user-guide/api/deployment.md
+  - Advanced Topics:
+      - advanced/index.md
+      - Secret Rotation:
+          - advanced/rotation/index.md
+          - Rotation Policies: advanced/rotation/policies.md
+          - Automated Rotation: advanced/rotation/automation.md
+          - Best Practices: advanced/rotation/best-practices.md
+      - Policy Enforcement:
+          - advanced/policies/index.md
+          - Rotation Policies: advanced/policies/rotation.md
+          - Compliance Policies: advanced/policies/compliance.md
+          - Access Control: advanced/policies/access.md
+      - Drift Detection:
+          - advanced/drift/index.md
+          - Detection Strategies: advanced/drift/strategies.md
+          - Remediation: advanced/drift/remediation.md
+      - Multi-Environment:
+          - advanced/multi-env/index.md
+          - Environment Setup: advanced/multi-env/setup.md
+          - Variable Overrides: advanced/multi-env/variables.md
+          - Best Practices: advanced/multi-env/best-practices.md
+      - Security:
+          - advanced/security/index.md
+          - Key Management: advanced/security/key-management.md
+          - Audit Logging: advanced/security/audit-logs.md
+          - Compliance: advanced/security/compliance.md
+          - Best Practices: advanced/security/best-practices.md
+  - Use Cases:
+      - use-cases/index.md
+      - Local Development: use-cases/local-development.md
+      - GitHub Actions: use-cases/github-actions.md
+      - GitLab CI/CD: use-cases/gitlab-cicd.md
+      - Jenkins Pipelines: use-cases/jenkins.md
+      - Kubernetes Deployment: use-cases/kubernetes.md
+      - Multi-Cloud Setup: use-cases/multi-cloud.md
+      - Compliance Scenarios: use-cases/compliance.md
+      - Migration Guides: use-cases/migration.md
+  - Examples:
+      - examples/index.md
+      - Complete Examples: examples/complete.md
+      - GitHub Repository: examples/repository.md
+  - Reference:
+      - reference/index.md
+      - Architecture: reference/architecture.md
+      - Data Models: reference/models.md
+      - FAQ: reference/faq.md
+      - Troubleshooting: reference/troubleshooting.md
+      - Changelog: reference/changelog.md
+  - Contributing:
+      - contributing/index.md
+      - Development Setup: contributing/development.md
+      - Code Style: contributing/code-style.md
+      - Testing: contributing/testing.md
+      - Documentation: contributing/documentation.md

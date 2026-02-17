@@ -1,0 +1,103 @@
+/* Custom styles for SecretZero documentation */
+
+:root {
+  --md-primary-fg-color: #3f51b5;
+  --md-primary-fg-color--light: #5c6bc0;
+  --md-primary-fg-color--dark: #303f9f;
+  --md-accent-fg-color: #3f51b5;
+}
+
+/* Grid cards for homepage */
+.grid.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+  margin: 2rem 0;
+}
+
+.grid.cards > * {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  transition: all 0.2s;
+}
+
+.grid.cards > *:hover {
+  border-color: var(--md-accent-fg-color);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+/* Code block enhancements */
+.highlight {
+  border-radius: 0.5rem;
+}
+
+/* Admonition custom colors */
+.md-typeset .admonition.success {
+  border-color: #00c853;
+}
+
+.md-typeset .admonition.success > .admonition-title {
+  background-color: rgba(0, 200, 83, 0.1);
+}
+
+/* Mermaid diagram styling */
+.mermaid {
+  background-color: transparent !important;
+}
+
+/* Enhanced navigation */
+.md-nav__title {
+  font-weight: 700;
+}
+
+/* Code copy button enhancement */
+.md-clipboard {
+  transition: opacity 0.2s;
+}
+
+.md-clipboard:hover {
+  opacity: 1 !important;
+}
+
+/* Table styling */
+.md-typeset table:not([class]) {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.5rem;
+}
+
+/* Badge styling */
+img[alt*="Status"],
+img[alt*="Python"],
+img[alt*="License"] {
+  display: inline-block;
+  margin: 0.25rem;
+}
+
+/* Command-line prompt styling */
+.md-typeset code {
+  word-break: break-word;
+}
+
+/* Responsive adjustments */
+@media screen and (max-width: 76.1875em) {
+  .grid.cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Dark mode adjustments */
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #5c6bc0;
+  --md-primary-fg-color--light: #7986cb;
+  --md-primary-fg-color--dark: #3f51b5;
+}
+
+[data-md-color-scheme="slate"] .grid.cards > * {
+  border-color: var(--md-default-fg-color--light);
+}
+
+[data-md-color-scheme="slate"] .grid.cards > *:hover {
+  box-shadow: 0 4px 8px rgba(255, 255, 255, 0.1);
+}

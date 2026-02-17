@@ -31,3 +31,6 @@ htmlcov/
 secret_results.json
 .env.*
 !.env.EXAMPLE
+
+# Documentation build output
+site/
