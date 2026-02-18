@@ -6,16 +6,5 @@ task = "latest"
 jq = "latest"
 python = "3.13"
 uv = "latest"
-bun = "latest"
-ollama = "latest"
 gitleaks = "latest"
 yq = "latest"
-
-# [tools."http:terraform-mcp-server"]
-# version = "0.3.2"
-
-# [tools."http:terraform-mcp-server".platforms]
-# macos-x64 = { url = "https://releases.hashicorp.com/terraform-mcp-server/0.3.2/terraform-mcp-server_0.3.2_darwin_amd64.zip" }
-# macos-arm64 = { url = "https://releases.hashicorp.com/terraform-mcp-server/0.3.2/terraform-mcp-server_0.3.2_darwin_arm64.zip" }
-# linux-x64 = { url = "https://releases.hashicorp.com/terraform-mcp-server/0.3.2/terraform-mcp-server_0.3.2_linux_amd64.zip" }
-# windows-x64 = { url = "https://releases.hashicorp.com/terraform-mcp-server/0.3.2/terraform-mcp-server_0.3.2_windows_amd64.zip" }

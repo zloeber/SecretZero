@@ -231,14 +231,14 @@ def _show_secret_status(secret, config, lock: Lockfile, verbose: bool) -> None:
         # For templates, check if all fields are synced
         template_name = secret.kind.replace("templates.", "")
         template = config.templates.get(template_name)
-        
+
         all_fields_synced = False
         if template and template.fields:
             all_fields_synced = all(
                 lock.get_secret_info(f"{secret_name}.{field_name}")
                 for field_name in template.fields.keys()
             )
-        
+
         # Use dummy entry to show synced if all fields are synced
         lock_entry = lock.get_secret_info(secret_name) if not is_template else None
         if all_fields_synced:
@@ -344,7 +344,7 @@ def _show_target_status(
         identifier = target.config.get("path", "")
     else:
         identifier = target.config.get("name", "")
-    
+
     target_id = f"{target.provider}/{target.kind}/{identifier}"
 
     # Check if this target is tracked in lockfile
@@ -1504,9 +1504,7 @@ def show(secret_name: str | None, file: str, lockfile: str, detailed: bool) -> N
     help="Show what would be rotated without making changes",
 )
 @click.argument("secret_name", required=False)
-def rotate(
-    file: str, lockfile: str, force: bool, dry_run: bool, secret_name: str | None
-) -> None:
+def rotate(file: str, lockfile: str, force: bool, dry_run: bool, secret_name: str | None) -> None:
     """Rotate secrets based on rotation policies.
 
     This command checks which secrets need rotation and regenerates them.

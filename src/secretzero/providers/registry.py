@@ -1,6 +1,5 @@
 """Provider registry for managing provider instances."""
 
-
 from secretzero.providers.base import BaseProvider
 
 
@@ -23,9 +22,7 @@ class ProviderRegistry:
         """
         self._provider_classes[provider_type] = provider_class
 
-    def create_provider(
-        self, provider_type: str, name: str, config: dict
-    ) -> BaseProvider | None:
+    def create_provider(self, provider_type: str, name: str, config: dict) -> BaseProvider | None:
         """Create a provider instance.
 
         Args:

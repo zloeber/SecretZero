@@ -1,0 +1,55 @@
+name: Test
+
+on: [push, pull_request]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  PROJECT_PATH: src/metagit
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test - ${{ matrix.os }} - ${{ matrix.python-version }} - ${{ github.ref_name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: setup.py
+
+      - name: Set up environment
+        run: |
+          pip install uv
+          uv venv
+          uv pip install -e ".[test]"
+
+      - name: Unit Tests
+        run: |
+          uv run pytest --maxfail=1 --disable-warnings -v tests
+
+      - name: Linting
+        if: matrix.os != 'windows-latest'
+        run: |
+          uv run black --check ${{ env.PROJECT_PATH }}
+          uv run ruff format --check ${{ env.PROJECT_PATH }}
+      # - name: Type Checking
+      #   if: matrix.os != 'windows-latest'
+      #   run: |
+      #     mypy metagit
+      - name: Build Check
+        run: |
+          uv sync
+          uv build

@@ -261,14 +261,14 @@ class SyncEngine:
         if secret_exists and not force_rotation and tracked_targets:
             for target_config in secret.targets:
                 target_id = self._build_target_id(target_config)
-                
+
                 # Check if target is tracked (support old lockfile format for file targets)
                 is_tracked = target_id in tracked_targets
                 if not is_tracked and target_config.kind == "file":
                     # Check old format (with empty name instead of path)
                     old_target_id = f"{target_config.provider}/{target_config.kind}/"
                     is_tracked = old_target_id in tracked_targets
-                
+
                 if is_tracked:
                     # Try to retrieve from this target
                     secret_value = self._retrieve_from_target(secret.name, target_config)
@@ -404,14 +404,14 @@ class SyncEngine:
             if field_exists and not force_rotation and tracked_targets:
                 for target_config in all_targets:
                     target_id = self._build_target_id(target_config)
-                    
+
                     # Check if target is tracked (support old lockfile format for file targets)
                     is_tracked = target_id in tracked_targets
                     if not is_tracked and target_config.kind == "file":
                         # Check old format (with empty name instead of path)
                         old_target_id = f"{target_config.provider}/{target_config.kind}/"
                         is_tracked = old_target_id in tracked_targets
-                    
+
                     if is_tracked:
                         field_value = self._retrieve_from_target(field_name, target_config)
                         if field_value:

@@ -127,7 +127,7 @@ exclude = [".venv", "records", ".metagit", "examples", "docs", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]
-ignore = ["E501", "F401", "F403", "F405"]
+ignore = ["E501", "F401", "F403", "F405", "W293", "UP042"]
 
 [tool.mypy]
 python_version = "3.12"

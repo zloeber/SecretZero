@@ -568,8 +568,8 @@ def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
                     detail=f"Secretfile not found: {config_path}",
                 )
 
-            loader = ConfigLoader()
-            config = loader.load_file(config_path)
+            # loader = ConfigLoader()
+            # config = loader.load_file(config_path)
             lockfile_path = Path(".gitsecrets.lock")
             detector = DriftDetector(config_path, lockfile_path)
 
