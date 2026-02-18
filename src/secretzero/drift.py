@@ -1,9 +1,9 @@
 """Drift detection for secrets."""
 
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from secretzero.config import ConfigLoader
 from secretzero.lockfile import Lockfile
@@ -12,70 +12,78 @@ from secretzero.models import Secret, TargetConfig
 
 class DriftStatus(BaseModel):
     """Drift detection status."""
-    
+
     secret_name: str
     has_drift: bool
     message: str
-    details: dict[str, Any] = {}
+    details: dict[str, Any] = Field(default_factory=dict)
 
 
 class DriftDetector:
     """Detect drift between lockfile and actual targets."""
-    
+
     def __init__(self, secretfile_path: Path, lockfile_path: Path):
         """Initialize drift detector.
-        
+
         Args:
             secretfile_path: Path to Secretfile
             lockfile_path: Path to lockfile
         """
         self.secretfile_path = secretfile_path
         self.lockfile_path = lockfile_path
-        
+
         loader = ConfigLoader()
         self.config = loader.load_file(secretfile_path)
         self.lockfile = Lockfile.load(lockfile_path)
-    
-    def check_drift(self, secret_name: Optional[str] = None) -> list[DriftStatus]:
+
+    def check_drift(self, secret_name: str | None = None) -> list[DriftStatus]:
         """Check for drift in secrets.
-        
+
         Args:
             secret_name: Optional specific secret to check
-            
+
         Returns:
             List of drift status results
         """
         results = []
-        
+
         # Filter secrets to check
         secrets_to_check = self.config.secrets
         if secret_name:
             secrets_to_check = [s for s in self.config.secrets if s.name == secret_name]
-        
+
         for secret in secrets_to_check:
             result = self._check_secret_drift(secret)
             results.append(result)
-        
+
         return results
-    
+
     def _check_secret_drift(self, secret: Secret) -> DriftStatus:
         """Check drift for a single secret.
-        
+
         Args:
             secret: Secret to check
-            
+
         Returns:
             Drift status
         """
+        if secret.kind.startswith("templates."):
+            return self._check_template_secret_drift(secret)
+
+        targets = self._format_targets(secret.targets)
+
         # Check if secret exists in lockfile
         if not self.lockfile.has_secret(secret.name):
             return DriftStatus(
                 secret_name=secret.name,
                 has_drift=True,
                 message="Secret not found in lockfile",
-                details={"reason": "never_generated"},
+                details={
+                    "reason": "never_generated",
+                    "targets": targets,
+                },
             )
-        
+
         lockfile_entry = self.lockfile.get_secret_info(secret.name)
         if not lockfile_entry:
             return DriftStatus(
@@ -84,11 +92,11 @@ class DriftDetector:
                 message="Secret entry corrupted in lockfile",
                 details={"reason": "corrupted"},
             )
-        
+
         # Check if we can verify drift against targets
         # For now, we'll focus on file targets which we can read
         file_targets = self._get_file_targets(secret)
-        
+
         if not file_targets:
             return DriftStatus(
                 secret_name=secret.name,
@@ -97,25 +105,26 @@ class DriftDetector:
                 details={
                     "reason": "no_file_targets",
                     "lockfile_hash": lockfile_entry.hash,
+                    "targets": targets,
                 },
             )
-        
+
         # Check file targets for drift
         drift_detected = False
         drift_details = {}
-        
+
         for target in file_targets:
-            target_path = Path(target.config.get('path', ''))
+            target_path = Path(target.config.get("path", ""))
             if not target_path.exists():
                 drift_detected = True
                 drift_details[str(target_path)] = "file_missing"
                 continue
-            
+
             # For now, we mark as "needs_verification" since we can't read
             # the actual secret value from the file without knowing the format
             # and key name
             drift_details[str(target_path)] = "exists"
-        
+
         if drift_detected:
             return DriftStatus(
                 secret_name=secret.name,
@@ -123,45 +132,125 @@ class DriftDetector:
                 message="Target files missing",
                 details=drift_details,
             )
-        
+
         return DriftStatus(
             secret_name=secret.name,
             has_drift=False,
             message="No drift detected in file targets",
             details=drift_details,
         )
-    
+
+    def _check_template_secret_drift(self, secret: Secret) -> DriftStatus:
+        """Check drift for a template-based secret.
+
+        Args:
+            secret: Template-based secret
+
+        Returns:
+            Drift status
+        """
+        template_name = secret.kind.split(".", 1)[1]
+        template = self.config.templates.get(template_name)
+
+        if not template:
+            return DriftStatus(
+                secret_name=secret.name,
+                has_drift=True,
+                message="Template not found",
+                details={"template": template_name},
+            )
+
+        field_details: dict[str, Any] = {}
+        any_missing = False
+        any_present = False
+
+        for field_name, field_def in template.fields.items():
+            field_secret_name = f"{secret.name}.{field_name}"
+            exists_in_lockfile = self.lockfile.has_secret(field_secret_name)
+            any_present = any_present or exists_in_lockfile
+            any_missing = any_missing or not exists_in_lockfile
+
+            targets = self._format_targets(field_def.targets + template.targets)
+            field_details[field_name] = {
+                "exists_in_lockfile": exists_in_lockfile,
+                "targets": targets,
+            }
+
+        if not any_present:
+            return DriftStatus(
+                secret_name=secret.name,
+                has_drift=True,
+                message="Template fields not found in lockfile",
+                details={
+                    "reason": "never_generated",
+                    "fields": field_details,
+                },
+            )
+
+        if any_missing:
+            return DriftStatus(
+                secret_name=secret.name,
+                has_drift=True,
+                message="Some template fields missing in lockfile",
+                details={
+                    "reason": "partial_generation",
+                    "fields": field_details,
+                },
+            )
+
+        return DriftStatus(
+            secret_name=secret.name,
+            has_drift=False,
+            message="Template fields found in lockfile",
+            details={
+                "reason": "tracked",
+                "fields": field_details,
+            },
+        )
+
     def _get_file_targets(self, secret: Secret) -> list[TargetConfig]:
         """Get file targets for a secret.
-        
+
         Args:
             secret: Secret to get targets for
-            
+
         Returns:
             List of file target configs
         """
         return [t for t in secret.targets if t.kind == "file"]
-    
-    def auto_remediate(self, secret_name: Optional[str] = None) -> dict[str, Any]:
+
+    @staticmethod
+    def _format_targets(targets: list[TargetConfig]) -> list[str]:
+        """Format targets for display.
+
+        Args:
+            targets: List of target configs
+
+        Returns:
+            List of formatted target strings
+        """
+        return [f"{t.provider}/{t.kind}" for t in targets]
+
+    def auto_remediate(self, secret_name: str | None = None) -> dict[str, Any]:
         """Auto-remediate drift by regenerating secrets.
-        
+
         Args:
             secret_name: Optional specific secret to remediate
-            
+
         Returns:
             Remediation results
         """
         # Check for drift first
         drift_results = self.check_drift(secret_name)
-        
+
         secrets_with_drift = [r for r in drift_results if r.has_drift]
-        
+
         if not secrets_with_drift:
             return {
                 "remediated": 0,
                 "message": "No drift detected",
             }
-        
+
         # For auto-remediation, we'd need to call the sync engine
         # This is a placeholder for the actual implementation
         return {

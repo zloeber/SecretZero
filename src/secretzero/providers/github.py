@@ -1,6 +1,6 @@
 """GitHub provider for GitHub Actions secrets."""
 
-from typing import Any, Optional
+from typing import Any
 
 from secretzero.providers.base import BaseProvider, ProviderAuth
 
@@ -17,7 +17,7 @@ class GitHubAuth(ProviderAuth):
                 - api_url: Optional GitHub API URL (default: https://api.github.com)
         """
         super().__init__(config)
-        self._client: Optional[Any] = None
+        self._client: Any | None = None
 
     def authenticate(self) -> bool:
         """Authenticate with GitHub.
@@ -35,7 +35,7 @@ class GitHubAuth(ProviderAuth):
             return False
 
         api_url = self.config.get("api_url", "https://api.github.com")
-        
+
         try:
             # Initialize GitHub client
             self._client = Github(token, base_url=api_url)
@@ -70,8 +70,8 @@ class GitHubProvider(BaseProvider):
     def __init__(
         self,
         name: str,
-        config: Optional[dict[str, Any]] = None,
-        auth: Optional[GitHubAuth] = None,
+        config: dict[str, Any] | None = None,
+        auth: GitHubAuth | None = None,
     ):
         """Initialize GitHub provider.
 
@@ -88,7 +88,7 @@ class GitHubProvider(BaseProvider):
             auth = GitHubAuth(auth_config)
         super().__init__(name, config, auth)
 
-    def test_connection(self) -> tuple[bool, Optional[str]]:
+    def test_connection(self) -> tuple[bool, str | None]:
         """Test GitHub API connectivity.
 
         Returns:

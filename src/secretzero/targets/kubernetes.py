@@ -1,7 +1,7 @@
 """Kubernetes secret targets."""
 
 import base64
-from typing import Any, Optional
+from typing import Any
 
 from secretzero.targets.base import BaseTarget
 
@@ -9,7 +9,7 @@ from secretzero.targets.base import BaseTarget
 class KubernetesSecretTarget(BaseTarget):
     """Store secrets in Kubernetes cluster as native Secret objects."""
 
-    def __init__(self, provider: Any, config: Optional[dict[str, Any]] = None):
+    def __init__(self, provider: Any, config: dict[str, Any] | None = None):
         """Initialize Kubernetes secret target.
 
         Args:
@@ -55,13 +55,13 @@ class KubernetesSecretTarget(BaseTarget):
 
         try:
             api = self.provider.auth.get_client()
-            
+
             # Use data_key if provided, otherwise use the secret_name
             key = self.data_key or secret_name
-            
+
             # Encode secret value to base64 (Kubernetes requirement)
             encoded_value = base64.b64encode(secret_value.encode()).decode()
-            
+
             # Create secret metadata
             metadata = client.V1ObjectMeta(
                 name=self.secret_name,
@@ -69,51 +69,45 @@ class KubernetesSecretTarget(BaseTarget):
                 labels=self.labels if self.labels else None,
                 annotations=self.annotations if self.annotations else None,
             )
-            
+
             # Create secret object
             secret = client.V1Secret(
                 api_version="v1",
                 kind="Secret",
                 metadata=metadata,
                 type=self.secret_type,
-                data={key: encoded_value}
+                data={key: encoded_value},
             )
-            
+
             try:
                 # Try to read existing secret
                 existing = api.read_namespaced_secret(
-                    name=self.secret_name,
-                    namespace=self.namespace
+                    name=self.secret_name, namespace=self.namespace
                 )
-                
+
                 # Update existing secret by merging data
                 if existing.data:
                     existing.data[key] = encoded_value
                 else:
                     existing.data = {key: encoded_value}
-                
+
                 # Update the secret
                 api.replace_namespaced_secret(
-                    name=self.secret_name,
-                    namespace=self.namespace,
-                    body=existing
+                    name=self.secret_name, namespace=self.namespace, body=existing
                 )
             except ApiException as e:
                 if e.status == 404:
                     # Secret doesn't exist, create it
-                    api.create_namespaced_secret(
-                        namespace=self.namespace,
-                        body=secret
-                    )
+                    api.create_namespaced_secret(namespace=self.namespace, body=secret)
                 else:
                     raise
-            
+
             return True
         except Exception as e:
             print(f"Failed to store secret in Kubernetes: {e}")
             return False
 
-    def retrieve(self, secret_name: str) -> Optional[str]:
+    def retrieve(self, secret_name: str) -> str | None:
         """Retrieve secret from Kubernetes cluster.
 
         Args:
@@ -130,19 +124,16 @@ class KubernetesSecretTarget(BaseTarget):
 
         try:
             api = self.provider.auth.get_client()
-            
+
             # Use data_key if provided, otherwise use the secret_name
             key = self.data_key or secret_name
-            
+
             # Read the secret
-            secret = api.read_namespaced_secret(
-                name=self.secret_name,
-                namespace=self.namespace
-            )
-            
+            secret = api.read_namespaced_secret(name=self.secret_name, namespace=self.namespace)
+
             if not secret.data or key not in secret.data:
                 return None
-            
+
             # Decode base64 value
             encoded_value = secret.data[key]
             decoded_value = base64.b64decode(encoded_value).decode()
@@ -160,7 +151,7 @@ class KubernetesSecretTarget(BaseTarget):
 class ExternalSecretTarget(BaseTarget):
     """Generate External Secrets Operator manifests for GitOps workflows."""
 
-    def __init__(self, provider: Any, config: Optional[dict[str, Any]] = None):
+    def __init__(self, provider: Any, config: dict[str, Any] | None = None):
         """Initialize External Secret target.
 
         Args:
@@ -217,7 +208,7 @@ class ExternalSecretTarget(BaseTarget):
         try:
             # Determine backend key path
             backend_key = self.backend_key or secret_name
-            
+
             # Create ExternalSecret manifest
             manifest = {
                 "apiVersion": "external-secrets.io/v1beta1",
@@ -228,48 +219,36 @@ class ExternalSecretTarget(BaseTarget):
                 },
                 "spec": {
                     "refreshInterval": self.refresh_interval,
-                    "secretStoreRef": {
-                        "name": self.secret_store_ref,
-                        "kind": "SecretStore"
-                    },
-                    "target": {
-                        "name": self.secret_name,
-                        "creationPolicy": "Owner"
-                    },
-                    "data": [
-                        {
-                            "secretKey": secret_name,
-                            "remoteRef": {
-                                "key": backend_key
-                            }
-                        }
-                    ]
-                }
+                    "secretStoreRef": {"name": self.secret_store_ref, "kind": "SecretStore"},
+                    "target": {"name": self.secret_name, "creationPolicy": "Owner"},
+                    "data": [{"secretKey": secret_name, "remoteRef": {"key": backend_key}}],
+                },
             }
-            
+
             # Add labels if provided
             if self.labels:
                 manifest["metadata"]["labels"] = self.labels
-            
+
             # Add annotations if provided
             if self.annotations:
                 manifest["metadata"]["annotations"] = self.annotations
-            
+
             # Write manifest to file
             import os
+
             output_dir = os.path.dirname(self.output_path)
             if output_dir:  # Only create directory if path includes a directory
                 os.makedirs(output_dir, exist_ok=True)
-            
-            with open(self.output_path, 'w') as f:
+
+            with open(self.output_path, "w") as f:
                 yaml.dump(manifest, f, default_flow_style=False, sort_keys=False)
-            
+
             return True
         except Exception as e:
             print(f"Failed to generate ExternalSecret manifest: {e}")
             return False
 
-    def retrieve(self, secret_name: str) -> Optional[str]:
+    def retrieve(self, secret_name: str) -> str | None:
         """External Secrets don't support direct retrieval.
 
         Args:

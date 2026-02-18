@@ -5,19 +5,22 @@ from secretzero.targets.file import FileTarget
 
 # Optional cloud provider targets
 try:
-    from secretzero.targets.aws import SSMParameterTarget, SecretsManagerTarget
+    from secretzero.targets.aws import SecretsManagerTarget, SSMParameterTarget
+
     _has_aws = True
 except ImportError:
     _has_aws = False
 
 try:
     from secretzero.targets.azure import KeyVaultTarget
+
     _has_azure = True
 except ImportError:
     _has_azure = False
 
 try:
     from secretzero.targets.vault import VaultKVTarget
+
     _has_vault = True
 except ImportError:
     _has_vault = False

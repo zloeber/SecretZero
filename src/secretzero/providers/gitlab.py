@@ -1,6 +1,6 @@
 """GitLab provider for CI/CD variables."""
 
-from typing import Any, Optional
+from typing import Any
 
 from secretzero.providers.base import BaseProvider, ProviderAuth
 
@@ -17,7 +17,7 @@ class GitLabAuth(ProviderAuth):
                 - url: Optional GitLab instance URL (default: https://gitlab.com)
         """
         super().__init__(config)
-        self._client: Optional[Any] = None
+        self._client: Any | None = None
 
     def authenticate(self) -> bool:
         """Authenticate with GitLab.
@@ -35,7 +35,7 @@ class GitLabAuth(ProviderAuth):
             return False
 
         url = self.config.get("url", "https://gitlab.com")
-        
+
         try:
             # Initialize GitLab client
             self._client = gitlab.Gitlab(url=url, private_token=token)
@@ -70,8 +70,8 @@ class GitLabProvider(BaseProvider):
     def __init__(
         self,
         name: str,
-        config: Optional[dict[str, Any]] = None,
-        auth: Optional[GitLabAuth] = None,
+        config: dict[str, Any] | None = None,
+        auth: GitLabAuth | None = None,
     ):
         """Initialize GitLab provider.
 
@@ -88,7 +88,7 @@ class GitLabProvider(BaseProvider):
             auth = GitLabAuth(auth_config)
         super().__init__(name, config, auth)
 
-    def test_connection(self) -> tuple[bool, Optional[str]]:
+    def test_connection(self) -> tuple[bool, str | None]:
         """Test GitLab API connectivity.
 
         Returns:

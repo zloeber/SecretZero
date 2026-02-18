@@ -1,7 +1,6 @@
 """Azure provider implementation for SecretZero."""
 
-import os
-from typing import Any, Dict, Optional
+from typing import Any
 
 from secretzero.providers.base import BaseProvider, ProviderAuth
 
@@ -9,9 +8,9 @@ from secretzero.providers.base import BaseProvider, ProviderAuth
 class AzureAuth(ProviderAuth):
     """Azure authentication handler."""
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: dict[str, Any] | None = None):
         """Initialize Azure authentication.
-        
+
         Args:
             config: Authentication configuration including:
                 - kind: Authentication method (managed_identity, default, cli)
@@ -24,7 +23,7 @@ class AzureAuth(ProviderAuth):
 
     def authenticate(self) -> bool:
         """Authenticate with Azure.
-        
+
         Returns:
             True if authentication successful, False otherwise
         """
@@ -61,7 +60,7 @@ class AzureAuth(ProviderAuth):
 
     def is_authenticated(self) -> bool:
         """Check if authenticated.
-        
+
         Returns:
             True if authenticated, False otherwise
         """
@@ -76,7 +75,7 @@ class AzureAuth(ProviderAuth):
 
     def get_client(self) -> Any:
         """Get Azure credential.
-        
+
         Returns:
             Azure credential instance or None
         """
@@ -89,11 +88,11 @@ class AzureProvider(BaseProvider):
     def __init__(
         self,
         name: str = "azure",
-        config: Optional[Dict[str, Any]] = None,
-        auth: Optional[AzureAuth] = None,
+        config: dict[str, Any] | None = None,
+        auth: AzureAuth | None = None,
     ):
         """Initialize Azure provider.
-        
+
         Args:
             name: Provider name
             config: Provider configuration
@@ -105,9 +104,9 @@ class AzureProvider(BaseProvider):
 
         super().__init__(name, config, auth)
 
-    def test_connection(self) -> tuple[bool, Optional[str]]:
+    def test_connection(self) -> tuple[bool, str | None]:
         """Test Azure connectivity.
-        
+
         Returns:
             Tuple of (success: bool, error_message: Optional[str])
         """
@@ -138,7 +137,7 @@ class AzureProvider(BaseProvider):
 
     def get_supported_targets(self) -> list[str]:
         """Get supported target types.
-        
+
         Returns:
             List of supported target type names
         """

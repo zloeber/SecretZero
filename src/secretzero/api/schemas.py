@@ -1,7 +1,7 @@
 """API request and response models."""
 
 from datetime import UTC, datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -18,22 +18,22 @@ class ErrorResponse(BaseModel):
     """Error response."""
 
     error: str
-    detail: Optional[str] = None
+    detail: str | None = None
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class ConfigValidationRequest(BaseModel):
     """Request to validate a Secretfile configuration."""
 
-    config: Dict[str, Any]
+    config: dict[str, Any]
 
 
 class ConfigValidationResponse(BaseModel):
     """Response from configuration validation."""
 
     valid: bool
-    errors: List[str] = Field(default_factory=list)
-    warnings: List[str] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
 
 
 class SecretGenerateRequest(BaseModel):
@@ -50,13 +50,13 @@ class SecretGenerateResponse(BaseModel):
     secret_name: str
     generated: bool
     message: str
-    targets_updated: List[str] = Field(default_factory=list)
+    targets_updated: list[str] = Field(default_factory=list)
 
 
 class SecretListResponse(BaseModel):
     """Response listing secrets."""
 
-    secrets: List[Dict[str, Any]]
+    secrets: list[dict[str, Any]]
     count: int
 
 
@@ -65,17 +65,17 @@ class SecretStatusResponse(BaseModel):
 
     name: str
     exists: bool
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-    last_rotated: Optional[datetime] = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    last_rotated: datetime | None = None
     rotation_count: int = 0
-    targets: List[str] = Field(default_factory=list)
+    targets: list[str] = Field(default_factory=list)
 
 
 class RotationCheckRequest(BaseModel):
     """Request to check rotation status."""
 
-    secret_name: Optional[str] = None
+    secret_name: str | None = None
     dry_run: bool = True
 
 
@@ -83,23 +83,23 @@ class RotationCheckResponse(BaseModel):
     """Response from rotation check."""
 
     secrets_checked: int
-    secrets_due: List[str] = Field(default_factory=list)
-    secrets_overdue: List[str] = Field(default_factory=list)
-    results: List[Dict[str, Any]] = Field(default_factory=list)
+    secrets_due: list[str] = Field(default_factory=list)
+    secrets_overdue: list[str] = Field(default_factory=list)
+    results: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class RotationExecuteRequest(BaseModel):
     """Request to execute rotation."""
 
-    secret_name: Optional[str] = None
+    secret_name: str | None = None
     force: bool = False
 
 
 class RotationExecuteResponse(BaseModel):
     """Response from rotation execution."""
 
-    rotated: List[str] = Field(default_factory=list)
-    failed: List[str] = Field(default_factory=list)
+    rotated: list[str] = Field(default_factory=list)
+    failed: list[str] = Field(default_factory=list)
     message: str
 
 
@@ -113,23 +113,23 @@ class PolicyCheckResponse(BaseModel):
     """Response from policy check."""
 
     compliant: bool
-    errors: List[Dict[str, Any]] = Field(default_factory=list)
-    warnings: List[Dict[str, Any]] = Field(default_factory=list)
-    info: List[Dict[str, Any]] = Field(default_factory=list)
+    errors: list[dict[str, Any]] = Field(default_factory=list)
+    warnings: list[dict[str, Any]] = Field(default_factory=list)
+    info: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class DriftCheckRequest(BaseModel):
     """Request to check for drift."""
 
-    secret_name: Optional[str] = None
+    secret_name: str | None = None
 
 
 class DriftCheckResponse(BaseModel):
     """Response from drift check."""
 
     has_drift: bool
-    secrets_with_drift: List[str] = Field(default_factory=list)
-    details: List[Dict[str, Any]] = Field(default_factory=list)
+    secrets_with_drift: list[str] = Field(default_factory=list)
+    details: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class SyncRequest(BaseModel):
@@ -137,14 +137,14 @@ class SyncRequest(BaseModel):
 
     dry_run: bool = False
     force: bool = False
-    secret_name: Optional[str] = None
+    secret_name: str | None = None
 
 
 class SyncResponse(BaseModel):
     """Response from sync operation."""
 
-    secrets_generated: List[str] = Field(default_factory=list)
-    secrets_skipped: List[str] = Field(default_factory=list)
+    secrets_generated: list[str] = Field(default_factory=list)
+    secrets_skipped: list[str] = Field(default_factory=list)
     message: str
 
 
@@ -154,15 +154,15 @@ class AuditLogEntry(BaseModel):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
     action: str
     resource: str
-    user: Optional[str] = None
-    details: Optional[Dict[str, Any]] = None
+    user: str | None = None
+    details: dict[str, Any] | None = None
     success: bool = True
 
 
 class AuditLogResponse(BaseModel):
     """Response with audit logs."""
 
-    entries: List[AuditLogEntry]
+    entries: list[AuditLogEntry]
     count: int
     page: int = 1
     per_page: int = 50

@@ -59,8 +59,7 @@ class ConfigLoader:
         """
         if isinstance(data, dict):
             return {
-                key: self._interpolate_variables(value, variables)
-                for key, value in data.items()
+                key: self._interpolate_variables(value, variables) for key, value in data.items()
             }
         elif isinstance(data, list):
             return [self._interpolate_variables(item, variables) for item in data]

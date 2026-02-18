@@ -12,6 +12,7 @@ class TestGitHubProvider:
         """Test importing GitHub provider."""
         try:
             from secretzero.providers.github import GitHubProvider, GitHubAuth
+
             assert GitHubProvider is not None
             assert GitHubAuth is not None
         except ImportError:
@@ -21,6 +22,7 @@ class TestGitHubProvider:
         """Test GitHub auth initialization."""
         try:
             from secretzero.providers.github import GitHubAuth
+
             auth = GitHubAuth({"token": "test-token", "api_url": "https://api.github.com"})
             assert auth.config["token"] == "test-token"
             assert auth.config["api_url"] == "https://api.github.com"
@@ -31,7 +33,7 @@ class TestGitHubProvider:
         """Test GitHub authentication success."""
         try:
             from secretzero.providers.github import GitHubAuth
-            
+
             # Mock GitHub client
             with patch("github.Github") as mock_github:
                 mock_client = Mock()
@@ -39,10 +41,10 @@ class TestGitHubProvider:
                 mock_user.login = "testuser"
                 mock_client.get_user.return_value = mock_user
                 mock_github.return_value = mock_client
-                
+
                 auth = GitHubAuth({"token": "test-token"})
                 result = auth.authenticate()
-                
+
                 assert result is True
                 assert auth.is_authenticated() is True
         except ImportError:
@@ -52,7 +54,7 @@ class TestGitHubProvider:
         """Test GitHub authentication failure."""
         try:
             from secretzero.providers.github import GitHubAuth
-            
+
             # Test without token
             auth = GitHubAuth({})
             result = auth.authenticate()
@@ -64,13 +66,10 @@ class TestGitHubProvider:
         """Test GitHub provider initialization."""
         try:
             from secretzero.providers.github import GitHubProvider
-            
-            config = {
-                "kind": "github",
-                "auth": {"token": "test-token"}
-            }
+
+            config = {"kind": "github", "auth": {"token": "test-token"}}
             provider = GitHubProvider(name="github", config=config)
-            
+
             assert provider.name == "github"
             assert provider.config == config
         except ImportError:
@@ -80,17 +79,17 @@ class TestGitHubProvider:
         """Test GitHub connection test success."""
         try:
             from secretzero.providers.github import GitHubProvider
-            
+
             with patch("github.Github") as mock_github:
                 mock_client = Mock()
                 mock_user = Mock()
                 mock_user.login = "testuser"
                 mock_client.get_user.return_value = mock_user
                 mock_github.return_value = mock_client
-                
+
                 config = {"auth": {"token": "test-token"}}
                 provider = GitHubProvider(name="github", config=config)
-                
+
                 success, message = provider.test_connection()
                 assert success is True
                 assert "testuser" in message
@@ -101,10 +100,10 @@ class TestGitHubProvider:
         """Test GitHub connection test failure."""
         try:
             from secretzero.providers.github import GitHubProvider
-            
+
             config = {"auth": {}}  # No token
             provider = GitHubProvider(name="github", config=config)
-            
+
             success, message = provider.test_connection()
             assert success is False
             assert "Authentication failed" in message
@@ -115,10 +114,10 @@ class TestGitHubProvider:
         """Test GitHub provider supported targets."""
         try:
             from secretzero.providers.github import GitHubProvider
-            
+
             provider = GitHubProvider(name="github", config={})
             targets = provider.get_supported_targets()
-            
+
             assert "github_secret" in targets
             assert "github_environment_secret" in targets
         except ImportError:
@@ -132,6 +131,7 @@ class TestGitLabProvider:
         """Test importing GitLab provider."""
         try:
             from secretzero.providers.gitlab import GitLabProvider, GitLabAuth
+
             assert GitLabProvider is not None
             assert GitLabAuth is not None
         except ImportError:
@@ -141,6 +141,7 @@ class TestGitLabProvider:
         """Test GitLab auth initialization."""
         try:
             from secretzero.providers.gitlab import GitLabAuth
+
             auth = GitLabAuth({"token": "test-token", "url": "https://gitlab.com"})
             assert auth.config["token"] == "test-token"
             assert auth.config["url"] == "https://gitlab.com"
@@ -151,16 +152,16 @@ class TestGitLabProvider:
         """Test GitLab authentication success."""
         try:
             from secretzero.providers.gitlab import GitLabAuth
-            
+
             # Mock GitLab client
             with patch("gitlab.Gitlab") as mock_gitlab:
                 mock_client = Mock()
                 mock_client.auth.return_value = None  # Successful auth returns None
                 mock_gitlab.return_value = mock_client
-                
+
                 auth = GitLabAuth({"token": "test-token"})
                 result = auth.authenticate()
-                
+
                 assert result is True
                 assert auth.is_authenticated() is True
         except ImportError:
@@ -170,7 +171,7 @@ class TestGitLabProvider:
         """Test GitLab authentication failure."""
         try:
             from secretzero.providers.gitlab import GitLabAuth
-            
+
             # Test without token
             auth = GitLabAuth({})
             result = auth.authenticate()
@@ -182,13 +183,10 @@ class TestGitLabProvider:
         """Test GitLab provider initialization."""
         try:
             from secretzero.providers.gitlab import GitLabProvider
-            
-            config = {
-                "kind": "gitlab",
-                "auth": {"token": "test-token"}
-            }
+
+            config = {"kind": "gitlab", "auth": {"token": "test-token"}}
             provider = GitLabProvider(name="gitlab", config=config)
-            
+
             assert provider.name == "gitlab"
             assert provider.config == config
         except ImportError:
@@ -198,7 +196,7 @@ class TestGitLabProvider:
         """Test GitLab connection test success."""
         try:
             from secretzero.providers.gitlab import GitLabProvider
-            
+
             with patch("gitlab.Gitlab") as mock_gitlab:
                 mock_client = Mock()
                 mock_client.auth.return_value = None
@@ -206,10 +204,10 @@ class TestGitLabProvider:
                 mock_user.username = "testuser"
                 mock_client.user = mock_user
                 mock_gitlab.return_value = mock_client
-                
+
                 config = {"auth": {"token": "test-token"}}
                 provider = GitLabProvider(name="gitlab", config=config)
-                
+
                 success, message = provider.test_connection()
                 assert success is True
                 assert "testuser" in message
@@ -220,10 +218,10 @@ class TestGitLabProvider:
         """Test GitLab connection test failure."""
         try:
             from secretzero.providers.gitlab import GitLabProvider
-            
+
             config = {"auth": {}}  # No token
             provider = GitLabProvider(name="gitlab", config=config)
-            
+
             success, message = provider.test_connection()
             assert success is False
             assert "Authentication failed" in message
@@ -234,10 +232,10 @@ class TestGitLabProvider:
         """Test GitLab provider supported targets."""
         try:
             from secretzero.providers.gitlab import GitLabProvider
-            
+
             provider = GitLabProvider(name="gitlab", config={})
             targets = provider.get_supported_targets()
-            
+
             assert "gitlab_variable" in targets
             assert "gitlab_group_variable" in targets
         except ImportError:
@@ -251,6 +249,7 @@ class TestJenkinsProvider:
         """Test importing Jenkins provider."""
         try:
             from secretzero.providers.jenkins import JenkinsProvider, JenkinsAuth
+
             assert JenkinsProvider is not None
             assert JenkinsAuth is not None
         except ImportError:
@@ -260,11 +259,10 @@ class TestJenkinsProvider:
         """Test Jenkins auth initialization."""
         try:
             from secretzero.providers.jenkins import JenkinsAuth
-            auth = JenkinsAuth({
-                "url": "https://jenkins.example.com",
-                "username": "admin",
-                "token": "test-token"
-            })
+
+            auth = JenkinsAuth(
+                {"url": "https://jenkins.example.com", "username": "admin", "token": "test-token"}
+            )
             assert auth.config["url"] == "https://jenkins.example.com"
             assert auth.config["username"] == "admin"
             assert auth.config["token"] == "test-token"
@@ -275,20 +273,22 @@ class TestJenkinsProvider:
         """Test Jenkins authentication success."""
         try:
             from secretzero.providers.jenkins import JenkinsAuth
-            
+
             # Mock Jenkins client
             with patch("jenkins.Jenkins") as mock_jenkins:
                 mock_client = Mock()
                 mock_client.get_version.return_value = "2.0.0"
                 mock_jenkins.return_value = mock_client
-                
-                auth = JenkinsAuth({
-                    "url": "https://jenkins.example.com",
-                    "username": "admin",
-                    "token": "test-token"
-                })
+
+                auth = JenkinsAuth(
+                    {
+                        "url": "https://jenkins.example.com",
+                        "username": "admin",
+                        "token": "test-token",
+                    }
+                )
                 result = auth.authenticate()
-                
+
                 assert result is True
                 assert auth.is_authenticated() is True
         except ImportError:
@@ -298,7 +298,7 @@ class TestJenkinsProvider:
         """Test Jenkins authentication failure."""
         try:
             from secretzero.providers.jenkins import JenkinsAuth
-            
+
             # Test without required fields
             auth = JenkinsAuth({"url": "https://jenkins.example.com"})
             result = auth.authenticate()
@@ -310,17 +310,17 @@ class TestJenkinsProvider:
         """Test Jenkins provider initialization."""
         try:
             from secretzero.providers.jenkins import JenkinsProvider
-            
+
             config = {
                 "kind": "jenkins",
                 "auth": {
                     "url": "https://jenkins.example.com",
                     "username": "admin",
-                    "token": "test-token"
-                }
+                    "token": "test-token",
+                },
             }
             provider = JenkinsProvider(name="jenkins", config=config)
-            
+
             assert provider.name == "jenkins"
             assert provider.config == config
         except ImportError:
@@ -330,21 +330,21 @@ class TestJenkinsProvider:
         """Test Jenkins connection test success."""
         try:
             from secretzero.providers.jenkins import JenkinsProvider
-            
+
             with patch("jenkins.Jenkins") as mock_jenkins:
                 mock_client = Mock()
                 mock_client.get_version.return_value = "2.0.0"
                 mock_jenkins.return_value = mock_client
-                
+
                 config = {
                     "auth": {
                         "url": "https://jenkins.example.com",
                         "username": "admin",
-                        "token": "test-token"
+                        "token": "test-token",
                     }
                 }
                 provider = JenkinsProvider(name="jenkins", config=config)
-                
+
                 success, message = provider.test_connection()
                 assert success is True
                 assert "2.0.0" in message
@@ -355,10 +355,10 @@ class TestJenkinsProvider:
         """Test Jenkins connection test failure."""
         try:
             from secretzero.providers.jenkins import JenkinsProvider
-            
+
             config = {"auth": {"url": "https://jenkins.example.com"}}  # Missing credentials
             provider = JenkinsProvider(name="jenkins", config=config)
-            
+
             success, message = provider.test_connection()
             assert success is False
             assert "Authentication failed" in message
@@ -369,10 +369,10 @@ class TestJenkinsProvider:
         """Test Jenkins provider supported targets."""
         try:
             from secretzero.providers.jenkins import JenkinsProvider
-            
+
             provider = JenkinsProvider(name="jenkins", config={})
             targets = provider.get_supported_targets()
-            
+
             assert "jenkins_credential" in targets
         except ImportError:
             pytest.skip("python-jenkins not installed")
@@ -385,6 +385,7 @@ class TestGitHubTarget:
         """Test importing GitHub target."""
         try:
             from secretzero.targets.github import GitHubSecretTarget
+
             assert GitHubSecretTarget is not None
         except ImportError:
             pytest.skip("PyGithub not installed")
@@ -393,11 +394,11 @@ class TestGitHubTarget:
         """Test GitHub target initialization."""
         try:
             from secretzero.targets.github import GitHubSecretTarget
-            
+
             provider = Mock()
             config = {"owner": "testorg", "repo": "testrepo"}
             target = GitHubSecretTarget(provider, config)
-            
+
             assert target.owner == "testorg"
             assert target.repo == "testrepo"
         except ImportError:
@@ -407,10 +408,10 @@ class TestGitHubTarget:
         """Test GitHub target with missing required config."""
         try:
             from secretzero.targets.github import GitHubSecretTarget
-            
+
             provider = Mock()
             config = {"owner": "testorg"}  # Missing repo
-            
+
             with pytest.raises(ValueError):
                 GitHubSecretTarget(provider, config)
         except ImportError:
@@ -420,26 +421,25 @@ class TestGitHubTarget:
         """Test storing a repository secret."""
         try:
             from secretzero.targets.github import GitHubSecretTarget
-            
+
             provider = Mock()
             mock_auth = Mock()
             mock_client = Mock()
             mock_repo = Mock()
-            
+
             mock_repo.create_secret = Mock(return_value=None)
             mock_client.get_repo.return_value = mock_repo
             mock_auth.get_client.return_value = mock_client
             provider.auth = mock_auth
-            
+
             config = {"owner": "testorg", "repo": "testrepo"}
             target = GitHubSecretTarget(provider, config)
-            
+
             # PyGithub handles encryption internally
             result = target.store("TEST_SECRET", "secret-value")
             assert result is True
             mock_repo.create_secret.assert_called_once_with(
-                secret_name="TEST_SECRET",
-                unencrypted_value="secret-value"
+                secret_name="TEST_SECRET", unencrypted_value="secret-value"
             )
         except ImportError:
             pytest.skip("PyGithub not installed")
@@ -452,6 +452,7 @@ class TestGitLabTarget:
         """Test importing GitLab target."""
         try:
             from secretzero.targets.gitlab import GitLabVariableTarget
+
             assert GitLabVariableTarget is not None
         except ImportError:
             pytest.skip("python-gitlab not installed")
@@ -460,11 +461,11 @@ class TestGitLabTarget:
         """Test GitLab target initialization."""
         try:
             from secretzero.targets.gitlab import GitLabVariableTarget
-            
+
             provider = Mock()
             config = {"project": "group/project"}
             target = GitLabVariableTarget(provider, config)
-            
+
             assert target.project == "group/project"
             assert target.masked is True  # Default
         except ImportError:
@@ -474,10 +475,10 @@ class TestGitLabTarget:
         """Test GitLab target with missing required config."""
         try:
             from secretzero.targets.gitlab import GitLabVariableTarget
-            
+
             provider = Mock()
             config = {}  # Missing project
-            
+
             with pytest.raises(ValueError):
                 GitLabVariableTarget(provider, config)
         except ImportError:
@@ -491,6 +492,7 @@ class TestJenkinsTarget:
         """Test importing Jenkins target."""
         try:
             from secretzero.targets.jenkins import JenkinsCredentialTarget
+
             assert JenkinsCredentialTarget is not None
         except ImportError:
             pytest.skip("python-jenkins not installed")
@@ -499,11 +501,11 @@ class TestJenkinsTarget:
         """Test Jenkins target initialization."""
         try:
             from secretzero.targets.jenkins import JenkinsCredentialTarget
-            
+
             provider = Mock()
             config = {"credential_id": "my-secret"}
             target = JenkinsCredentialTarget(provider, config)
-            
+
             assert target.credential_id == "my-secret"
             assert target.credential_type == "string"  # Default
         except ImportError:
@@ -513,10 +515,10 @@ class TestJenkinsTarget:
         """Test Jenkins target with missing required config."""
         try:
             from secretzero.targets.jenkins import JenkinsCredentialTarget
-            
+
             provider = Mock()
             config = {}  # Missing credential_id
-            
+
             with pytest.raises(ValueError):
                 JenkinsCredentialTarget(provider, config)
         except ImportError:
@@ -526,14 +528,14 @@ class TestJenkinsTarget:
         """Test Jenkins username/password credential missing username."""
         try:
             from secretzero.targets.jenkins import JenkinsCredentialTarget
-            
+
             provider = Mock()
             config = {
                 "credential_id": "my-secret",
-                "credential_type": "username_password"
+                "credential_type": "username_password",
                 # Missing username
             }
-            
+
             with pytest.raises(ValueError):
                 JenkinsCredentialTarget(provider, config)
         except ImportError:

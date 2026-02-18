@@ -34,13 +34,15 @@ class TestRandomPasswordGenerator:
 
     def test_character_types(self):
         """Test character type configuration."""
-        gen = RandomPasswordGenerator({
-            "length": 100,
-            "upper": True,
-            "lower": True,
-            "number": True,
-            "special": True,
-        })
+        gen = RandomPasswordGenerator(
+            {
+                "length": 100,
+                "upper": True,
+                "lower": True,
+                "number": True,
+                "special": True,
+            }
+        )
         password = gen.generate()
 
         # With 100 chars, we should see all types
@@ -51,10 +53,12 @@ class TestRandomPasswordGenerator:
 
     def test_exclude_characters(self):
         """Test excluding specific characters."""
-        gen = RandomPasswordGenerator({
-            "length": 100,
-            "exclude_characters": '"@/\\`',
-        })
+        gen = RandomPasswordGenerator(
+            {
+                "length": 100,
+                "exclude_characters": '"@/\\`',
+            }
+        )
         password = gen.generate()
 
         for char in '"@/\\`':
@@ -62,12 +66,14 @@ class TestRandomPasswordGenerator:
 
     def test_no_character_types(self):
         """Test error when no character types enabled."""
-        gen = RandomPasswordGenerator({
-            "upper": False,
-            "lower": False,
-            "number": False,
-            "special": False,
-        })
+        gen = RandomPasswordGenerator(
+            {
+                "upper": False,
+                "lower": False,
+                "number": False,
+                "special": False,
+            }
+        )
 
         with pytest.raises(ValueError, match="At least one character type"):
             gen.generate()
@@ -137,20 +143,24 @@ class TestStaticGenerator:
 
     def test_validation_success(self):
         """Test successful validation."""
-        gen = StaticGenerator({
-            "default": "ABC123",
-            "validation": r"^[A-Z0-9]+$",
-        })
+        gen = StaticGenerator(
+            {
+                "default": "ABC123",
+                "validation": r"^[A-Z0-9]+$",
+            }
+        )
         value = gen.generate()
 
         assert value == "ABC123"
 
     def test_validation_failure(self):
         """Test validation failure."""
-        gen = StaticGenerator({
-            "default": "abc123",
-            "validation": r"^[A-Z0-9]+$",
-        })
+        gen = StaticGenerator(
+            {
+                "default": "abc123",
+                "validation": r"^[A-Z0-9]+$",
+            }
+        )
 
         with pytest.raises(ValueError, match="does not match validation pattern"):
             gen.generate()
@@ -180,20 +190,24 @@ class TestScriptGenerator:
 
     def test_basic_script(self):
         """Test basic script execution."""
-        gen = ScriptGenerator({
-            "command": "echo",
-            "args": ["hello"],
-        })
+        gen = ScriptGenerator(
+            {
+                "command": "echo",
+                "args": ["hello"],
+            }
+        )
         value = gen.generate()
 
         assert value == "hello"
 
     def test_shell_command(self):
         """Test shell command execution."""
-        gen = ScriptGenerator({
-            "command": "echo 'shell test'",
-            "shell": True,
-        })
+        gen = ScriptGenerator(
+            {
+                "command": "echo 'shell test'",
+                "shell": True,
+            }
+        )
         value = gen.generate()
 
         assert value == "shell test"
@@ -201,16 +215,18 @@ class TestScriptGenerator:
     def test_script_with_output(self):
         """Test script that produces output."""
         # Create a temporary script
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.sh', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".sh", delete=False) as f:
             f.write("#!/bin/bash\necho 'test_secret_123'")
             script_path = f.name
 
         os.chmod(script_path, 0o755)
 
         try:
-            gen = ScriptGenerator({
-                "command": script_path,
-            })
+            gen = ScriptGenerator(
+                {
+                    "command": script_path,
+                }
+            )
             value = gen.generate()
 
             assert value == "test_secret_123"
@@ -226,20 +242,24 @@ class TestScriptGenerator:
 
     def test_script_failure(self):
         """Test script execution failure."""
-        gen = ScriptGenerator({
-            "command": "false",
-        })
+        gen = ScriptGenerator(
+            {
+                "command": "false",
+            }
+        )
 
         with pytest.raises(RuntimeError, match="Script execution failed"):
             gen.generate()
 
     def test_script_timeout(self):
         """Test script timeout."""
-        gen = ScriptGenerator({
-            "command": "sleep",
-            "args": ["10"],
-            "timeout": 1,
-        })
+        gen = ScriptGenerator(
+            {
+                "command": "sleep",
+                "args": ["10"],
+                "timeout": 1,
+            }
+        )
 
         with pytest.raises(RuntimeError, match="timed out"):
             gen.generate()

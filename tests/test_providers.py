@@ -162,12 +162,14 @@ def test_aws_provider_import(has_boto3):
     if has_boto3:
         try:
             from secretzero.providers.aws import AWSProvider
+
             assert AWSProvider is not None
         except ImportError:
             pytest.skip("boto3 not installed")
     else:
         # Can still import the module, just can't use it
         from secretzero.providers.aws import AWSProvider
+
         assert AWSProvider is not None
 
 
@@ -280,7 +282,9 @@ def test_vault_auth_token():
             mock_client_instance.is_authenticated.return_value = True
             mock_client.return_value = mock_client_instance
 
-            auth = VaultAuth({"kind": "token", "token": "test-token", "url": "http://localhost:8200"})
+            auth = VaultAuth(
+                {"kind": "token", "token": "test-token", "url": "http://localhost:8200"}
+            )
             result = auth.authenticate()
             assert result is True
 

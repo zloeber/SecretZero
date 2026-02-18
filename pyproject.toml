@@ -1,14 +1,12 @@
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
 [project]
 name = "secretzero"
-version = "0.1.0"
+dynamic = ["version"]
+#version = "0.1.0"
 description = "A secrets orchestration, lifecycle, and bootstrap engine for code repositories"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.12"
 license = {text = "Apache-2.0"}
+
 authors = [
     {name = "Zachary Loeber"}
 ]
@@ -17,9 +15,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
@@ -28,7 +23,14 @@ dependencies = [
     "click>=8.0.0",
     "jinja2>=3.0.0",
     "rich>=13.0.0",
+    "setuptools-scm>=8.3.1",
 ]
+
+[project.urls]
+Homepage = "https://github.com/zloeber/SecretZero"
+Documentation = "https://secret0.com"
+Issues = "https://github.com/zloeber/SecretZero/issues"
+CI = "https://github.com/zloeber/SecretZero/actions"
 
 [project.optional-dependencies]
 dev = [
@@ -116,18 +118,39 @@ addopts = "-v --cov=secretzero --cov-report=term-missing"
 
 [tool.black]
 line-length = 100
-target-version = ['py39']
+target-version = ['py312']
 
 [tool.ruff]
 line-length = 100
-target-version = "py39"
+target-version = "py312"
+exclude = [".venv", "records", ".metagit", "examples", "docs", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]
-ignore = []
+ignore = ["E501", "F401", "F403", "F405"]
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools_scm]
+version_file = "src/secretzero/_version.py"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["secretzero*"]
+
+# [tool.setuptools.package-data]
+# metagit = ["data/**/*"]
+
+[build-system]
+requires = ["setuptools>=64", "setuptools-scm>=8"]
+build-backend = "setuptools.build_meta"
+# [build-system]
+# requires = ["hatchling"]
+# build-backend = "hatchling.build"

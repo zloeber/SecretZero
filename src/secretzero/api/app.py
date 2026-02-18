@@ -1,10 +1,8 @@
 """FastAPI application for SecretZero API."""
 
-from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
 
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -89,7 +87,7 @@ def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
             ).model_dump(),
         )
 
-    @app.get("/", response_model=Dict[str, str])
+    @app.get("/", response_model=dict[str, str])
     async def root():
         """Root endpoint."""
         return {
@@ -167,12 +165,14 @@ def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
 
             secrets = []
             for secret in config.secrets:
-                secrets.append({
-                    "name": secret.name,
-                    "kind": secret.kind,
-                    "rotation_period": secret.rotation_period,
-                    "targets": [t.kind for t in secret.targets],
-                })
+                secrets.append(
+                    {
+                        "name": secret.name,
+                        "kind": secret.kind,
+                        "rotation_period": secret.rotation_period,
+                        "targets": [t.kind for t in secret.targets],
+                    }
+                )
 
             audit_logger.log(
                 action="list_secrets",
@@ -356,11 +356,13 @@ def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
                 entry = lockfile.get_secret_info(secret.name)
                 if entry and secret.rotation_period:
                     should_rotate, status_msg = should_rotate_secret(secret, entry)
-                    results.append({
-                        "name": secret.name,
-                        "should_rotate": should_rotate,
-                        "status": status_msg,
-                    })
+                    results.append(
+                        {
+                            "name": secret.name,
+                            "should_rotate": should_rotate,
+                            "status": status_msg,
+                        }
+                    )
                     if should_rotate:
                         if "overdue" in status_msg.lower():
                             overdue.append(secret.name)
@@ -521,9 +523,7 @@ def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
                 else:
                     info.append(entry)
 
-            compliant = len(errors) == 0 and (
-                not request.fail_on_warning or len(warnings) == 0
-            )
+            compliant = len(errors) == 0 and (not request.fail_on_warning or len(warnings) == 0)
 
             audit_logger.log(
                 action="check_policy",
@@ -582,11 +582,13 @@ def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
             for drift_status in drift_results:
                 if drift_status.has_drift:
                     secrets_with_drift.append(drift_status.secret_name)
-                    details.append({
-                        "secret": drift_status.secret_name,
-                        "message": drift_status.message,
-                        "details": drift_status.details,
-                    })
+                    details.append(
+                        {
+                            "secret": drift_status.secret_name,
+                            "message": drift_status.message,
+                            "details": drift_status.details,
+                        }
+                    )
 
             has_drift = len(secrets_with_drift) > 0
 
@@ -622,8 +624,8 @@ def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
     async def get_audit_logs(
         limit: int = 50,
         offset: int = 0,
-        action: Optional[str] = None,
-        resource: Optional[str] = None,
+        action: str | None = None,
+        resource: str | None = None,
         _auth: str = RequireAuth,
     ):
         """Get audit logs."""

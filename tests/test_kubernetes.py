@@ -12,12 +12,14 @@ class TestKubernetesProvider:
     def test_import_kubernetes_provider(self):
         """Test importing Kubernetes provider."""
         from secretzero.providers.kubernetes import KubernetesProvider, KubernetesAuth
+
         assert KubernetesProvider is not None
         assert KubernetesAuth is not None
 
     def test_kubernetes_auth_initialization(self):
         """Test Kubernetes auth initialization."""
         from secretzero.providers.kubernetes import KubernetesAuth
+
         auth = KubernetesAuth({"kubeconfig": "/path/to/kubeconfig", "context": "test"})
         assert auth.config["kubeconfig"] == "/path/to/kubeconfig"
         assert auth.config["context"] == "test"
@@ -25,11 +27,13 @@ class TestKubernetesProvider:
     def test_authenticate_with_kubeconfig(self):
         """Test authentication using kubeconfig file."""
         from secretzero.providers.kubernetes import KubernetesAuth
-        
-        with patch("kubernetes.config.load_kube_config") as mock_load_config, \
-             patch("kubernetes.client.ApiClient") as mock_api_client_class, \
-             patch("kubernetes.client.CoreV1Api") as mock_core_v1_class:
-            
+
+        with (
+            patch("kubernetes.config.load_kube_config") as mock_load_config,
+            patch("kubernetes.client.ApiClient") as mock_api_client_class,
+            patch("kubernetes.client.CoreV1Api") as mock_core_v1_class,
+        ):
+
             # Setup mocks
             mock_api_client = Mock()
             mock_core_v1 = Mock()
@@ -55,11 +59,13 @@ class TestKubernetesProvider:
     def test_authenticate_in_cluster(self):
         """Test authentication using in-cluster config."""
         from secretzero.providers.kubernetes import KubernetesAuth
-        
-        with patch("kubernetes.config.load_incluster_config") as mock_load_config, \
-             patch("kubernetes.client.ApiClient") as mock_api_client_class, \
-             patch("kubernetes.client.CoreV1Api") as mock_core_v1_class:
-            
+
+        with (
+            patch("kubernetes.config.load_incluster_config") as mock_load_config,
+            patch("kubernetes.client.ApiClient") as mock_api_client_class,
+            patch("kubernetes.client.CoreV1Api") as mock_core_v1_class,
+        ):
+
             # Setup mocks
             mock_api_client = Mock()
             mock_core_v1 = Mock()
@@ -80,7 +86,7 @@ class TestKubernetesProvider:
     def test_provider_initialization(self):
         """Test provider initialization."""
         from secretzero.providers.kubernetes import KubernetesProvider
-        
+
         config = {"auth": {"kubeconfig": "/path/to/kubeconfig"}}
         provider = KubernetesProvider(name="k8s", config=config)
 
@@ -91,11 +97,13 @@ class TestKubernetesProvider:
     def test_test_connection_success(self):
         """Test successful connection test."""
         from secretzero.providers.kubernetes import KubernetesProvider
-        
-        with patch("kubernetes.config.load_kube_config") as mock_load_config, \
-             patch("kubernetes.client.ApiClient") as mock_api_client_class, \
-             patch("kubernetes.client.CoreV1Api") as mock_core_v1_class:
-            
+
+        with (
+            patch("kubernetes.config.load_kube_config") as mock_load_config,
+            patch("kubernetes.client.ApiClient") as mock_api_client_class,
+            patch("kubernetes.client.CoreV1Api") as mock_core_v1_class,
+        ):
+
             # Setup mocks
             mock_api_client = Mock()
             mock_core_v1 = Mock()
@@ -116,7 +124,7 @@ class TestKubernetesProvider:
     def test_get_supported_targets(self):
         """Test getting list of supported targets."""
         from secretzero.providers.kubernetes import KubernetesProvider
-        
+
         provider = KubernetesProvider(name="k8s", config={})
         targets = provider.get_supported_targets()
 
@@ -130,12 +138,13 @@ class TestKubernetesSecretTarget:
     def test_import_kubernetes_target(self):
         """Test importing Kubernetes target."""
         from secretzero.targets.kubernetes import KubernetesSecretTarget
+
         assert KubernetesSecretTarget is not None
 
     def test_target_initialization(self):
         """Test target initialization."""
         from secretzero.targets.kubernetes import KubernetesSecretTarget
-        
+
         provider = Mock()
         config = {
             "namespace": "default",
@@ -151,7 +160,7 @@ class TestKubernetesSecretTarget:
     def test_target_missing_secret_name(self):
         """Test target initialization without secret_name."""
         from secretzero.targets.kubernetes import KubernetesSecretTarget
-        
+
         provider = Mock()
         config = {"namespace": "default"}
 
@@ -161,16 +170,16 @@ class TestKubernetesSecretTarget:
     def test_store_secret_new(self):
         """Test storing a new secret."""
         from secretzero.targets.kubernetes import KubernetesSecretTarget
-        
+
         with patch("kubernetes.client") as mock_client_module:
             # Setup mocks
             mock_api = Mock()
-            
+
             # Create ApiException properly
             api_exception = Exception("Not Found")
             api_exception.status = 404
             api_exception.reason = "Not Found"
-            
+
             mock_api.read_namespaced_secret.side_effect = api_exception
 
             provider = Mock()
@@ -188,7 +197,7 @@ class TestKubernetesSecretTarget:
     def test_store_secret_update(self):
         """Test updating an existing secret."""
         from secretzero.targets.kubernetes import KubernetesSecretTarget
-        
+
         with patch("kubernetes.client") as mock_client_module:
             # Setup mocks
             existing_secret = Mock()
@@ -213,7 +222,7 @@ class TestKubernetesSecretTarget:
     def test_retrieve_secret(self):
         """Test retrieving a secret."""
         from secretzero.targets.kubernetes import KubernetesSecretTarget
-        
+
         with patch("kubernetes.client") as mock_client_module:
             # Setup mocks
             encoded_value = base64.b64encode(b"mysecretvalue").decode()
@@ -241,12 +250,13 @@ class TestExternalSecretTarget:
     def test_import_external_secret_target(self):
         """Test importing External Secret target."""
         from secretzero.targets.kubernetes import ExternalSecretTarget
+
         assert ExternalSecretTarget is not None
 
     def test_target_initialization(self):
         """Test target initialization."""
         from secretzero.targets.kubernetes import ExternalSecretTarget
-        
+
         provider = Mock()
         config = {
             "namespace": "default",
@@ -266,7 +276,7 @@ class TestExternalSecretTarget:
     def test_target_missing_secret_name(self):
         """Test target initialization without secret_name."""
         from secretzero.targets.kubernetes import ExternalSecretTarget
-        
+
         provider = Mock()
         config = {"output_path": "/tmp/test.yaml"}
 
@@ -276,7 +286,7 @@ class TestExternalSecretTarget:
     def test_target_missing_output_path(self):
         """Test target initialization without output_path."""
         from secretzero.targets.kubernetes import ExternalSecretTarget
-        
+
         provider = Mock()
         config = {"secret_name": "my-secret"}
 
@@ -287,7 +297,7 @@ class TestExternalSecretTarget:
         """Test generating ExternalSecret manifest."""
         import yaml
         from secretzero.targets.kubernetes import ExternalSecretTarget
-        
+
         provider = Mock()
         output_file = tmp_path / "external-secret.yaml"
         config = {
@@ -329,7 +339,7 @@ class TestExternalSecretTarget:
     def test_retrieve_not_supported(self):
         """Test that retrieve is not supported."""
         from secretzero.targets.kubernetes import ExternalSecretTarget
-        
+
         provider = Mock()
         config = {
             "secret_name": "my-secret",

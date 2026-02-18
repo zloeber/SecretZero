@@ -62,9 +62,7 @@ def test_template_field_creation() -> None:
     field = TemplateField(
         description="Test field",
         generator=GeneratorConfig(kind=GeneratorKind.STATIC, config={"default": "value"}),
-        targets=[
-            TargetConfig(provider="local", kind=TargetKind.FILE, config={"path": ".env"})
-        ],
+        targets=[TargetConfig(provider="local", kind=TargetKind.FILE, config={"path": ".env"})],
     )
     assert field.description == "Test field"
     assert field.generator.kind == GeneratorKind.STATIC
@@ -77,9 +75,7 @@ def test_template_creation() -> None:
         fields={
             "field1": TemplateField(
                 description="Field 1",
-                generator=GeneratorConfig(
-                    kind=GeneratorKind.STATIC, config={"default": "value"}
-                ),
+                generator=GeneratorConfig(kind=GeneratorKind.STATIC, config={"default": "value"}),
             )
         },
     )
@@ -93,9 +89,7 @@ def test_secret_creation() -> None:
         name="test_secret",
         kind="random_password",
         config={"length": 32},
-        targets=[
-            TargetConfig(provider="local", kind=TargetKind.FILE, config={"path": ".env"})
-        ],
+        targets=[TargetConfig(provider="local", kind=TargetKind.FILE, config={"path": ".env"})],
     )
     assert secret.name == "test_secret"
     assert secret.kind == "random_password"
@@ -127,9 +121,7 @@ def test_secretfile_creation() -> None:
                 name="test",
                 kind="random_password",
                 targets=[
-                    TargetConfig(
-                        provider="local", kind=TargetKind.FILE, config={"path": ".env"}
-                    )
+                    TargetConfig(provider="local", kind=TargetKind.FILE, config={"path": ".env"})
                 ],
             )
         ],

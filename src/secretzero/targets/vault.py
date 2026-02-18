@@ -1,6 +1,6 @@
 """HashiCorp Vault target implementations for SecretZero."""
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from secretzero.targets.base import BaseTarget
 
@@ -11,10 +11,10 @@ class VaultKVTarget(BaseTarget):
     def __init__(
         self,
         provider: Any,
-        config: Optional[Dict[str, Any]] = None,
+        config: dict[str, Any] | None = None,
     ):
         """Initialize Vault KV target.
-        
+
         Args:
             provider: Vault provider instance
             config: Target configuration including:
@@ -26,11 +26,11 @@ class VaultKVTarget(BaseTarget):
 
     def store(self, secret_name: str, secret_value: Any) -> bool:
         """Store secret in Vault KV.
-        
+
         Args:
             secret_name: Name of the secret
             secret_value: Value to store
-            
+
         Returns:
             True if successful, False otherwise
         """
@@ -76,12 +76,12 @@ class VaultKVTarget(BaseTarget):
         except Exception:
             return False
 
-    def retrieve(self, secret_name: str) -> Optional[Any]:
+    def retrieve(self, secret_name: str) -> Any | None:
         """Retrieve secret from Vault KV.
-        
+
         Args:
             secret_name: Name of the secret
-            
+
         Returns:
             Secret value or None if not found
         """
@@ -115,19 +115,17 @@ class VaultKVTarget(BaseTarget):
                 return response["data"]["data"]
             else:
                 # KV v1
-                response = client.secrets.kv.v1.read_secret(
-                    path=path, mount_point=mount_point
-                )
+                response = client.secrets.kv.v1.read_secret(path=path, mount_point=mount_point)
                 return response["data"]
         except Exception:
             return None
 
     def delete(self, secret_name: str) -> bool:
         """Delete secret from Vault KV.
-        
+
         Args:
             secret_name: Name of the secret
-            
+
         Returns:
             True if successful, False otherwise
         """

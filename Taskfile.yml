@@ -211,3 +211,24 @@ tasks:
           #yq eval -P "$file" > "${file%.json}.yaml"
           echo "Converted $file to ${file%.json}.yaml"
         done
+
+  lint:
+    desc: Run python linting
+    cmds:
+      - |
+        uv pip install -e ".[dev]"
+        uv run ruff check .
+        uv run black --check .
+
+  lint:fix:
+    desc: Run python linting and fix issues
+    cmds:
+      - |
+        uv run ruff check --fix .
+
+  format:
+    desc: Run python formatting
+    cmds:
+      - |
+        uv run ruff format .
+        uv run black .

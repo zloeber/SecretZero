@@ -1,7 +1,7 @@
 """Jenkins credential targets."""
 
 import xml.etree.ElementTree as ET
-from typing import Any, Optional
+from typing import Any
 
 from secretzero.targets.base import BaseTarget
 
@@ -9,7 +9,7 @@ from secretzero.targets.base import BaseTarget
 class JenkinsCredentialTarget(BaseTarget):
     """Store secrets as Jenkins credentials."""
 
-    def __init__(self, provider: Any, config: Optional[dict[str, Any]] = None):
+    def __init__(self, provider: Any, config: dict[str, Any] | None = None):
         """Initialize Jenkins credential target.
 
         Args:
@@ -33,7 +33,7 @@ class JenkinsCredentialTarget(BaseTarget):
 
         if not self.credential_id:
             raise ValueError("Jenkins credential target requires 'credential_id' in config")
-        
+
         if self.credential_type == "username_password" and not self.username:
             raise ValueError("username_password credential type requires 'username' in config")
 
@@ -96,48 +96,43 @@ class JenkinsCredentialTarget(BaseTarget):
         """
         try:
             client = self.provider.auth.get_client()
-            
+
             # Set description to secret name if not provided
             if not self.description:
                 self.description = secret_name
-            
+
             credential_xml = self._get_credential_xml(secret_value)
-            
+
             # Determine the path for the credential
             if self.folder:
                 path = f"job/{self.folder}/credentials/store/folder/domain/{self.domain}"
             else:
                 path = f"credentials/store/system/domain/{self.domain}"
-            
+
             # Check if credential exists
             try:
                 existing_creds = client.list_credentials(self.folder if self.folder else None)
                 credential_exists = any(
                     cred.get("id") == self.credential_id for cred in existing_creds
                 )
-                
+
                 if credential_exists:
                     # Update existing credential
                     # Note: Jenkins API doesn't have a direct update method, so we delete and recreate
                     client.delete_credential(
-                        self.credential_id,
-                        folder_name=self.folder,
-                        domain=self.domain
+                        self.credential_id, folder_name=self.folder, domain=self.domain
                     )
             except Exception:
                 # Credential doesn't exist or error checking, proceed to create
                 pass
-            
+
             # Create the credential
             # Jenkins API uses a POST request to create credentials
             # The python-jenkins library may not have built-in support for this
             # We'll use the lower-level API request method
             create_url = f"{path}/createCredentials"
-            client.requester.post_xml_and_confirm_status(
-                create_url,
-                credential_xml
-            )
-            
+            client.requester.post_xml_and_confirm_status(create_url, credential_xml)
+
             return True
         except Exception as e:
             print(f"Failed to store credential in Jenkins: {e}")
@@ -161,7 +156,7 @@ class JenkinsCredentialTarget(BaseTarget):
             True if storage successful, False otherwise.
         """
         client = self.provider.auth.get_client()
-        
+
         if self.credential_type == "username_password":
             script = f"""
 import com.cloudbees.plugins.credentials.*
@@ -213,11 +208,11 @@ if (existing) {{
 
 store.addCredentials(domain, credentials)
 """
-        
+
         client.run_script(script)
         return True
 
-    def retrieve(self, secret_name: str) -> Optional[str]:
+    def retrieve(self, secret_name: str) -> str | None:
         """Retrieve credential from Jenkins.
 
         Note: Jenkins API does not expose credential values for security reasons.

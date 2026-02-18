@@ -1,6 +1,5 @@
 """Random password generator."""
 
-import re
 import secrets
 import string
 from typing import Any
@@ -60,9 +59,7 @@ class RandomPasswordGenerator(BaseGenerator):
             charset = "".join(c for c in charset if c not in self.exclude_characters)
 
         if not charset:
-            raise ValueError(
-                "Character set is empty after applying exclusions"
-            )
+            raise ValueError("Character set is empty after applying exclusions")
 
         # Generate password using cryptographically secure random
         password = "".join(secrets.choice(charset) for _ in range(self.length))

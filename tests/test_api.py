@@ -266,7 +266,10 @@ class TestSyncEndpoint:
         )
         assert response.status_code == 200
         data = response.json()
-        assert "test_password" in data["secrets_generated"] or "test_password" in data["secrets_skipped"]
+        assert (
+            "test_password" in data["secrets_generated"]
+            or "test_password" in data["secrets_skipped"]
+        )
 
     def test_sync_nonexistent_secret(self, authenticated_client):
         """Test syncing a non-existent secret."""

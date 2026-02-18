@@ -1,15 +1,15 @@
 """Base classes for provider implementations."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 class ProviderAuth(ABC):
     """Base class for provider authentication."""
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: dict[str, Any] | None = None):
         """Initialize authentication with configuration.
-        
+
         Args:
             config: Authentication configuration dictionary
         """
@@ -18,7 +18,7 @@ class ProviderAuth(ABC):
     @abstractmethod
     def authenticate(self) -> bool:
         """Authenticate with the provider.
-        
+
         Returns:
             True if authentication successful, False otherwise
         """
@@ -27,7 +27,7 @@ class ProviderAuth(ABC):
     @abstractmethod
     def is_authenticated(self) -> bool:
         """Check if currently authenticated.
-        
+
         Returns:
             True if authenticated, False otherwise
         """
@@ -35,7 +35,7 @@ class ProviderAuth(ABC):
 
     def get_client(self) -> Any:
         """Get authenticated client for the provider.
-        
+
         Returns:
             Authenticated client instance or None
         """
@@ -48,11 +48,11 @@ class BaseProvider(ABC):
     def __init__(
         self,
         name: str,
-        config: Optional[Dict[str, Any]] = None,
-        auth: Optional[ProviderAuth] = None,
+        config: dict[str, Any] | None = None,
+        auth: ProviderAuth | None = None,
     ):
         """Initialize provider.
-        
+
         Args:
             name: Provider name
             config: Provider configuration
@@ -64,9 +64,9 @@ class BaseProvider(ABC):
         self._authenticated = False
 
     @abstractmethod
-    def test_connection(self) -> tuple[bool, Optional[str]]:
+    def test_connection(self) -> tuple[bool, str | None]:
         """Test provider connectivity.
-        
+
         Returns:
             Tuple of (success: bool, error_message: Optional[str])
         """
@@ -74,7 +74,7 @@ class BaseProvider(ABC):
 
     def authenticate(self) -> bool:
         """Authenticate with the provider.
-        
+
         Returns:
             True if authentication successful, False otherwise
         """
@@ -85,7 +85,7 @@ class BaseProvider(ABC):
 
     def is_authenticated(self) -> bool:
         """Check if provider is authenticated.
-        
+
         Returns:
             True if authenticated, False otherwise
         """
@@ -96,7 +96,7 @@ class BaseProvider(ABC):
     @abstractmethod
     def get_supported_targets(self) -> list[str]:
         """Get list of supported target types for this provider.
-        
+
         Returns:
             List of target type names
         """

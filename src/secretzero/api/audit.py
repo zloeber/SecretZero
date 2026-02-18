@@ -1,9 +1,8 @@
 """Audit logging for API operations."""
 
 import json
-from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from secretzero.api.schemas import AuditLogEntry
 
@@ -11,7 +10,7 @@ from secretzero.api.schemas import AuditLogEntry
 class AuditLogger:
     """Simple file-based audit logger."""
 
-    def __init__(self, log_file: Optional[Path] = None):
+    def __init__(self, log_file: Path | None = None):
         """Initialize the audit logger.
 
         Args:
@@ -25,8 +24,8 @@ class AuditLogger:
         self,
         action: str,
         resource: str,
-        user: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None,
+        user: str | None = None,
+        details: dict[str, Any] | None = None,
         success: bool = True,
     ) -> None:
         """Log an audit event.
@@ -54,9 +53,9 @@ class AuditLogger:
         self,
         limit: int = 100,
         offset: int = 0,
-        action: Optional[str] = None,
-        resource: Optional[str] = None,
-    ) -> List[AuditLogEntry]:
+        action: str | None = None,
+        resource: str | None = None,
+    ) -> list[AuditLogEntry]:
         """Retrieve audit logs.
 
         Args:
@@ -72,7 +71,7 @@ class AuditLogger:
             return []
 
         logs = []
-        with open(self.log_file, "r") as f:
+        with open(self.log_file) as f:
             for line in f:
                 try:
                     data = json.loads(line.strip())
@@ -97,7 +96,7 @@ class AuditLogger:
 
 
 # Global audit logger instance
-_audit_logger: Optional[AuditLogger] = None
+_audit_logger: AuditLogger | None = None
 
 
 def get_audit_logger() -> AuditLogger:

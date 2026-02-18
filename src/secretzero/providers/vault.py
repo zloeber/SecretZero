@@ -1,7 +1,7 @@
 """HashiCorp Vault provider implementation for SecretZero."""
 
 import os
-from typing import Any, Dict, Optional
+from typing import Any
 
 from secretzero.providers.base import BaseProvider, ProviderAuth
 
@@ -9,9 +9,9 @@ from secretzero.providers.base import BaseProvider, ProviderAuth
 class VaultAuth(ProviderAuth):
     """HashiCorp Vault authentication handler."""
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: dict[str, Any] | None = None):
         """Initialize Vault authentication.
-        
+
         Args:
             config: Authentication configuration including:
                 - kind: Authentication method (token, approle, kubernetes)
@@ -26,7 +26,7 @@ class VaultAuth(ProviderAuth):
 
     def authenticate(self) -> bool:
         """Authenticate with Vault.
-        
+
         Returns:
             True if authentication successful, False otherwise
         """
@@ -54,9 +54,7 @@ class VaultAuth(ProviderAuth):
                 if not role_id or not secret_id:
                     return False
 
-                response = self._client.auth.approle.login(
-                    role_id=role_id, secret_id=secret_id
-                )
+                response = self._client.auth.approle.login(role_id=role_id, secret_id=secret_id)
                 self._client.token = response["auth"]["client_token"]
 
             # Test authentication
@@ -67,7 +65,7 @@ class VaultAuth(ProviderAuth):
 
     def is_authenticated(self) -> bool:
         """Check if authenticated.
-        
+
         Returns:
             True if authenticated, False otherwise
         """
@@ -81,7 +79,7 @@ class VaultAuth(ProviderAuth):
 
     def get_client(self) -> Any:
         """Get Vault client.
-        
+
         Returns:
             HVAC client instance or None
         """
@@ -94,11 +92,11 @@ class VaultProvider(BaseProvider):
     def __init__(
         self,
         name: str = "vault",
-        config: Optional[Dict[str, Any]] = None,
-        auth: Optional[VaultAuth] = None,
+        config: dict[str, Any] | None = None,
+        auth: VaultAuth | None = None,
     ):
         """Initialize Vault provider.
-        
+
         Args:
             name: Provider name
             config: Provider configuration
@@ -110,9 +108,9 @@ class VaultProvider(BaseProvider):
 
         super().__init__(name, config, auth)
 
-    def test_connection(self) -> tuple[bool, Optional[str]]:
+    def test_connection(self) -> tuple[bool, str | None]:
         """Test Vault connectivity.
-        
+
         Returns:
             Tuple of (success: bool, error_message: Optional[str])
         """
@@ -141,7 +139,7 @@ class VaultProvider(BaseProvider):
 
     def get_supported_targets(self) -> list[str]:
         """Get supported target types.
-        
+
         Returns:
             List of supported target type names
         """

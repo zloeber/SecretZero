@@ -1,6 +1,6 @@
 """Azure target implementations for SecretZero."""
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from secretzero.targets.base import BaseTarget
 
@@ -11,10 +11,10 @@ class KeyVaultTarget(BaseTarget):
     def __init__(
         self,
         provider: Any,
-        config: Optional[Dict[str, Any]] = None,
+        config: dict[str, Any] | None = None,
     ):
         """Initialize Key Vault target.
-        
+
         Args:
             provider: Azure provider instance
             config: Target configuration including:
@@ -25,11 +25,11 @@ class KeyVaultTarget(BaseTarget):
 
     def store(self, secret_name: str, secret_value: Any) -> bool:
         """Store secret in Azure Key Vault.
-        
+
         Args:
             secret_name: Name of the secret
             secret_value: Value to store
-            
+
         Returns:
             True if successful, False otherwise
         """
@@ -37,9 +37,7 @@ class KeyVaultTarget(BaseTarget):
             from azure.core.exceptions import AzureError
             from azure.keyvault.secrets import SecretClient
         except ImportError:
-            raise ValueError(
-                "Azure SDK not installed. Install with: pip install secretzero[azure]"
-            )
+            raise ValueError("Azure SDK not installed. Install with: pip install secretzero[azure]")
 
         from secretzero.providers.azure import AzureAuth
 
@@ -59,6 +57,7 @@ class KeyVaultTarget(BaseTarget):
         # Convert value to string if it's a dict
         if isinstance(secret_value, dict):
             import json
+
             value_str = json.dumps(secret_value)
         else:
             value_str = str(secret_value)
@@ -70,12 +69,12 @@ class KeyVaultTarget(BaseTarget):
         except AzureError:
             return False
 
-    def retrieve(self, secret_name: str) -> Optional[Any]:
+    def retrieve(self, secret_name: str) -> Any | None:
         """Retrieve secret from Azure Key Vault.
-        
+
         Args:
             secret_name: Name of the secret
-            
+
         Returns:
             Secret value or None if not found
         """
@@ -109,10 +108,10 @@ class KeyVaultTarget(BaseTarget):
 
     def delete(self, secret_name: str) -> bool:
         """Delete secret from Azure Key Vault.
-        
+
         Args:
             secret_name: Name of the secret
-            
+
         Returns:
             True if successful, False otherwise
         """

@@ -1,6 +1,6 @@
 """Jenkins provider for credentials."""
 
-from typing import Any, Optional
+from typing import Any
 
 from secretzero.providers.base import BaseProvider, ProviderAuth
 
@@ -18,7 +18,7 @@ class JenkinsAuth(ProviderAuth):
                 - token: Jenkins API token or password
         """
         super().__init__(config)
-        self._client: Optional[Any] = None
+        self._client: Any | None = None
 
     def authenticate(self) -> bool:
         """Authenticate with Jenkins.
@@ -34,10 +34,10 @@ class JenkinsAuth(ProviderAuth):
         url = self.config.get("url")
         username = self.config.get("username")
         token = self.config.get("token")
-        
+
         if not url or not username or not token:
             return False
-        
+
         try:
             # Initialize Jenkins client
             self._client = jenkins.Jenkins(url, username=username, password=token)
@@ -72,8 +72,8 @@ class JenkinsProvider(BaseProvider):
     def __init__(
         self,
         name: str,
-        config: Optional[dict[str, Any]] = None,
-        auth: Optional[JenkinsAuth] = None,
+        config: dict[str, Any] | None = None,
+        auth: JenkinsAuth | None = None,
     ):
         """Initialize Jenkins provider.
 
@@ -91,7 +91,7 @@ class JenkinsProvider(BaseProvider):
             auth = JenkinsAuth(auth_config)
         super().__init__(name, config, auth)
 
-    def test_connection(self) -> tuple[bool, Optional[str]]:
+    def test_connection(self) -> tuple[bool, str | None]:
         """Test Jenkins API connectivity.
 
         Returns:

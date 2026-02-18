@@ -3,7 +3,6 @@
 import hashlib
 import os
 import secrets
-from typing import Optional
 
 from fastapi import Depends, HTTPException, Security, status
 from fastapi.security import APIKeyHeader
@@ -13,7 +12,7 @@ API_KEY_NAME = "X-API-Key"
 api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
 
 
-def get_api_key_from_env() -> Optional[str]:
+def get_api_key_from_env() -> str | None:
     """Get the API key from environment variable."""
     return os.environ.get("SECRETZERO_API_KEY")
 

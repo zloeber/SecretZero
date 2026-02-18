@@ -1,6 +1,6 @@
 """AWS target implementations for SecretZero."""
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from secretzero.targets.base import BaseTarget
 
@@ -11,10 +11,10 @@ class SSMParameterTarget(BaseTarget):
     def __init__(
         self,
         provider: Any,
-        config: Optional[Dict[str, Any]] = None,
+        config: dict[str, Any] | None = None,
     ):
         """Initialize SSM Parameter target.
-        
+
         Args:
             provider: AWS provider instance
             config: Target configuration including:
@@ -28,20 +28,18 @@ class SSMParameterTarget(BaseTarget):
 
     def store(self, secret_name: str, secret_value: Any) -> bool:
         """Store secret in SSM Parameter Store.
-        
+
         Args:
             secret_name: Name of the secret
             secret_value: Value to store
-            
+
         Returns:
             True if successful, False otherwise
         """
         try:
             from botocore.exceptions import ClientError
         except ImportError:
-            raise ValueError(
-                "boto3 not installed. Install with: pip install secretzero[aws]"
-            )
+            raise ValueError("boto3 not installed. Install with: pip install secretzero[aws]")
 
         from secretzero.providers.aws import AWSAuth
 
@@ -62,6 +60,7 @@ class SSMParameterTarget(BaseTarget):
         # Convert value to string if it's a dict
         if isinstance(secret_value, dict):
             import json
+
             value_str = json.dumps(secret_value)
         else:
             value_str = str(secret_value)
@@ -79,12 +78,12 @@ class SSMParameterTarget(BaseTarget):
         except ClientError:
             return False
 
-    def retrieve(self, secret_name: str) -> Optional[Any]:
+    def retrieve(self, secret_name: str) -> Any | None:
         """Retrieve secret from SSM Parameter Store.
-        
+
         Args:
             secret_name: Name of the secret
-            
+
         Returns:
             Secret value or None if not found
         """
@@ -112,10 +111,10 @@ class SSMParameterTarget(BaseTarget):
 
     def delete(self, secret_name: str) -> bool:
         """Delete secret from SSM Parameter Store.
-        
+
         Args:
             secret_name: Name of the secret
-            
+
         Returns:
             True if successful, False otherwise
         """
@@ -148,10 +147,10 @@ class SecretsManagerTarget(BaseTarget):
     def __init__(
         self,
         provider: Any,
-        config: Optional[Dict[str, Any]] = None,
+        config: dict[str, Any] | None = None,
     ):
         """Initialize Secrets Manager target.
-        
+
         Args:
             provider: AWS provider instance
             config: Target configuration including:
@@ -163,20 +162,18 @@ class SecretsManagerTarget(BaseTarget):
 
     def store(self, secret_name: str, secret_value: Any) -> bool:
         """Store secret in AWS Secrets Manager.
-        
+
         Args:
             secret_name: Name of the secret
             secret_value: Value to store
-            
+
         Returns:
             True if successful, False otherwise
         """
         try:
             from botocore.exceptions import ClientError
         except ImportError:
-            raise ValueError(
-                "boto3 not installed. Install with: pip install secretzero[aws]"
-            )
+            raise ValueError("boto3 not installed. Install with: pip install secretzero[aws]")
 
         from secretzero.providers.aws import AWSAuth
 
@@ -189,21 +186,20 @@ class SecretsManagerTarget(BaseTarget):
         if not secret_id:
             return False
 
-        description = self.config.get(
-            "description", f"Managed by SecretZero: {secret_name}"
-        )
+        description = self.config.get("description", f"Managed by SecretZero: {secret_name}")
         kms_key_id = self.config.get("kms_key_id")
 
         # Convert value to string if it's a dict
         if isinstance(secret_value, dict):
             import json
+
             value_str = json.dumps(secret_value)
         else:
             value_str = str(secret_value)
 
         try:
             # Try to create the secret
-            params: Dict[str, Any] = {
+            params: dict[str, Any] = {
                 "Name": secret_id,
                 "Description": description,
                 "SecretString": value_str,
@@ -223,12 +219,12 @@ class SecretsManagerTarget(BaseTarget):
                     return False
             return False
 
-    def retrieve(self, secret_name: str) -> Optional[Any]:
+    def retrieve(self, secret_name: str) -> Any | None:
         """Retrieve secret from AWS Secrets Manager.
-        
+
         Args:
             secret_name: Name of the secret
-            
+
         Returns:
             Secret value or None if not found
         """
@@ -256,10 +252,10 @@ class SecretsManagerTarget(BaseTarget):
 
     def delete(self, secret_name: str) -> bool:
         """Delete secret from AWS Secrets Manager.
-        
+
         Args:
             secret_name: Name of the secret
-            
+
         Returns:
             True if successful, False otherwise
         """

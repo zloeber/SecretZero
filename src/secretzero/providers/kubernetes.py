@@ -1,6 +1,6 @@
 """Kubernetes provider for cluster-based secret management."""
 
-from typing import Any, Optional
+from typing import Any
 
 from secretzero.providers.base import BaseProvider, ProviderAuth
 
@@ -19,8 +19,8 @@ class KubernetesAuth(ProviderAuth):
                 - in_cluster: Optional bool to use in-cluster config (default: False)
         """
         super().__init__(config)
-        self._client: Optional[Any] = None
-        self._api_client: Optional[Any] = None
+        self._client: Any | None = None
+        self._api_client: Any | None = None
 
     def authenticate(self) -> bool:
         """Authenticate with Kubernetes cluster.
@@ -42,15 +42,12 @@ class KubernetesAuth(ProviderAuth):
                 # Use kubeconfig file
                 kubeconfig = self.config.get("kubeconfig")
                 context = self.config.get("context")
-                config.load_kube_config(
-                    config_file=kubeconfig,
-                    context=context
-                )
-            
+                config.load_kube_config(config_file=kubeconfig, context=context)
+
             # Create API client
             self._api_client = client.ApiClient()
             self._client = client.CoreV1Api(self._api_client)
-            
+
             # Test authentication by listing namespaces
             self._client.list_namespace(limit=1)
             return True
@@ -92,8 +89,8 @@ class KubernetesProvider(BaseProvider):
     def __init__(
         self,
         name: str,
-        config: Optional[dict[str, Any]] = None,
-        auth: Optional[KubernetesAuth] = None,
+        config: dict[str, Any] | None = None,
+        auth: KubernetesAuth | None = None,
     ):
         """Initialize Kubernetes provider.
 
@@ -107,7 +104,7 @@ class KubernetesProvider(BaseProvider):
             auth = KubernetesAuth(auth_config)
         super().__init__(name, config, auth)
 
-    def test_connection(self) -> tuple[bool, Optional[str]]:
+    def test_connection(self) -> tuple[bool, str | None]:
         """Test Kubernetes cluster connectivity.
 
         Returns:
@@ -125,12 +122,10 @@ class KubernetesProvider(BaseProvider):
             api = self.auth.get_client()
             # Get cluster version info
             version = api.api_client.call_api(
-                '/version', 'GET',
-                auth_settings=['BearerToken'],
-                response_type='object'
+                "/version", "GET", auth_settings=["BearerToken"], response_type="object"
             )
             version_info = version[0] if version else {}
-            git_version = version_info.get('gitVersion', 'unknown')
+            git_version = version_info.get("gitVersion", "unknown")
             return True, f"Connected to cluster (version: {git_version})"
         except Exception as e:
             return False, f"Connection test failed: {str(e)}"

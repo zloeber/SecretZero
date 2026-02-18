@@ -1,7 +1,7 @@
 """Pydantic models for SecretZero configuration."""
 
 from enum import Enum
-from typing import Any, Optional, Union
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -59,19 +59,19 @@ class AuthProfile(BaseModel):
 class ProviderAuth(BaseModel):
     """Provider authentication configuration."""
 
-    kind: Optional[AuthKind] = None
+    kind: AuthKind | None = None
     config: dict[str, Any] = Field(default_factory=dict)
-    fallback_generator: Optional[str] = None
+    fallback_generator: str | None = None
     profiles: dict[str, AuthProfile] = Field(default_factory=dict)
 
 
 class Provider(BaseModel):
     """Provider configuration for secret sources and targets."""
 
-    kind: Optional[str] = None
-    auth: Optional[ProviderAuth] = None
+    kind: str | None = None
+    auth: ProviderAuth | None = None
     config: dict[str, Any] = Field(default_factory=dict)
-    fallback_generator: Optional[str] = None
+    fallback_generator: str | None = None
 
 
 class GeneratorConfig(BaseModel):
@@ -85,7 +85,7 @@ class TargetConfig(BaseModel):
     """Target storage configuration."""
 
     provider: str
-    kind: Union[TargetKind, str]
+    kind: TargetKind | str
     config: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -113,15 +113,15 @@ class Secret(BaseModel):
     vars: dict[str, Any] = Field(default_factory=dict)
     config: dict[str, Any] = Field(default_factory=dict)
     one_time: bool = False
-    rotation_period: Optional[str] = None
+    rotation_period: str | None = None
     targets: list[TargetConfig] = Field(default_factory=list)
 
 
 class Metadata(BaseModel):
     """Metadata about the secrets configuration."""
 
-    project: Optional[str] = None
-    owner: Optional[str] = None
+    project: str | None = None
+    owner: str | None = None
     environments: list[str] = Field(default_factory=list)
     compliance: list[str] = Field(default_factory=list)
 
@@ -131,7 +131,7 @@ class Secretfile(BaseModel):
 
     version: str
     variables: dict[str, Any] = Field(default_factory=dict)
-    metadata: Optional[Metadata] = None
+    metadata: Metadata | None = None
     providers: dict[str, Provider] = Field(default_factory=dict)
     secrets: list[Secret] = Field(default_factory=list)
     templates: dict[str, Template] = Field(default_factory=dict)

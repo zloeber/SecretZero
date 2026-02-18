@@ -1,6 +1,6 @@
 """GitHub Actions secret targets."""
 
-from typing import Any, Optional
+from typing import Any
 
 from secretzero.targets.base import BaseTarget
 
@@ -8,7 +8,7 @@ from secretzero.targets.base import BaseTarget
 class GitHubSecretTarget(BaseTarget):
     """Store secrets in GitHub Actions."""
 
-    def __init__(self, provider: Any, config: Optional[dict[str, Any]] = None):
+    def __init__(self, provider: Any, config: dict[str, Any] | None = None):
         """Initialize GitHub secret target.
 
         Args:
@@ -45,27 +45,23 @@ class GitHubSecretTarget(BaseTarget):
                 # Store as environment secret
                 # PyGithub handles encryption automatically
                 repo.get_environment(self.environment).create_secret(
-                    secret_name=secret_name,
-                    unencrypted_value=secret_value
+                    secret_name=secret_name, unencrypted_value=secret_value
                 )
             else:
                 # Store as repository secret
                 # PyGithub handles encryption automatically
-                repo.create_secret(
-                    secret_name=secret_name,
-                    unencrypted_value=secret_value
-                )
-            
+                repo.create_secret(secret_name=secret_name, unencrypted_value=secret_value)
+
             return True
         except Exception as e:
             print(f"Failed to store secret in GitHub: {e}")
             return False
 
-    def retrieve(self, secret_name: str) -> Optional[str]:
+    def retrieve(self, secret_name: str) -> str | None:
         """Retrieve secret from GitHub Actions.
 
         Note: GitHub API does not allow retrieving secret values.
-        
+
         Args:
             secret_name: Name of the secret.
 
@@ -79,7 +75,7 @@ class GitHubSecretTarget(BaseTarget):
 class GitHubOrganizationSecretTarget(BaseTarget):
     """Store secrets in GitHub Organization-level Actions."""
 
-    def __init__(self, provider: Any, config: Optional[dict[str, Any]] = None):
+    def __init__(self, provider: Any, config: dict[str, Any] | None = None):
         """Initialize GitHub organization secret target.
 
         Args:
@@ -115,21 +111,19 @@ class GitHubOrganizationSecretTarget(BaseTarget):
             # Create or update organization secret
             # PyGithub handles encryption automatically
             org.create_secret(
-                secret_name=secret_name,
-                unencrypted_value=secret_value,
-                visibility=self.visibility
+                secret_name=secret_name, unencrypted_value=secret_value, visibility=self.visibility
             )
-            
+
             return True
         except Exception as e:
             print(f"Failed to store secret in GitHub organization: {e}")
             return False
 
-    def retrieve(self, secret_name: str) -> Optional[str]:
+    def retrieve(self, secret_name: str) -> str | None:
         """Retrieve secret from GitHub Organization Actions.
 
         Note: GitHub API does not allow retrieving secret values.
-        
+
         Args:
             secret_name: Name of the secret.
 

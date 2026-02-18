@@ -90,6 +90,7 @@ class FileTarget(BaseTarget):
         elif self.format == "toml":
             try:
                 import tomli
+
                 return tomli.loads(content)
             except ImportError:
                 raise ValueError("tomli package required for TOML support")
@@ -114,6 +115,7 @@ class FileTarget(BaseTarget):
         elif self.format == "toml":
             try:
                 import tomli_w
+
                 content = tomli_w.dumps(data)
             except ImportError:
                 raise ValueError("tomli-w package required for TOML support")

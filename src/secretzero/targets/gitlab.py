@@ -1,6 +1,6 @@
 """GitLab CI/CD variable targets."""
 
-from typing import Any, Optional
+from typing import Any
 
 from secretzero.targets.base import BaseTarget
 
@@ -8,7 +8,7 @@ from secretzero.targets.base import BaseTarget
 class GitLabVariableTarget(BaseTarget):
     """Store secrets as GitLab CI/CD variables."""
 
-    def __init__(self, provider: Any, config: Optional[dict[str, Any]] = None):
+    def __init__(self, provider: Any, config: dict[str, Any] | None = None):
         """Initialize GitLab variable target.
 
         Args:
@@ -57,21 +57,23 @@ class GitLabVariableTarget(BaseTarget):
                 var.save()
             except Exception:
                 # Create new variable
-                project.variables.create({
-                    'key': secret_name,
-                    'value': secret_value,
-                    'protected': self.protected,
-                    'masked': self.masked,
-                    'environment_scope': self.environment_scope,
-                    'variable_type': self.variable_type
-                })
-            
+                project.variables.create(
+                    {
+                        "key": secret_name,
+                        "value": secret_value,
+                        "protected": self.protected,
+                        "masked": self.masked,
+                        "environment_scope": self.environment_scope,
+                        "variable_type": self.variable_type,
+                    }
+                )
+
             return True
         except Exception as e:
             print(f"Failed to store variable in GitLab: {e}")
             return False
 
-    def retrieve(self, secret_name: str) -> Optional[str]:
+    def retrieve(self, secret_name: str) -> str | None:
         """Retrieve variable from GitLab CI/CD.
 
         Args:
@@ -92,7 +94,7 @@ class GitLabVariableTarget(BaseTarget):
 class GitLabGroupVariableTarget(BaseTarget):
     """Store secrets as GitLab group-level CI/CD variables."""
 
-    def __init__(self, provider: Any, config: Optional[dict[str, Any]] = None):
+    def __init__(self, provider: Any, config: dict[str, Any] | None = None):
         """Initialize GitLab group variable target.
 
         Args:
@@ -141,21 +143,23 @@ class GitLabGroupVariableTarget(BaseTarget):
                 var.save()
             except Exception:
                 # Create new variable
-                group.variables.create({
-                    'key': secret_name,
-                    'value': secret_value,
-                    'protected': self.protected,
-                    'masked': self.masked,
-                    'environment_scope': self.environment_scope,
-                    'variable_type': self.variable_type
-                })
-            
+                group.variables.create(
+                    {
+                        "key": secret_name,
+                        "value": secret_value,
+                        "protected": self.protected,
+                        "masked": self.masked,
+                        "environment_scope": self.environment_scope,
+                        "variable_type": self.variable_type,
+                    }
+                )
+
             return True
         except Exception as e:
             print(f"Failed to store variable in GitLab group: {e}")
             return False
 
-    def retrieve(self, secret_name: str) -> Optional[str]:
+    def retrieve(self, secret_name: str) -> str | None:
         """Retrieve variable from GitLab group CI/CD.
 
         Args:

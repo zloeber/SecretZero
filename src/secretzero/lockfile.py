@@ -4,7 +4,7 @@ import hashlib
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -15,7 +15,7 @@ class SecretLockEntry(BaseModel):
     hash: str
     created_at: str
     updated_at: str
-    last_rotated: Optional[str] = None
+    last_rotated: str | None = None
     rotation_count: int = 0
     targets: dict[str, str] = Field(default_factory=dict)  # target_id -> hash
 
@@ -31,7 +31,7 @@ class Lockfile(BaseModel):
         self,
         secret_name: str,
         secret_value: str,
-        target_id: Optional[str] = None,
+        target_id: str | None = None,
         is_rotation: bool = False,
     ) -> None:
         """Add or update a secret in the lockfile.
@@ -51,7 +51,7 @@ class Lockfile(BaseModel):
             old_hash = entry.hash
             entry.hash = value_hash
             entry.updated_at = now
-            
+
             # Track rotation if value changed
             if is_rotation and old_hash != value_hash:
                 entry.last_rotated = now
@@ -69,7 +69,7 @@ class Lockfile(BaseModel):
         if target_id:
             entry.targets[target_id] = value_hash
 
-    def get_secret_hash(self, secret_name: str) -> Optional[str]:
+    def get_secret_hash(self, secret_name: str) -> str | None:
         """Get the hash of a secret.
 
         Args:
@@ -110,7 +110,7 @@ class Lockfile(BaseModel):
 
         return current_hash != new_hash
 
-    def get_secret_info(self, secret_name: str) -> Optional[SecretLockEntry]:
+    def get_secret_info(self, secret_name: str) -> SecretLockEntry | None:
         """Get full lockfile entry for a secret.
 
         Args:

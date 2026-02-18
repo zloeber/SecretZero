@@ -32,14 +32,14 @@ def run() -> None:
     app = create_app(secretfile_path=secretfile_path)
 
     # Print startup info
-    print(f"\n🔐 SecretZero API Server")
-    print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    print("\n🔐 SecretZero API Server")
+    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     print(f"Host:        {host}")
     print(f"Port:        {port}")
     print(f"Config:      {secretfile_path}")
     print(f"Docs:        http://{host}:{port}/docs")
     print(f"ReDoc:       http://{host}:{port}/redoc")
-    print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
 
     # Check for API key
     if "SECRETZERO_API_KEY" in os.environ:
