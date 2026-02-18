@@ -36,3 +36,4 @@ secret_results.json
 site/
 localstack-data/
 data/
+src/secretzero/_version.py
