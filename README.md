@@ -11,7 +11,7 @@ SecretZero is a secrets orchestration, lifecycle, and bootstrap engine.
     alt="Secret0 Logo">
 </img>
 
-SecretZero is a secrets as code management tool that automates the creation, seeding, and lifecycle management of project secrets through self-documenting declarative manifests. The very first secrets you seed for a new project or environment (known in the industry as 'secret-zero') become timestamped, rotatable, and maintainable with git-compatible lock files.
+SecretZero is a secrets as code management tool that automates the creation, seeding, and lifecycle management of project secrets through self-documenting declarative manifests. The very first secrets you seed for a new project or environment (known in the industry as 'secret-zero') are often the most difficult to track, maintain, seed, audit, and rotate. SecretZero aims to be an answer to this madness.
 
 ## The Problem
 
@@ -31,7 +31,7 @@ If you have ever asked any of these questions about a new or existing codebase t
 - **Lockfile tracking** for secrets with rotation history and timestamps
 - **Dual-purpose providers** that can both request/rotate new secrets and store them across a variety of environments
 - **Type safety and validation** at every layer with strongly-typed Pydantic models
-- **Multiple profiles** for targeting multiple environments independently
+- **Variable interpolation and stacking** for targeting multiple environments independently
 - **Manual secret fallbacks** via environment variables when automatic generation isn't possible
 - **Self-documenting** secrets-as-code showing when secrets were created, from where, and where they are now
 
@@ -62,7 +62,7 @@ secretzero test                    # Test provider connectivity
 secretzero sync                    # Generate and sync secrets to targets
 secretzero sync --dry-run         # Preview changes without applying
 secretzero sync -s db_password    # Sync only specific secret(s)
-secretzero show <secret>          # Show secret metadata
+secretzero show '<secret>'          # Show secret metadata
 
 # Visualization
 secretzero graph                   # Generate visual flow diagram
