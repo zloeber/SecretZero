@@ -2270,4 +2270,4 @@ For more information, see:
 - [Kubernetes Secrets Documentation](https://kubernetes.io/docs/concepts/configuration/secret/)
 - [External Secrets Operator](https://external-secrets.io/)
 - [Kubernetes RBAC](https://kubernetes.io/docs/reference/access-authn-authz/rbac/)
-- [Examples](../../examples/)
+- [Examples](../../examples/index.md)

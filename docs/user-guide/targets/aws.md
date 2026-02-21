@@ -854,4 +854,4 @@ aws rds create-db-instance \
 - Explore [Azure Key Vault](azure.md) for multi-cloud deployments
 - Learn about [HashiCorp Vault](vault.md) for hybrid environments
 - Review [Kubernetes secrets](kubernetes.md) for container workloads
-- Check [examples](../../examples/) for complete configurations
+- Check [examples](../../examples/index.md) for complete configurations

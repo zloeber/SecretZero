@@ -1505,6 +1505,6 @@ metadata:
 - Explore [AWS Secrets Manager](aws.md) for multi-cloud deployments
 - Learn about [HashiCorp Vault](vault.md) for hybrid environments
 - Review [Kubernetes secrets](kubernetes.md) for container workloads
-- Check [examples](../../examples/) for complete configurations
+- Check [examples](../../examples/index.md) for complete configurations
 - Read about [Secret Templates](../templates.md) for structured secrets
 - Understand [Secret Rotation](../rotation.md) strategies

@@ -820,4 +820,4 @@ rsync -av --exclude='.env' --exclude='secrets/' /app/ /backup/
 - Explore [AWS targets](aws.md) for cloud storage
 - Learn about [Kubernetes secrets](kubernetes.md) for containers
 - Review [CI/CD targets](github.md) for automation
-- Check [examples](../../examples/) for more patterns
+- Check [examples](../../examples/index.md) for more patterns

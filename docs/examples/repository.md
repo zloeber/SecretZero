@@ -12,7 +12,7 @@ All examples are located in the `examples/` directory of the main repository:
 
 ### Local Development
 
-#### local-only.yml
+#### local-only.yml {#local-only}
 
 **Purpose**: Simple local development setup with no cloud dependencies
 
@@ -45,7 +45,7 @@ cat .env
 
 ### Cloud Provider Examples
 
-#### aws-only.yml
+#### aws-only.yml {#aws-only}
 
 **Purpose**: Production-ready AWS deployment
 
@@ -83,7 +83,7 @@ secretzero sync
 
 ---
 
-#### multi-cloud.yml
+#### multi-cloud.yml {#multi-cloud}
 
 **Purpose**: Enterprise multi-cloud secret distribution
 
@@ -126,7 +126,7 @@ secretzero sync
 
 ### Kubernetes Examples
 
-#### kubernetes-basic.yml
+#### kubernetes-basic.yml {#kubernetes-basic}
 
 **Purpose**: Basic Kubernetes Secret management
 
@@ -164,7 +164,7 @@ kubectl describe secret myapp-db
 
 ---
 
-#### kubernetes-complete.yml
+#### kubernetes-complete.yml {#kubernetes-complete}
 
 **Purpose**: Advanced Kubernetes setup with all features
 
@@ -248,7 +248,7 @@ secretzero sync
 
 ---
 
-### CI/CD Examples
+### CI/CD Examples {#cicd-examples}
 
 #### github-actions.yml
 
@@ -344,7 +344,7 @@ secretzero sync
 
 ---
 
-#### multi-cicd.yml
+#### multi-cicd.yml {#multi-cicd}
 
 **Purpose**: Supporting multiple CI/CD platforms
 
@@ -371,7 +371,7 @@ secretzero sync
 
 ### Specialized Examples
 
-#### api-example.yml
+#### api-example.yml {#api-example}
 
 **Purpose**: Demonstrating API usage and features
 
@@ -402,7 +402,7 @@ curl -H "X-API-Key: $SECRETZERO_API_KEY" http://localhost:8000/secrets
 
 ---
 
-#### compliance.yml
+#### compliance.yml {#compliance}
 
 **Purpose**: Meeting compliance requirements
 
@@ -429,7 +429,7 @@ secretzero sync
 
 ---
 
-#### drift-detection.yml
+#### drift-detection.yml {#drift-detection}
 
 **Purpose**: Monitoring for unauthorized changes
 
@@ -454,7 +454,7 @@ secretzero drift check
 
 ---
 
-#### rotation-policies.yml
+#### rotation-policies.yml {#rotation-policies}
 
 **Purpose**: Advanced rotation strategies
 

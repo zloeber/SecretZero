@@ -1670,5 +1670,5 @@ def main(req):
 - Explore [AWS Secrets Manager](aws.md) for native AWS integration
 - Learn about [Azure Key Vault](azure.md) for Azure environments
 - Review [Kubernetes Secrets](kubernetes.md) for container workloads
-- Check [examples](../../examples/) for complete configurations
+- Check [examples](../../examples/index.md) for complete configurations
 - Read [Vault documentation](https://developer.hashicorp.com/vault/docs) for advanced features

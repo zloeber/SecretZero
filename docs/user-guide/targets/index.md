@@ -351,5 +351,5 @@ Common permission issues and solutions:
 
 - Explore specific target documentation for detailed configuration
 - Review [providers documentation](../providers/index.md) for authentication setup
-- Check [examples](../../examples/) for real-world configurations
+- Check [examples](../../examples/index.md) for real-world configurations
 - Read [best practices](../../use-cases/best-practices.md) for production deployments

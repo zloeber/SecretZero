@@ -1309,7 +1309,7 @@ pipeline {
 - [Jenkins Credentials Plugin Documentation](https://plugins.jenkins.io/credentials/)
 - [Jenkins Pipeline Syntax Reference](https://www.jenkins.io/doc/book/pipeline/syntax/#credentials)
 - [python-jenkins Library Documentation](https://python-jenkins.readthedocs.io/)
-- [SecretZero Jenkins Example](../../examples/jenkins-credentials.yml)
+- [SecretZero Jenkins Example](../../examples/jenkins-credentials.md)
 
 ## Summary
 
@@ -1323,4 +1323,4 @@ Jenkins credentials targets in SecretZero provide:
 - ✅ Enterprise-grade security with Jenkins encryption
 - ✅ Multi-Jenkins instance support
 
-For additional help or examples, refer to the [examples directory](../../examples/) or [open an issue](https://github.com/yourusername/secretzero/issues).
+For additional help or examples, refer to the [examples directory](../../examples/index.md) or [open an issue](https://github.com/yourusername/secretzero/issues).

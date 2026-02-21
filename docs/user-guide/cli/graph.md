@@ -455,7 +455,7 @@ Options:
 
 ## Next Steps
 
-- [Learn about Secretfile configuration](configuration/secretfile.md)
-- [Understand secret types](reference/secret-types.md)
-- [Configure providers](providers/index.md)
-- [View complete examples](examples/index.md)
+- [Learn about Secretfile configuration](../configuration/secretfile.md)
+- [Understand data models](../../reference/models.md)
+- [Configure providers](../providers/index.md)
+- [View complete examples](../../examples/index.md)

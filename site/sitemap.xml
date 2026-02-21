@@ -5,10 +5,6 @@
          <lastmod>2026-02-21</lastmod>
     </url>
     <url>
-         <loc>https://secret0.com/CHANGELOG/</loc>
-         <lastmod>2026-02-21</lastmod>
-    </url>
-    <url>
          <loc>https://secret0.com/api-getting-started/</loc>
          <lastmod>2026-02-21</lastmod>
     </url>
@@ -33,11 +29,119 @@
          <lastmod>2026-02-21</lastmod>
     </url>
     <url>
+         <loc>https://secret0.com/advanced/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/advanced/drift/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/advanced/drift/remediation/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/advanced/drift/strategies/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/advanced/multi-env/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/advanced/multi-env/best-practices/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/advanced/multi-env/setup/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/advanced/multi-env/variables/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/advanced/policies/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/advanced/policies/access/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/advanced/policies/compliance/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/advanced/policies/rotation/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/advanced/rotation/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/advanced/rotation/automation/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/advanced/rotation/best-practices/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/advanced/rotation/policies/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/advanced/security/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/advanced/security/audit-logs/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/advanced/security/best-practices/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/advanced/security/compliance/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/advanced/security/key-management/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/contributing/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/contributing/code-style/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/contributing/development/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/contributing/documentation/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/contributing/testing/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
          <loc>https://secret0.com/examples/</loc>
          <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/examples/complete/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/examples/jenkins-credentials/</loc>
          <lastmod>2026-02-21</lastmod>
     </url>
     <url>
@@ -65,7 +169,19 @@
          <lastmod>2026-02-21</lastmod>
     </url>
     <url>
+         <loc>https://secret0.com/project/ROADMAP/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/reference/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
          <loc>https://secret0.com/reference/architecture/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/reference/augmenting/</loc>
          <lastmod>2026-02-21</lastmod>
     </url>
     <url>
@@ -73,7 +189,19 @@
          <lastmod>2026-02-21</lastmod>
     </url>
     <url>
+         <loc>https://secret0.com/reference/cli/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
          <loc>https://secret0.com/reference/faq/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/reference/models/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/reference/security/</loc>
          <lastmod>2026-02-21</lastmod>
     </url>
     <url>
@@ -89,7 +217,15 @@
          <lastmod>2026-02-21</lastmod>
     </url>
     <url>
+         <loc>https://secret0.com/use-cases/best-practices/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
          <loc>https://secret0.com/use-cases/compliance/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/use-cases/disaster-recovery/</loc>
          <lastmod>2026-02-21</lastmod>
     </url>
     <url>
@@ -113,11 +249,31 @@
          <lastmod>2026-02-21</lastmod>
     </url>
     <url>
+         <loc>https://secret0.com/use-cases/migration/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/use-cases/monitoring/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
          <loc>https://secret0.com/use-cases/multi-cloud/</loc>
          <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/best-practices/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/rotation/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/templates/</loc>
          <lastmod>2026-02-21</lastmod>
     </url>
     <url>
@@ -205,6 +361,26 @@
          <lastmod>2026-02-21</lastmod>
     </url>
     <url>
+         <loc>https://secret0.com/user-guide/generators/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/generators/password/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/generators/script/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/generators/static/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/generators/string/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
          <loc>https://secret0.com/user-guide/providers/</loc>
          <lastmod>2026-02-21</lastmod>
     </url>
@@ -245,11 +421,19 @@
          <lastmod>2026-02-21</lastmod>
     </url>
     <url>
+         <loc>https://secret0.com/user-guide/targets/aws-secrets-manager/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
          <loc>https://secret0.com/user-guide/targets/aws/</loc>
          <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/targets/azure/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/targets/file/</loc>
          <lastmod>2026-02-21</lastmod>
     </url>
     <url>
@@ -270,6 +454,10 @@
     </url>
     <url>
          <loc>https://secret0.com/user-guide/targets/local/</loc>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/targets/template/</loc>
          <lastmod>2026-02-21</lastmod>
     </url>
     <url>

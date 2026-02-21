@@ -270,7 +270,7 @@ When `SECRETZERO_API_KEY` is set:
 4. **Monitor Audit Logs**: Review audit logs for suspicious activity
 5. **Rate Limiting**: Consider adding rate limiting for production deployments
 
-### Running in Production
+### Running in Production {#production-deployment}
 
 Example with Nginx and systemd:
 
