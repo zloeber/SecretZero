@@ -1,1 +1,0 @@
-Completed. This is just a reminder to revisit documentation when modifying existing schemas, providers, or secret types.
