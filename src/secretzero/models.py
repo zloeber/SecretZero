@@ -23,6 +23,7 @@ class GeneratorKind(str, Enum):
     RANDOM_STRING = "random_string"
     SCRIPT = "script"
     API = "api"
+    PROVIDER_BACKED = "provider_backed"
 
 
 class TargetKind(str, Enum):

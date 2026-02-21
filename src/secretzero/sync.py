@@ -1,8 +1,10 @@
 """Secret synchronization engine."""
 
+from pathlib import Path
 from typing import Any
 
 from secretzero.generators import (
+    ProviderBackedGenerator,
     RandomPasswordGenerator,
     RandomStringGenerator,
     ScriptGenerator,
@@ -10,7 +12,7 @@ from secretzero.generators import (
 )
 from secretzero.lockfile import Lockfile
 from secretzero.models import GeneratorKind, Secret, Secretfile, Template
-from secretzero.targets import FileTarget
+from secretzero.targets import FileTarget, TemplateTarget
 
 # Import providers
 
@@ -19,25 +21,39 @@ class SyncEngine:
     """Engine for synchronizing secrets from configuration to targets."""
 
     def __init__(
-        self, secretfile: Secretfile, lockfile: Lockfile, hide_input: bool = False
+        self,
+        secretfile: Secretfile,
+        lockfile: Lockfile,
+        secretfile_path: Path | None = None,
+        secretfile_content: str | None = None,
+        hide_input: bool = True,
+        prompt_on_empty: bool = True,
     ) -> None:
         """Initialize sync engine.
 
         Args:
             secretfile: Loaded Secretfile configuration
             lockfile: Lockfile for tracking secrets
-            hide_input: If True, mask user input when prompting for secrets
+            secretfile_path: Path to the Secretfile (for tracking)
+            secretfile_content: Raw content of the Secretfile (for change detection)
+            hide_input: If True, mask user input when prompting for secrets (default: True)
+            prompt_on_empty: If True, prompt for values when empty/unresolved (default: True)
         """
         self.secretfile = secretfile
         self.lockfile = lockfile
+        self.secretfile_path = secretfile_path
+        self.secretfile_content = secretfile_content
         self.hide_input = hide_input
+        self.prompt_on_empty = prompt_on_empty
         self.generator_map = {
             GeneratorKind.RANDOM_PASSWORD: RandomPasswordGenerator,
             GeneratorKind.RANDOM_STRING: RandomStringGenerator,
             GeneratorKind.STATIC: StaticGenerator,
             GeneratorKind.SCRIPT: ScriptGenerator,
+            GeneratorKind.PROVIDER_BACKED: ProviderBackedGenerator,
         }
         self._providers = {}
+        self._template_targets = {}  # Track template targets and their secrets
         self._initialize_providers()
 
     @staticmethod
@@ -154,6 +170,54 @@ class SyncEngine:
         """
         return self._providers.get(provider_name)
 
+    def _validate_target_access(self) -> dict[str, Any]:
+        """Validate that at least one target can be accessed.
+
+        Tests connection to all providers used by targets.
+
+        Returns:
+            Dictionary with validation results:
+                - accessible_count: Number of accessible providers
+                - total_count: Total number of unique providers
+                - results: List of tuples (provider_name, success, error_msg)
+        """
+        # Collect unique providers from all targets
+        provider_names = set()
+        for secret in self.secretfile.secrets:
+            for target in secret.targets:
+                provider_names.add(target.provider)
+
+        # Test connection to each provider
+        results = []
+        accessible_count = 0
+
+        for provider_name in provider_names:
+            # Local file targets don't require authentication
+            if provider_name == "local":
+                results.append((provider_name, True, None))
+                accessible_count += 1
+                continue
+
+            provider = self._get_provider(provider_name)
+            if provider is None:
+                results.append((provider_name, False, "Provider not initialized"))
+                continue
+
+            # Test connection
+            try:
+                success, error_msg = provider.test_connection()
+                results.append((provider_name, success, error_msg))
+                if success:
+                    accessible_count += 1
+            except Exception as e:
+                results.append((provider_name, False, str(e)))
+
+        return {
+            "accessible_count": accessible_count,
+            "total_count": len(provider_names),
+            "results": results,
+        }
+
     def sync(self, dry_run: bool = False, force_rotation: bool = False) -> dict[str, Any]:
         """Synchronize all secrets to their targets.
 
@@ -163,7 +227,27 @@ class SyncEngine:
 
         Returns:
             Dictionary with sync results and statistics
+
+        Raises:
+            RuntimeError: If no targets can be accessed
         """
+        # Validate target access before generating secrets
+        # Only validate if there are actual targets configured
+        validation = self._validate_target_access()
+        if validation["total_count"] > 0 and validation["accessible_count"] == 0:
+            error_details = []
+            for provider_name, success, error_msg in validation["results"]:
+                if error_msg:
+                    error_details.append(f"  • {provider_name}: {error_msg}")
+                else:
+                    error_details.append(f"  • {provider_name}: Connection failed")
+
+            error_message = (
+                f"Cannot sync secrets: No accessible targets found.\n"
+                f"Tested {validation['total_count']} provider(s):\n" + "\n".join(error_details)
+            )
+            raise RuntimeError(error_message)
+
         results = {
             "secrets_processed": 0,
             "secrets_generated": 0,
@@ -171,7 +255,19 @@ class SyncEngine:
             "secrets_stored": 0,
             "errors": [],
             "details": [],
+            "secretfile_changed": False,
         }
+
+        # Track secretfile for change detection (if tracking info provided)
+        if self.secretfile_path and self.secretfile_content:
+            secretfile_changed = self.lockfile.secretfile_changed(
+                self.secretfile_path, self.secretfile_content
+            )
+            results["secretfile_changed"] = secretfile_changed
+
+            # Track the secretfile in the lockfile
+            if not dry_run:
+                self.lockfile.track_secretfile(self.secretfile_path, self.secretfile_content)
 
         for secret in self.secretfile.secrets:
             try:
@@ -191,6 +287,12 @@ class SyncEngine:
             except Exception as e:
                 error_msg = f"Error syncing secret '{secret.name}': {e}"
                 results["errors"].append(error_msg)
+
+        # Render template targets after all secrets are synced
+        if not dry_run:
+            template_render_errors = self._render_template_targets()
+            if template_render_errors:
+                results["errors"].extend(template_render_errors)
 
         return results
 
@@ -244,7 +346,19 @@ class SyncEngine:
 
         for target_config in secret.targets:
             target_id = self._build_target_id(target_config)
-            if force_rotation or target_id not in tracked_targets:
+            needs_sync = force_rotation or target_id not in tracked_targets
+
+            # For file targets, also check if the file actually exists
+            if (
+                not needs_sync
+                and target_config.provider == "local"
+                and target_config.kind == "file"
+            ):
+                file_path = Path(target_config.config.get("path", ""))
+                if not file_path.exists():
+                    needs_sync = True  # File missing, needs to be recreated
+
+            if needs_sync:
                 targets_to_sync.append(target_config)
 
         # If no targets need syncing and secret exists, skip
@@ -289,24 +403,28 @@ class SyncEngine:
         # Generate new value if needed (full sync or force rotation)
         if not secret_value:
             env_var_name = secret.name.upper()
-            secret_value = self._generate_secret_value(secret.kind, secret.config, env_var_name)
+            secret_value = self._generate_secret_value(
+                secret.kind, secret.config, env_var_name, field_description=f"Secret: {secret.name}"
+            )
             result["generated"] = True
 
         # Store in targets (only targets that need syncing)
         if not dry_run:
-            all_targets_ok = True
+            #all_targets_ok = True
+            any_target_stored = False
             for target_config in targets_to_sync:
                 target_result = self._store_in_target(secret.name, secret_value, target_config)
                 result["targets"].append(target_result)
 
                 if target_result.get("status") in {"failed", "error", "unsupported"}:
-                    all_targets_ok = False
+                    #all_targets_ok = False
                     message = target_result.get("message", "Target store failed")
                     result["errors"].append(
                         f"{secret.name} -> {target_result['provider']}/{target_result['kind']}: {message}"
                     )
                 else:
                     # Track successful target stores
+                    any_target_stored = True
                     target_id = self._build_target_id(target_config)
                     self.lockfile.add_secret(
                         secret.name, secret_value, target_id=target_id, is_rotation=force_rotation
@@ -318,7 +436,8 @@ class SyncEngine:
                     secret.name, secret_value, target_id=None, is_rotation=force_rotation
                 )
                 result["stored"] = True
-            elif all_targets_ok:
+            elif any_target_stored:
+                # Mark as stored if at least one target succeeded
                 result["stored"] = True
         else:
             result["dry_run"] = True
@@ -514,6 +633,11 @@ class SyncEngine:
         generator = generator_class(config)
         if self.hide_input:
             generator.hide_input = True
+
+        # For static generators, control prompting behavior
+        if isinstance(generator, StaticGenerator):
+            generator.prompt_on_empty = self.prompt_on_empty
+
         return generator.generate_with_fallback(env_var_name, field_description=field_description)
 
     def _retrieve_from_target(self, secret_name: str, target_config: Any) -> str | None:
@@ -532,11 +656,21 @@ class SyncEngine:
                 target = FileTarget(target_config.config)
                 return target.retrieve(secret_name)
 
+            # Template targets (read from rendered output if it exists)
+            elif target_config.provider == "local" and target_config.kind == "template":
+                target = TemplateTarget(target_config.config)
+                return target.retrieve(secret_name)
+
             # AWS targets
             elif target_config.provider == "aws":
                 provider = self._get_provider("aws")
                 if not provider:
                     return None
+
+                # Authenticate provider if needed
+                if not provider.is_authenticated():
+                    if not provider.authenticate():
+                        return None
 
                 if target_config.kind == "ssm_parameter":
                     try:
@@ -561,6 +695,11 @@ class SyncEngine:
                 provider = self._get_provider("azure")
                 if not provider:
                     return None
+
+                # Authenticate provider if needed
+                if not provider.is_authenticated():
+                    if not provider.authenticate():
+                        return None
 
                 if target_config.kind == "key_vault":
                     try:
@@ -632,6 +771,22 @@ class SyncEngine:
                 success = target.store(secret_name, secret_value)
                 result["status"] = "stored" if success else "failed"
 
+            # Template targets (collect secrets for later rendering)
+            elif target_config.provider == "local" and target_config.kind == "template":
+                target = TemplateTarget(target_config.config)
+                success = target.store(secret_name, secret_value)
+
+                # Track template target and its secrets for rendering later
+                template_id = target_config.config.get("output_path", "unknown")
+                if template_id not in self._template_targets:
+                    self._template_targets[template_id] = {
+                        "target": target,
+                        "secrets": {},
+                    }
+                self._template_targets[template_id]["secrets"][secret_name] = secret_value
+
+                result["status"] = "stored" if success else "failed"
+
             # AWS targets
             elif target_config.provider == "aws":
                 provider = self._get_provider("aws")
@@ -639,6 +794,13 @@ class SyncEngine:
                     result["status"] = "error"
                     result["message"] = "AWS provider not initialized"
                     return result
+
+                # Authenticate provider if needed
+                if not provider.is_authenticated():
+                    if not provider.authenticate():
+                        result["status"] = "error"
+                        result["message"] = "AWS authentication failed"
+                        return result
 
                 if target_config.kind == "ssm_parameter":
                     try:
@@ -677,6 +839,13 @@ class SyncEngine:
                     result["message"] = "Azure provider not initialized"
                     return result
 
+                # Authenticate provider if needed
+                if not provider.is_authenticated():
+                    if not provider.authenticate():
+                        result["status"] = "error"
+                        result["message"] = "Azure authentication failed"
+                        return result
+
                 if target_config.kind == "key_vault":
                     try:
                         from secretzero.targets.azure import KeyVaultTarget
@@ -700,7 +869,12 @@ class SyncEngine:
                     result["status"] = "error"
                     result["message"] = "Vault provider not initialized"
                     return result
-
+                # Authenticate provider if needed
+                if not provider.is_authenticated():
+                    if not provider.authenticate():
+                        result["status"] = "error"
+                        result["message"] = "Vault authentication failed"
+                        return result
                 if target_config.kind == "kv":
                     try:
                         from secretzero.targets.vault import VaultKVTarget
@@ -836,6 +1010,34 @@ class SyncEngine:
             result["message"] = str(e)
 
         return result
+
+    def _render_template_targets(self) -> list[str]:
+        """Render all collected template targets with their secrets.
+
+        Returns:
+            List of error messages from failed renderings
+        """
+        errors = []
+
+        for template_id, template_info in self._template_targets.items():
+            try:
+                target = template_info["target"]
+                secrets = template_info["secrets"]
+
+                # Render the template with collected secrets
+                success = target.render(secrets)
+
+                if not success:
+                    errors.append(
+                        f"Failed to render template to {target.output_path}: Unknown error"
+                    )
+            except Exception as e:
+                errors.append(f"Failed to render template to {template_id}: {e}")
+
+        # Clear the template targets after rendering
+        self._template_targets.clear()
+
+        return errors
 
     def get_secret_info(self, secret_name: str) -> dict[str, Any] | None:
         """Get information about a specific secret.

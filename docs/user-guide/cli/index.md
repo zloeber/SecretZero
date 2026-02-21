@@ -25,7 +25,8 @@ These options work with all commands:
 
 | Command | Description |
 |---------|-------------|
-| [`init`](init.md) | Create a new Secretfile from a template |
+| [`create`](create.md) | Create a new Secretfile from a template |
+| [`init`](init.md) | Initialize project by checking and installing provider dependencies |
 | [`validate`](validate.md) | Validate Secretfile configuration |
 | [`test`](test.md) | Test provider connectivity and authentication |
 
@@ -52,17 +53,32 @@ These options work with all commands:
 
 ## Command Quick Reference
 
-### Initialize New Project
+### Create New Project
 
 ```bash
 # Create basic Secretfile
-secretzero init
+secretzero create
 
 # Create from specific template
-secretzero init --template-type aws
+secretzero create --template-type aws
 
 # Custom output location
-secretzero init --output my-secrets.yml
+secretzero create --output my-secrets.yml
+```
+
+[Learn more →](create.md)
+
+### Initialize Dependencies
+
+```bash
+# Check provider dependencies
+secretzero init
+
+# Auto-install missing dependencies
+secretzero init --install
+
+# Preview without installing
+secretzero init --dry-run
 ```
 
 [Learn more →](init.md)
@@ -172,7 +188,7 @@ secretzero drift --file Secretfile.yml --lockfile .secrets.lock
 
 ```bash
 # 1. Create Secretfile
-secretzero init
+secretzero create
 
 # 2. Edit Secretfile.yml to add your secrets
 vim Secretfile.yml

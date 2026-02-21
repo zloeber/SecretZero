@@ -44,16 +44,19 @@ templates:
     description: Application configuration
     fields:
       database_url:
+        description: PostgreSQL database connection URL
         generator:
           kind: static
           config:
             default: postgresql://user:pass@localhost:5432/mydb
       redis_url:
+        description: Redis server connection URL
         generator:
           kind: static
           config:
             default: redis://localhost:6379/0
       debug:
+        description: Debug mode flag
         generator:
           kind: static
           config:

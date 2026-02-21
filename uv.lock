@@ -1652,7 +1652,7 @@ requires-dist = [
     { name = "boto3", marker = "extra == 'aws'", specifier = ">=1.26.0" },
     { name = "click", specifier = ">=8.0.0" },
     { name = "fastapi", marker = "extra == 'all'", specifier = ">=0.104.0" },
-    { name = "fastapi", marker = "extra == 'api'", specifier = ">=0.104.0" },
+    { name = "fastapi", marker = "extra == 'api'", specifier = ">=0.129.0" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.25.0" },
     { name = "hvac", marker = "extra == 'all'", specifier = ">=1.0.0" },
     { name = "hvac", marker = "extra == 'vault'", specifier = ">=1.0.0" },
@@ -1687,14 +1687,14 @@ requires-dist = [
     { name = "python-jenkins", marker = "extra == 'cicd'", specifier = ">=1.8.0" },
     { name = "python-jenkins", marker = "extra == 'jenkins'", specifier = ">=1.8.0" },
     { name = "python-multipart", marker = "extra == 'all'", specifier = ">=0.0.6" },
-    { name = "python-multipart", marker = "extra == 'api'", specifier = ">=0.0.6" },
+    { name = "python-multipart", marker = "extra == 'api'", specifier = ">=0.0.22" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "rich", specifier = ">=13.0.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
     { name = "setuptools-scm", specifier = ">=8.3.1" },
     { name = "types-pyyaml", marker = "extra == 'dev'" },
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'all'", specifier = ">=0.24.0" },
-    { name = "uvicorn", extras = ["standard"], marker = "extra == 'api'", specifier = ">=0.24.0" },
+    { name = "uvicorn", extras = ["standard"], marker = "extra == 'api'", specifier = ">=0.41.0" },
 ]
 provides-extras = ["dev", "aws", "azure", "vault", "github", "gitlab", "jenkins", "kubernetes", "cicd", "api", "docs", "all"]
 

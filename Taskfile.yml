@@ -225,6 +225,13 @@ tasks:
     cmds:
       - |
         uv run ruff check --fix .
+  
+  test:
+    desc: Run the tests
+    cmds:
+      - |
+        uv pip install -e ".[all]"
+        uv run pytest --maxfail=1 --disable-warnings -v tests
 
   format:
     desc: Run python formatting
@@ -232,3 +239,13 @@ tasks:
       - |
         uv run ruff format .
         uv run black .
+
+  test:validations:
+    desc: Run validation tests for all example Secretfile manifests
+    cmds:
+      - |
+        uv pip install -e ".[all]"
+        for file in $(find ./examples -type f -name "*.yml"); do
+          echo "Running validation test: $file"
+          uv run secretzero validate -f "$file"
+        done

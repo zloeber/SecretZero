@@ -4,7 +4,7 @@ from secretzero.providers.base import BaseProvider
 
 
 class ProviderRegistry:
-    """Registry for managing provider instances."""
+    """Registry for managing provider instances and provider classes."""
 
     def __init__(self):
         """Initialize the provider registry."""
@@ -19,8 +19,24 @@ class ProviderRegistry:
         Args:
             provider_type: Type identifier for the provider
             provider_class: Provider class to register
+
+        Raises:
+            ValueError: If provider_type is already registered
         """
+        if provider_type in self._provider_classes:
+            raise ValueError(f"Provider type '{provider_type}' is already registered")
         self._provider_classes[provider_type] = provider_class
+
+    def get_provider_class(self, provider_type: str) -> type[BaseProvider] | None:
+        """Get a provider class by type.
+
+        Args:
+            provider_type: Type identifier for the provider
+
+        Returns:
+            Provider class or None if not found
+        """
+        return self._provider_classes.get(provider_type)
 
     def create_provider(self, provider_type: str, name: str, config: dict) -> BaseProvider | None:
         """Create a provider instance.
@@ -64,13 +80,9 @@ class ProviderRegistry:
         """List all registered provider types.
 
         Returns:
-            List of provider type names
+            List of provider type names (classes)
         """
-        return list(self._provider_classes.keys())
-
-
-# Global registry instance
-_registry = ProviderRegistry()
+        return sorted(list(self._provider_classes.keys()))
 
 
 def get_registry() -> ProviderRegistry:
@@ -79,4 +91,33 @@ def get_registry() -> ProviderRegistry:
     Returns:
         Global ProviderRegistry instance
     """
-    return _registry
+    return _global_registry
+
+
+# Initialize and populate global registry with built-in providers
+_global_registry = ProviderRegistry()
+
+# Import providers after registry creation to avoid circular imports
+try:
+    from secretzero.providers.aws import AWSProvider
+    from secretzero.providers.azure import AzureProvider
+    from secretzero.providers.github import GitHubProvider
+    from secretzero.providers.gitlab import GitLabProvider
+    from secretzero.providers.jenkins import JenkinsProvider
+    from secretzero.providers.kubernetes import KubernetesProvider
+    from secretzero.providers.vault import VaultProvider
+
+    _global_registry.register_provider_class("aws", AWSProvider)
+    _global_registry.register_provider_class("azure", AzureProvider)
+    _global_registry.register_provider_class("github", GitHubProvider)
+    _global_registry.register_provider_class("gitlab", GitLabProvider)
+    _global_registry.register_provider_class("jenkins", JenkinsProvider)
+    _global_registry.register_provider_class("kubernetes", KubernetesProvider)
+    _global_registry.register_provider_class("vault", VaultProvider)
+except (ImportError, ValueError):
+    # Allow graceful degradation if imports fail
+    pass
+
+
+# Export for convenience (optional)
+GLOBAL_PROVIDER_REGISTRY = _global_registry

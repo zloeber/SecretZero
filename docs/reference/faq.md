@@ -147,7 +147,7 @@ docker run -v $(pwd):/app secretzero
 Initialize with a template:
 
 ```bash
-secretzero init
+secretzero create
 ```
 
 Or create manually:

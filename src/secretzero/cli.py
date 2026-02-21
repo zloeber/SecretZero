@@ -4,12 +4,15 @@ import json
 from pathlib import Path
 
 import click
+from rich import box
 from rich.console import Console
 from rich.table import Table
 
 from secretzero import __version__
+from secretzero.cli_providers import providers_group
 from secretzero.config import ConfigLoader
 from secretzero.drift import DriftDetector
+from secretzero.graph import generate_graph
 from secretzero.lockfile import Lockfile
 from secretzero.models import Secretfile
 from secretzero.policy import PolicyEngine
@@ -44,7 +47,7 @@ def main() -> None:
     default="Secretfile.yml",
     help="Output file path",
 )
-def init(template_type: str, output: str) -> None:
+def create(template_type: str, output: str) -> None:
     """Create a new Secretfile from a template.
 
     This command generates a starter Secretfile.yml with example configurations
@@ -112,8 +115,147 @@ annotations: {}
     console.print(f"[green]✓[/green] Created Secretfile: {output}")
     console.print("\nNext steps:")
     console.print("  1. Edit the Secretfile.yml to add your secrets")
-    console.print("  2. Run 'secretzero validate' to check the configuration")
-    console.print("  3. Run 'secretzero sync --dry-run' to test secret generation")
+    console.print("  2. Run 'secretzero init --install' to install provider dependencies")
+    console.print("  3. Run 'secretzero validate' to check the configuration")
+    console.print("  4. Run 'secretzero sync --dry-run' to test secret generation")
+
+
+@main.command()
+@click.option(
+    "--file",
+    "-f",
+    type=click.Path(exists=True),
+    default="Secretfile.yml",
+    help="Path to Secretfile",
+)
+@click.option(
+    "--install",
+    is_flag=True,
+    help="Automatically install missing dependencies",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Show what would be installed without installing",
+)
+def init(file: str, install: bool, dry_run: bool) -> None:
+    """Initialize project by checking and installing provider dependencies.
+
+    This command reads your Secretfile, identifies configured providers,
+    and checks if the required libraries are installed. It can optionally
+    install missing dependencies automatically.
+    """
+    import subprocess
+    import sys
+
+    file_path = Path(file)
+
+    if not file_path.exists():
+        console.print(f"[red]Error:[/red] Secretfile not found: {file}")
+        console.print("\nCreate one first with: [cyan]secretzero create[/cyan]")
+        raise click.Abort()
+
+    loader = ConfigLoader()
+
+    try:
+        config = loader.load_file(file_path)
+    except Exception as e:
+        console.print(f"[red]Error loading Secretfile:[/red] {e}")
+        raise click.Abort()
+
+    # Map provider kinds to required packages
+    provider_packages = {
+        "aws": ("boto3", "secretzero[aws]"),
+        "azure": ("azure.identity", "secretzero[azure]"),
+        "vault": ("hvac", "secretzero[vault]"),
+        "kubernetes": ("kubernetes", "secretzero[kubernetes]"),
+        "github": ("github", "secretzero[github]"),
+        "gitlab": ("gitlab", "secretzero[gitlab]"),
+        "jenkins": ("jenkins", "secretzero[jenkins]"),
+    }
+
+    console.print("[bold]Checking provider dependencies...[/bold]\n")
+
+    missing = []
+    installed = []
+
+    for provider_name, provider_config in config.providers.items():
+        provider_kind = provider_config.kind or ""
+
+        if provider_kind in provider_packages:
+            import_name, install_name = provider_packages[provider_kind]
+
+            try:
+                # Try to import the package
+                if import_name == "azure.identity":
+                    __import__("azure.identity")
+                else:
+                    __import__(import_name)
+                installed.append((provider_name, provider_kind, install_name))
+                console.print(
+                    f"[green]✓[/green] {provider_name} ({provider_kind}): dependency installed"
+                )
+            except ImportError:
+                missing.append((provider_name, provider_kind, install_name))
+                console.print(
+                    f"[yellow]✗[/yellow] {provider_name} ({provider_kind}): missing dependency"
+                )
+
+    if installed:
+        console.print(f"\n[green]✓[/green] {len(installed)} provider(s) have required dependencies")
+
+    if not missing:
+        console.print("\n[green]All provider dependencies are installed![/green]")
+        return
+
+    console.print(f"\n[yellow]⚠[/yellow] {len(missing)} provider(s) missing dependencies:")
+    for provider_name, provider_kind, install_name in missing:
+        # Escape square brackets for Rich markup
+        escaped_install_name = install_name.replace("[", "\\[").replace("]", "\\]")
+        console.print(
+            f"  • {provider_name} ({provider_kind}): [cyan]pip install {escaped_install_name}[/cyan]"
+        )
+
+    if dry_run:
+        console.print("\n[dim]Dry run mode - no packages will be installed[/dim]")
+        return
+
+    if install:
+        console.print("\n[bold]Installing missing dependencies...[/bold]")
+        install_failed = False
+        for provider_name, provider_kind, install_name in missing:
+            try:
+                console.print(f"\nInstalling {install_name}...")
+                result = subprocess.run(
+                    [sys.executable, "-m", "pip", "install", install_name],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+                if result.returncode != 0:
+                    install_failed = True
+                    console.print(f"[red]✗[/red] Failed to install {install_name}")
+                    if result.stderr:
+                        console.print(f"[dim]{result.stderr}[/dim]")
+                else:
+                    console.print(f"[green]✓[/green] Installed {install_name}")
+            except Exception as e:
+                install_failed = True
+                console.print(f"[red]✗[/red] Failed to install {install_name}: {e}")
+
+        if install_failed:
+            console.print("\n[red]✗ Some dependencies failed to install[/red]")
+            console.print("\nTroubleshooting steps:")
+            console.print("  1. Ensure pip is up to date: python -m pip install --upgrade pip")
+            console.print("  2. Check your internet connection")
+            console.print("  3. Try installing manually with the command shown above")
+            raise click.Abort()
+        else:
+            console.print("\n[green]✓[/green] Dependency installation complete!")
+    else:
+        console.print(
+            "\n[dim]Run with --install to automatically install missing dependencies[/dim]"
+        )
 
 
 @main.command()
@@ -438,23 +580,58 @@ def secret_types(type: str | None, verbose: bool) -> None:
         _list_all_types(verbose)
 
 
+def _class_name_to_snake_case(name: str, suffix: str) -> str:
+    """Convert a class name to snake_case type name.
+
+    Handles acronyms properly (SSM, KV, etc.).
+
+    Args:
+        name: Class name (e.g., SSMParameterTarget)
+        suffix: Suffix to remove (e.g., Target, Generator)
+
+    Returns:
+        snake_case type name (e.g., ssm_parameter)
+    """
+    import re
+
+    # Remove the suffix
+    name = name.replace(suffix, "")
+
+    # Insert underscores before uppercase letters that follow lowercase letters
+    # or before uppercase letters that are followed by lowercase letters
+    # This handles both CamelCase and acronyms like SSMParameter or VaultKV
+    name = re.sub(r"([a-z])([A-Z])", r"\1_\2", name)  # camelCase -> camel_Case
+    name = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", name)  # SSMParameter -> SSM_Parameter
+
+    return name.lower()
+
+
 def _list_all_types(verbose: bool) -> None:
     """List all available secret types."""
+    import inspect
+
+    from secretzero import generators, targets
+
     console.print("[bold]Available Secret Generator Types:[/bold]\n")
 
     table = Table(show_header=True, header_style="bold cyan")
     table.add_column("Type", style="green")
     table.add_column("Description")
 
-    generators = {
-        "random_password": "Generate random passwords with configurable complexity",
-        "random_string": "Generate random alphanumeric strings",
-        "static": "Static value with optional validation",
-        "script": "Execute external script to generate value",
-        "api": "Fetch value from external API endpoint",
-    }
+    # Dynamically discover generators
+    generator_types = {}
+    for name in dir(generators):
+        if name.endswith("Generator") and not name.startswith("_"):
+            obj = getattr(generators, name)
+            if inspect.isclass(obj) and obj != generators.BaseGenerator:
+                # Convert class name to snake_case type name
+                type_name = _class_name_to_snake_case(name, "Generator")
 
-    for gen_type, description in generators.items():
+                # Get description from class docstring
+                description = (obj.__doc__ or "").strip().split("\n")[0]
+                generator_types[type_name] = description
+
+    for gen_type, description in sorted(generator_types.items()):
         table.add_row(gen_type, description)
 
     console.print(table)
@@ -465,19 +642,20 @@ def _list_all_types(verbose: bool) -> None:
     target_table.add_column("Type", style="green")
     target_table.add_column("Description")
 
-    targets = {
-        "file": "Store in local file (dotenv, json, yaml, toml)",
-        "ssm_parameter": "AWS Systems Manager Parameter Store",
-        "secrets_manager": "AWS Secrets Manager",
-        "vault_kv": "HashiCorp Vault KV engine",
-        "azure_keyvault": "Azure Key Vault",
-        "kubernetes_secret": "Kubernetes Secret",
-        "github_secret": "GitHub Actions Secret",
-        "gitlab_variable": "GitLab CI/CD Variable",
-        "jenkins_credential": "Jenkins Credential",
-    }
+    # Dynamically discover targets
+    target_types = {}
+    for name in dir(targets):
+        if name.endswith("Target") and not name.startswith("_"):
+            obj = getattr(targets, name)
+            if inspect.isclass(obj) and obj != targets.BaseTarget:
+                # Convert class name to snake_case type name
+                type_name = _class_name_to_snake_case(name, "Target")
 
-    for target_type, description in targets.items():
+                # Get description from class docstring
+                description = (obj.__doc__ or "").strip().split("\n")[0]
+                target_types[type_name] = description
+
+    for target_type, description in sorted(target_types.items()):
         target_table.add_row(target_type, description)
 
     console.print(target_table)
@@ -488,67 +666,161 @@ def _list_all_types(verbose: bool) -> None:
 
 def _show_type_details(type_name: str) -> None:
     """Show detailed information about a specific type."""
+    import inspect
+
+    from secretzero import generators, targets
+
     console.print(f"[bold]Secret Type: {type_name}[/bold]\n")
 
-    type_details = {
-        "random_password": {
-            "description": "Generate cryptographically secure random passwords",
-            "config": {
-                "length": "Password length (default: 32)",
-                "upper": "Include uppercase letters (default: true)",
-                "lower": "Include lowercase letters (default: true)",
-                "number": "Include numbers (default: true)",
-                "special": "Include special characters (default: true)",
-                "exclude_characters": "Characters to exclude from generation",
-            },
-            "example": """secrets:
-  - name: db_password
-    kind: random_password
-    config:
-      length: 32
-      special: true
-      exclude_characters: '"@/\\`'
-    targets:
-      - provider: local
-        kind: file
-        config:
-          path: .env
-          format: dotenv""",
-        },
-        "static": {
-            "description": "Use a static value with optional validation",
-            "config": {
-                "default": "Default value to use",
-                "validation": "Regex pattern for validation",
-                "rotation_period": "Rotation period (e.g., 90d)",
-            },
-            "example": """secrets:
-  - name: api_key
-    kind: static
-    config:
-      validation: ^[a-zA-Z0-9]{40}$
-      default: your-api-key-here
-    targets:
-      - provider: aws
-        kind: ssm_parameter
-        config:
-          name: /app/api-key""",
-        },
-    }
+    # Try to find the class dynamically
+    target_class = None
+    is_generator = False
 
-    if type_name in type_details:
-        details = type_details[type_name]
-        console.print(f"[cyan]Description:[/cyan] {details['description']}\n")
+    # Check generators
+    for name in dir(generators):
+        if name.endswith("Generator") and not name.startswith("_"):
+            obj = getattr(generators, name)
+            if inspect.isclass(obj):
+                # Convert class name to snake_case
+                converted_name = _class_name_to_snake_case(name, "Generator")
+                if converted_name == type_name:
+                    target_class = obj
+                    is_generator = True
+                    break
 
-        console.print("[cyan]Configuration Options:[/cyan]")
-        for option, desc in details["config"].items():
-            console.print(f"  • {option}: {desc}")
+    # Check targets
+    if not target_class:
+        for name in dir(targets):
+            if name.endswith("Target") and not name.startswith("_"):
+                obj = getattr(targets, name)
+                if inspect.isclass(obj):
+                    # Convert class name to snake_case
+                    converted_name = _class_name_to_snake_case(name, "Target")
+                    if converted_name == type_name:
+                        target_class = obj
+                        is_generator = False
+                        break
 
-        console.print("\n[cyan]Example:[/cyan]")
-        console.print(f"[dim]{details['example']}[/dim]")
-    else:
+    if not target_class:
         console.print(f"[red]Unknown type:[/red] {type_name}")
         console.print("\nRun 'secretzero secret-types' to see available types")
+        return
+
+    # Extract description from class docstring
+    class_doc = (target_class.__doc__ or "").strip()
+    description = class_doc.split("\n")[0] if class_doc else "No description available"
+
+    console.print(f"[cyan]Description:[/cyan] {description}\n")
+
+    # Extract config options from __init__ docstring
+    init_doc = (target_class.__init__.__doc__ or "").strip()
+    config_options = {}
+
+    if init_doc:
+        # Parse the docstring for config parameters
+        lines = init_doc.split("\n")
+        in_config = False
+        for line in lines:
+            stripped = line.strip()
+            # Look for the config section
+            if "config:" in stripped.lower() or "configuration with options:" in stripped.lower():
+                in_config = True
+                continue
+            # Parse config options (lines starting with -)
+            if in_config and stripped.startswith("- "):
+                # Extract option name and description
+                parts = stripped[2:].split(":", 1)
+                if len(parts) == 2:
+                    option_name = parts[0].strip()
+                    option_desc = parts[1].strip()
+                    config_options[option_name] = option_desc
+            # Stop if we hit another section or Args/Returns
+            elif in_config and stripped and not stripped.startswith("- "):
+                if any(keyword in stripped for keyword in ["Args:", "Returns:", "Raises:"]):
+                    break
+
+    if config_options:
+        console.print("[cyan]Configuration Options:[/cyan]")
+        for option, desc in config_options.items():
+            console.print(f"  • {option}: {desc}")
+    else:
+        console.print("[cyan]Configuration Options:[/cyan]")
+        console.print("  • No configuration options documented")
+
+    # Generate example
+    console.print("\n[cyan]Example:[/cyan]")
+
+    # Create example YAML based on type
+    if is_generator:
+        example_lines = [
+            "secrets:",
+            "  - name: my_secret",
+            f"    kind: {type_name}",
+        ]
+        if config_options:
+            example_lines.append("    config:")
+            # Add example values for each config option (max 3)
+            for i, (option, desc) in enumerate(list(config_options.items())[:3]):
+                # Try to infer example value from description/option name
+                if "length" in option.lower():
+                    example_lines.append(f"      {option}: 32")
+                elif "default" in option.lower():
+                    example_lines.append(f"      {option}: your-value-here")
+                elif option in [
+                    "upper",
+                    "lower",
+                    "number",
+                    "special",
+                    "enabled",
+                    "overwrite",
+                    "merge",
+                ]:
+                    example_lines.append(f"      {option}: true")
+                elif "charset" in option.lower():
+                    example_lines.append(f"      {option}: alphanumeric")
+                elif "validation" in option.lower():
+                    example_lines.append(f"      {option}: ^[a-zA-Z0-9]+$")
+                else:
+                    example_lines.append(f"      {option}: value")
+        example_lines.extend(
+            [
+                "    targets:",
+                "      - provider: local",
+                "        kind: file",
+                "        config:",
+                "          path: .env",
+                "          format: dotenv",
+            ]
+        )
+    else:
+        example_lines = [
+            "secrets:",
+            "  - name: my_secret",
+            "    kind: random_password",
+            "    targets:",
+            "      - provider: your_provider",
+            f"        kind: {type_name}",
+        ]
+        if config_options:
+            example_lines.append("        config:")
+            # Add example values for each config option (max 3)
+            for i, (option, desc) in enumerate(list(config_options.items())[:3]):
+                # Try to infer example value from description/option name
+                if option in ["enabled", "overwrite", "merge"]:
+                    example_lines.append(f"          {option}: true")
+                elif "path" in option.lower() or "name" in option.lower():
+                    example_lines.append(f"          {option}: example-{option.replace('_', '-')}")
+                elif "format" in option.lower():
+                    example_lines.append(f"          {option}: dotenv")
+                elif "type" in option.lower() and "ssm" in type_name:
+                    example_lines.append(f"          {option}: SecureString")
+                elif "namespace" in option.lower():
+                    example_lines.append(f"          {option}: default")
+                else:
+                    example_lines.append(f"          {option}: value")
+
+    example_yaml = "\n".join(example_lines)
+    console.print(f"[dim]{example_yaml}[/dim]")
 
 
 def _test_provider_profiles(config) -> None:
@@ -657,12 +929,19 @@ def _test_provider_profiles(config) -> None:
     is_flag=True,
     help="Test each defined authentication profile for providers",
 )
-def test(file: str, include_profiles: bool) -> None:
+@click.option(
+    "--verbose",
+    "-v",
+    is_flag=True,
+    help="Show detailed error information including stack traces",
+)
+def test(file: str, include_profiles: bool, verbose: bool) -> None:
     """Test provider connectivity and authentication.
 
     This command validates that all configured providers can be authenticated
     and accessed successfully. Use --include-profiles to also test each
     defined authentication profile for providers that support them.
+    Use --verbose to see detailed error information when tests fail.
     """
     file_path = Path(file)
     loader = ConfigLoader()
@@ -699,6 +978,15 @@ def test(file: str, include_profiles: bool) -> None:
                 console.print("[yellow]boto3 not installed[/yellow]")
                 all_passed = False
                 continue
+            except Exception as e:
+                import traceback
+
+                console.print("[red]✗ Failed to initialize provider[/red]")
+                all_passed = False
+                if verbose:
+                    console.print(f"[dim]Error: {type(e).__name__}: {str(e)}[/dim]")
+                    console.print(f"[dim]{traceback.format_exc()}[/dim]")
+                continue
         elif provider_kind == "azure":
             try:
                 from secretzero.providers.azure import AzureProvider
@@ -708,6 +996,15 @@ def test(file: str, include_profiles: bool) -> None:
             except ImportError:
                 console.print("[yellow]Azure SDK not installed[/yellow]")
                 all_passed = False
+                continue
+            except Exception as e:
+                import traceback
+
+                console.print("[red]✗ Failed to initialize provider[/red]")
+                all_passed = False
+                if verbose:
+                    console.print(f"[dim]Error: {type(e).__name__}: {str(e)}[/dim]")
+                    console.print(f"[dim]{traceback.format_exc()}[/dim]")
                 continue
         elif provider_kind == "vault":
             try:
@@ -719,6 +1016,15 @@ def test(file: str, include_profiles: bool) -> None:
                 console.print("[yellow]hvac not installed[/yellow]")
                 all_passed = False
                 continue
+            except Exception as e:
+                import traceback
+
+                console.print("[red]✗ Failed to initialize provider[/red]")
+                all_passed = False
+                if verbose:
+                    console.print(f"[dim]Error: {type(e).__name__}: {str(e)}[/dim]")
+                    console.print(f"[dim]{traceback.format_exc()}[/dim]")
+                continue
         elif provider_kind == "github":
             try:
                 from secretzero.providers.github import GitHubProvider
@@ -728,6 +1034,15 @@ def test(file: str, include_profiles: bool) -> None:
             except ImportError:
                 console.print("[yellow]PyGithub not installed[/yellow]")
                 all_passed = False
+                continue
+            except Exception as e:
+                import traceback
+
+                console.print("[red]✗ Failed to initialize provider[/red]")
+                all_passed = False
+                if verbose:
+                    console.print(f"[dim]Error: {type(e).__name__}: {str(e)}[/dim]")
+                    console.print(f"[dim]{traceback.format_exc()}[/dim]")
                 continue
         elif provider_kind == "gitlab":
             try:
@@ -739,6 +1054,15 @@ def test(file: str, include_profiles: bool) -> None:
                 console.print("[yellow]python-gitlab not installed[/yellow]")
                 all_passed = False
                 continue
+            except Exception as e:
+                import traceback
+
+                console.print("[red]✗ Failed to initialize provider[/red]")
+                all_passed = False
+                if verbose:
+                    console.print(f"[dim]Error: {type(e).__name__}: {str(e)}[/dim]")
+                    console.print(f"[dim]{traceback.format_exc()}[/dim]")
+                continue
         elif provider_kind == "jenkins":
             try:
                 from secretzero.providers.jenkins import JenkinsProvider
@@ -748,6 +1072,15 @@ def test(file: str, include_profiles: bool) -> None:
             except ImportError:
                 console.print("[yellow]python-jenkins not installed[/yellow]")
                 all_passed = False
+                continue
+            except Exception as e:
+                import traceback
+
+                console.print("[red]✗ Failed to initialize provider[/red]")
+                all_passed = False
+                if verbose:
+                    console.print(f"[dim]Error: {type(e).__name__}: {str(e)}[/dim]")
+                    console.print(f"[dim]{traceback.format_exc()}[/dim]")
                 continue
         elif provider_kind == "kubernetes":
             try:
@@ -759,6 +1092,15 @@ def test(file: str, include_profiles: bool) -> None:
                 console.print("[yellow]kubernetes not installed[/yellow]")
                 all_passed = False
                 continue
+            except Exception as e:
+                import traceback
+
+                console.print("[red]✗ Failed to initialize provider[/red]")
+                all_passed = False
+                if verbose:
+                    console.print(f"[dim]Error: {type(e).__name__}: {str(e)}[/dim]")
+                    console.print(f"[dim]{traceback.format_exc()}[/dim]")
+                continue
         elif provider_kind == "local":
             console.print("[green]✓ Local provider (always available)[/green]")
             continue
@@ -769,12 +1111,23 @@ def test(file: str, include_profiles: bool) -> None:
 
         # Test connectivity
         if provider:
-            success, message = provider.test_connection()
-            if success:
-                console.print(f"[green]✓ {message}[/green]")
-            else:
-                console.print(f"[red]✗ {message}[/red]")
+            try:
+                success, message = provider.test_connection()
+                if success:
+                    console.print(f"[green]✓ {message}[/green]")
+                else:
+                    console.print(f"[red]✗ {message}[/red]")
+                    all_passed = False
+            except Exception as e:
+                console.print("[red]✗ Connection test failed[/red]")
                 all_passed = False
+                if verbose:
+                    console.print(f"[dim]Error type: {type(e).__name__}[/dim]")
+                    console.print(f"[dim]Error message: {str(e)}[/dim]")
+                    import traceback
+
+                    console.print("[dim]Stack trace:[/dim]")
+                    console.print(f"[dim]{traceback.format_exc()}[/dim]")
 
     if all_passed:
         console.print("\n[green]All provider tests passed![/green]")
@@ -793,20 +1146,29 @@ def test(file: str, include_profiles: bool) -> None:
     help="Show details for a specific provider type",
 )
 @click.option(
+    "--target",
+    "-t",
+    help="Show details for a specific target type (requires --provider)",
+)
+@click.option(
     "--verbose",
     "-v",
     is_flag=True,
     help="Show detailed information",
 )
-def providers(provider: str | None, verbose: bool) -> None:
+def providers(provider: str | None, target: str | None, verbose: bool) -> None:
     """List supported provider types and authentication methods.
 
     Shows all available provider types that can be used in your Secretfile
     configuration, along with their authentication methods and configuration options.
     """
+    if target and not provider:
+        console.print("[red]Error:[/red] --target requires --provider to be specified")
+        raise click.Abort()
+
     if provider:
         # Show details for specific provider
-        _show_provider_details(provider, verbose)
+        _show_provider_details(provider, target, verbose)
     else:
         # List all providers
         _list_all_providers(verbose)
@@ -867,8 +1229,194 @@ def _list_all_providers(verbose: bool) -> None:
         )
 
 
-def _show_provider_details(provider_name: str, verbose: bool) -> None:
-    """Show detailed information about a specific provider."""
+def _show_provider_details(provider_name: str, target_name: str | None, verbose: bool) -> None:
+    """Show detailed information about a specific provider and optionally a target type."""
+    # Target type details indexed by provider
+    target_details = {
+        "aws": {
+            "ssm_parameter": {
+                "description": "AWS Systems Manager Parameter Store",
+                "config": {
+                    "name": "Parameter name/path (required)",
+                    "type": "Parameter type: String, SecureString, or StringList (default: SecureString)",
+                    "overwrite": "Whether to overwrite existing parameter (default: true)",
+                    "description": "Parameter description (optional)",
+                    "tier": "Parameter tier: Standard, Advanced, or Intelligent-Tiering (default: Standard)",
+                    "region": "AWS region override (optional)",
+                    "endpoint_url": "Custom endpoint URL for LocalStack or other AWS-compatible services (optional)",
+                },
+                "example": """targets:
+  - provider: aws
+    kind: ssm_parameter
+    config:
+      name: /prod/database/password
+      type: SecureString
+      overwrite: true
+      description: RDS master password
+      tier: Standard""",
+            },
+            "secrets_manager": {
+                "description": "AWS Secrets Manager",
+                "config": {
+                    "name": "Secret name (required)",
+                    "description": "Secret description (optional)",
+                    "kms_key_id": "KMS key ID for encryption (optional)",
+                    "recovery_period": "Recovery period in days for scheduled deletion (default: 7)",
+                    "region": "AWS region override (optional)",
+                    "endpoint_url": "Custom endpoint URL for LocalStack or other AWS-compatible services (optional)",
+                },
+                "example": """targets:
+  - provider: aws
+    kind: secrets_manager
+    config:
+      name: prod/database-credentials
+      description: RDS master credentials
+      kms_key_id: arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012""",
+            },
+        },
+        "azure": {
+            "azure_keyvault": {
+                "description": "Azure Key Vault",
+                "config": {
+                    "vault_url": "Key Vault URL (e.g., https://myvault.vault.azure.net)",
+                    "secret_name": "Secret name in Key Vault (required)",
+                    "tags": "Tags to add to the secret in Key Vault (optional)",
+                },
+                "example": """targets:
+  - provider: azure
+    kind: azure_keyvault
+    config:
+      vault_url: https://prod-vault.vault.azure.net
+      secret_name: database-password""",
+            },
+        },
+        "vault": {
+            "vault_kv": {
+                "description": "HashiCorp Vault KV Secret Engine",
+                "config": {
+                    "path": "Secret path in KV engine (e.g., secret/data/myapp/config)",
+                    "mount_point": "KV mount point (default: secret)",
+                    "version": "KV version: 1 or 2 (default: 2)",
+                },
+                "example": """targets:
+  - provider: vault
+    kind: vault_kv
+    config:
+      path: secret/data/prod/database
+      mount_point: secret
+      version: 2""",
+            },
+        },
+        "github": {
+            "github_secret": {
+                "description": "GitHub Actions Secret",
+                "config": {
+                    "repository": "GitHub repository (owner/repo format)",
+                    "secret_name": "Secret name (optional, uses secret.name if not provided)",
+                },
+                "example": """targets:
+  - provider: github
+    kind: github_secret
+    config:
+      repository: myorg/myrepo
+      secret_name: DATABASE_PASSWORD""",
+            },
+        },
+        "gitlab": {
+            "gitlab_variable": {
+                "description": "GitLab CI/CD Variable",
+                "config": {
+                    "project_id": "GitLab project ID or path",
+                    "variable_name": "Variable name (optional, uses secret.name if not provided)",
+                    "protected": "Whether the variable is protected (default: false)",
+                    "masked": "Whether the variable is masked in logs (default: true)",
+                },
+                "example": """targets:
+  - provider: gitlab
+    kind: gitlab_variable
+    config:
+      project_id: mygroup/myproject
+      variable_name: DATABASE_PASSWORD
+      masked: true""",
+            },
+        },
+        "jenkins": {
+            "jenkins_credential": {
+                "description": "Jenkins Secret Credential",
+                "config": {
+                    "credential_id": "Credential ID in Jenkins",
+                    "credential_type": "Type: secret_text, username_password, or ssh_key (default: secret_text)",
+                    "folder": "Jenkins folder path (optional)",
+                },
+                "example": """targets:
+  - provider: jenkins
+    kind: jenkins_credential
+    config:
+      credential_id: database_password
+      credential_type: secret_text""",
+            },
+        },
+        "kubernetes": {
+            "kubernetes_secret": {
+                "description": "Kubernetes Secret",
+                "config": {
+                    "namespace": "Kubernetes namespace (default: default)",
+                    "name": "Secret name in Kubernetes",
+                    "secret_type": "Secret type: Opaque, docker-json, etc. (default: Opaque)",
+                },
+                "example": """targets:
+  - provider: kubernetes
+    kind: kubernetes_secret
+    config:
+      namespace: production
+      name: database-credentials
+      secret_type: Opaque""",
+            },
+        },
+        "local": {
+            "file": {
+                "description": "Local File",
+                "config": {
+                    "path": "File path to store secret",
+                    "format": "File format: dotenv, json, yaml, or toml (default: dotenv)",
+                    "merge": "Whether to merge with existing file content (default: true)",
+                    "mode": "File permissions as octal (default: 0600)",
+                },
+                "example": """targets:
+  - provider: local
+    kind: file
+    config:
+      path: ./secrets.env
+      format: dotenv
+      mode: '0600'""",
+            },
+        },
+    }
+
+    if target_name:
+        # Show details for specific target type
+        if provider_name in target_details and target_name in target_details[provider_name]:
+            target_info = target_details[provider_name][target_name]
+            console.print(f"[bold]Target Type: {target_name}[/bold]\n")
+            console.print(f"[cyan]Provider:[/cyan] {provider_name}")
+            console.print(f"[cyan]Description:[/cyan] {target_info['description']}\n")
+
+            console.print("[cyan]Configuration Options:[/cyan]")
+            for option, desc in target_info["config"].items():
+                console.print(f"  • {option}: {desc}")
+
+            console.print("\n[cyan]Example:[/cyan]")
+            console.print(f"[dim]{target_info['example']}[/dim]")
+        else:
+            console.print(
+                f"[red]Unknown target type:[/red] {target_name} for provider {provider_name}"
+            )
+            console.print(
+                f"\nRun [bold]secretzero providers --provider {provider_name}[/bold] to see available targets"
+            )
+        return  # Exit early when showing target details
+
+    # Show provider details (when no target_name specified)
     console.print(f"[bold]Provider: {provider_name}[/bold]\n")
 
     provider_details = {
@@ -1056,7 +1604,10 @@ def _show_provider_details(provider_name: str, verbose: bool) -> None:
 
             if provider_name in target_map:
                 for target_type in target_map[provider_name]:
-                    console.print(f"  • {target_type}")
+                    console.print(
+                        f"  • [green]{target_type}[/green] - "
+                        f"[dim]use [bold]secretzero providers --provider {provider_name} --target {target_type}[/bold] for details[/dim]"
+                    )
     else:
         console.print(f"[red]Unknown provider:[/red] {provider_name}")
         console.print("\nRun 'secretzero providers' to see available providers")
@@ -1083,11 +1634,16 @@ def _show_provider_details(provider_name: str, verbose: bool) -> None:
     help="Show what would be done without making changes",
 )
 @click.option(
-    "--hide-input",
+    "--show-input",
     is_flag=True,
-    help="Hide secret input when prompting (mask characters like a password field)",
+    help="Show secret input as plain text when prompting (default: masked)",
 )
-def sync(file: str, lockfile: str, dry_run: bool, hide_input: bool) -> None:
+@click.option(
+    "--no-prompt",
+    is_flag=True,
+    help="Disable interactive prompts (fail if values are missing) - useful for CI/CD",
+)
+def sync(file: str, lockfile: str, dry_run: bool, show_input: bool, no_prompt: bool) -> None:
     """Generate and synchronize secrets to targets.
 
     This command generates secret values according to your Secretfile
@@ -1095,6 +1651,15 @@ def sync(file: str, lockfile: str, dry_run: bool, hide_input: bool) -> None:
     cloud providers, etc.).
     """
     file_path = Path(file)
+
+    # Generate default lockfile name from secretfile if not explicitly provided
+    if lockfile == ".gitsecrets.lock":
+        # Only use default if Secretfile.yml; otherwise derive from secretfile name
+        if file != "Secretfile.yml":
+            # Replace .yml with .lock
+            lockfile_name = file_path.stem + ".lock"
+            lockfile = lockfile_name
+
     lockfile_path = Path(lockfile)
     loader = ConfigLoader()
 
@@ -1105,11 +1670,21 @@ def sync(file: str, lockfile: str, dry_run: bool, hide_input: bool) -> None:
         console.print(f"[red]Error loading Secretfile:[/red] {e}")
         raise click.Abort()
 
+    # Read secretfile content for change detection
+    secretfile_content = file_path.read_text()
+
     # Load lockfile
     lock = Lockfile.load(lockfile_path)
 
-    # Create sync engine and run
-    engine = SyncEngine(config, lock, hide_input=hide_input)
+    # Create sync engine and run with secretfile tracking
+    engine = SyncEngine(
+        config,
+        lock,
+        secretfile_path=file_path,
+        secretfile_content=secretfile_content,
+        hide_input=not show_input,
+        prompt_on_empty=not no_prompt,
+    )
 
     if dry_run:
         console.print("[yellow]DRY RUN:[/yellow] No changes will be made\n")
@@ -1119,56 +1694,157 @@ def sync(file: str, lockfile: str, dry_run: bool, hide_input: bool) -> None:
     try:
         results = engine.sync(dry_run=dry_run)
 
-        # Display results
-        console.print(f"[green]✓[/green] Processed {results['secrets_processed']} secrets")
-        console.print(f"  • Generated: {results['secrets_generated']}")
-        console.print(f"  • Skipped: {results['secrets_skipped']}")
-        console.print(f"  • Stored: {results['secrets_stored']}")
+        # Display summary with improved visual formatting
+        success_count = results["secrets_stored"]
+        failed_count = len([d for d in results["details"] if d.get("errors")])
+        skipped_count = results["secrets_skipped"]
 
-        if results["errors"]:
-            console.print("\n[red]Errors:[/red]")
-            for error in results["errors"]:
-                console.print(f"  • {error}")
+        console.print("\n[bold]Summary[/bold]")
+        console.print(f"[green]✓ Success:[/green] {success_count} secret(s) stored")
+        if failed_count > 0:
+            console.print(f"[red]✗ Failed:[/red] {failed_count} secret(s) had errors")
+        if skipped_count > 0:
+            console.print(f"[yellow]⊙ Skipped:[/yellow] {skipped_count} secret(s) skipped")
 
-        # Show detailed results if verbose or dry-run
-        if dry_run or results["secrets_generated"] > 0 or results["secrets_skipped"] > 0:
-            console.print("\n[bold]Details:[/bold]")
+        # Show if secretfile changed
+        if results.get("secretfile_changed"):
+            console.print("\n[yellow]⚠ Secretfile has changed since last sync[/yellow]")
+
+        # Create detailed results table
+        if results["details"]:
+            console.print("\n[bold]Secrets[/bold]")
+
+            secrets_table = Table(show_header=True, header_style="bold cyan", box=box.ROUNDED)
+            secrets_table.add_column("Status", justify="center", width=8)
+            secrets_table.add_column("Secret Name", style="bold")
+            secrets_table.add_column("Type", style="dim")
+            secrets_table.add_column("Result", justify="left")
+
             for detail in results["details"]:
-                status = "would generate" if dry_run else "generated"
-                if detail.get("skipped"):
-                    status = f"skipped ({detail.get('reason', 'unknown')})"
+                secret_name = detail["name"]
+                secret_kind = detail["kind"]
 
-                console.print(f"\n  {detail['name']} [{detail['kind']}]: {status}")
+                # Determine overall status
+                has_errors = bool(detail.get("errors"))
+                is_skipped = detail.get("skipped")
+                is_stored = detail.get("stored")
 
-                # Show template fields if applicable
-                if detail.get("template") and detail.get("fields"):
-                    for field in detail["fields"]:
-                        console.print(f"    • {field['name']}: ", end="")
-                        if field["generated"]:
-                            console.print("[green]generated[/green]")
-                        else:
-                            console.print("[yellow]skipped[/yellow]")
+                if has_errors:
+                    status_icon = "[red]✗[/red]"
+                    result_text = "[red]Failed[/red]"
+                elif is_skipped:
+                    status_icon = "[yellow]⊙[/yellow]"
+                    reason = detail.get("reason", "unknown")
+                    result_text = f"[yellow]Skipped[/yellow] [dim]({reason})[/dim]"
+                elif is_stored:
+                    status_icon = "[green]✓[/green]"
+                    if dry_run:
+                        result_text = "[green]Would store[/green]"
+                    else:
+                        result_text = "[green]Stored[/green]"
+                else:
+                    status_icon = "[dim]•[/dim]"
+                    result_text = "[dim]Processed[/dim]"
 
-                # Show target information
-                if detail.get("targets"):
-                    for target in detail["targets"]:
-                        target_status = target.get("status", "unknown")
-                        console.print(
-                            f"    → {target['provider']}/{target['kind']}: {target_status}"
-                        )
-                        if target.get("message"):
-                            console.print(f"      {target['message']}")
+                secrets_table.add_row(status_icon, secret_name, secret_kind, result_text)
 
-        # Save lockfile if not dry run
-        if not dry_run and results["secrets_generated"] > 0:
-            lock.save(lockfile_path)
-            console.print(f"\n[green]✓[/green] Lockfile saved: {lockfile_path}")
+            console.print(secrets_table)
+
+        # Show target details for each secret
+        secrets_with_targets = [d for d in results["details"] if d.get("targets")]
+        if secrets_with_targets:
+            console.print("\n[bold]Target Details[/bold]")
+
+            for detail in secrets_with_targets:
+                secret_name = detail["name"]
+                has_errors = bool(detail.get("errors"))
+
+                # Create sub-table for targets
+                targets_table = Table(
+                    show_header=True,
+                    header_style="bold cyan",
+                    box=box.SIMPLE,
+                    title=f"[bold]{secret_name}[/bold]",
+                    title_style="bold blue",
+                )
+                targets_table.add_column("Status", justify="center", width=8)
+                targets_table.add_column("Provider", style="cyan")
+                targets_table.add_column("Target Type", style="cyan")
+                targets_table.add_column("Result")
+
+                for target in detail["targets"]:
+                    target_status = target.get("status", "unknown")
+                    provider = target["provider"]
+                    kind = target["kind"]
+                    message = target.get("message", "")
+
+                    # Determine target status icon and text
+                    if target_status in ["success", "stored", "would_store"]:
+                        status_icon = "[green]✓[/green]"
+                        status_text = "[green]Stored[/green]"
+                        if dry_run:
+                            status_text = "[green]Would store[/green]"
+                    elif target_status in ["failed", "error"]:
+                        status_icon = "[red]✗[/red]"
+                        status_text = "[red]Failed[/red]"
+                        if message:
+                            status_text += f" [dim]- {message}[/dim]"
+                    elif target_status == "skipped":
+                        status_icon = "[yellow]⊙[/yellow]"
+                        status_text = "[yellow]Skipped[/yellow]"
+                    elif target_status == "unsupported":
+                        status_icon = "[yellow]⚠[/yellow]"
+                        status_text = "[yellow]Unsupported[/yellow]"
+                        if message:
+                            status_text += f" [dim]- {message}[/dim]"
+                    else:
+                        status_icon = "[dim]•[/dim]"
+                        status_text = f"[dim]{target_status}[/dim]"
+
+                    targets_table.add_row(status_icon, provider, kind, status_text)
+
+                console.print(targets_table)
+                console.print()  # Add spacing between secret target tables
+
+        # Show errors prominently
+        if results["errors"]:
+            console.print("\n[bold red]Errors[/bold red]")
+            error_table = Table(show_header=False, box=box.ROUNDED, border_style="red")
+            error_table.add_column("Icon", justify="center", width=4)
+            error_table.add_column("Error Message", style="red")
+
+            for error in results["errors"]:
+                error_table.add_row("✗", error)
+
+            console.print(error_table)
+
+        # Save lockfile if not dry run and secrets were stored
+        if not dry_run:
+            if results["secrets_stored"] > 0:
+                lock.save(lockfile_path)
+                console.print(f"\n[green]✓[/green] Lockfile saved: {lockfile_path}")
+            else:
+                # Check if lockfile was modified (secretfile tracking)
+                if results.get("secretfile_changed") is not None:
+                    # Lockfile exists and secretfile was tracked
+                    lock.save(lockfile_path)
+                    console.print(
+                        f"\n[dim]Lockfile updated (secretfile tracking only): {lockfile_path}[/dim]"
+                    )
+                else:
+                    console.print(
+                        "\n[yellow]⚠[/yellow]  Lockfile not saved (no secrets stored successfully)"
+                    )
 
         if dry_run:
             console.print(
                 "\n[yellow]This was a dry run. Use 'secretzero sync' to apply changes.[/yellow]"
             )
 
+    except RuntimeError as e:
+        # RuntimeError from validation or sync has detailed error message
+        console.print(f"\n[red]{e}[/red]")
+        raise click.Abort()
     except Exception as e:
         console.print(f"\n[red]Error during sync:[/red] {e}")
         raise click.Abort()
@@ -1503,8 +2179,15 @@ def show(secret_name: str | None, file: str, lockfile: str, detailed: bool) -> N
     is_flag=True,
     help="Show what would be rotated without making changes",
 )
+@click.option(
+    "--show-input",
+    is_flag=True,
+    help="Show secret input as plain text when prompting (default: masked)",
+)
 @click.argument("secret_name", required=False)
-def rotate(file: str, lockfile: str, force: bool, dry_run: bool, secret_name: str | None) -> None:
+def rotate(
+    file: str, lockfile: str, force: bool, dry_run: bool, show_input: bool, secret_name: str | None
+) -> None:
     """Rotate secrets based on rotation policies.
 
     This command checks which secrets need rotation and regenerates them.
@@ -1580,7 +2263,7 @@ def rotate(file: str, lockfile: str, force: bool, dry_run: bool, secret_name: st
     # Perform rotation via sync with force flag
     console.print("\n[bold]Rotating secrets...[/bold]\n")
 
-    engine = SyncEngine(config, lock)
+    engine = SyncEngine(config, lock, hide_input=not show_input)
 
     # Filter secrets for rotation
     original_secrets = config.secrets
@@ -1754,6 +2437,117 @@ def drift(file: str, lockfile: str, secret_name: str | None) -> None:
         )
     else:
         console.print("\n[green]No drift detected.[/green]")
+
+
+@main.command()
+@click.option(
+    "--file",
+    "-f",
+    type=click.Path(exists=True),
+    default="Secretfile.yml",
+    help="Path to Secretfile",
+)
+@click.option(
+    "--type",
+    "-t",
+    "graph_type",
+    type=click.Choice(["flow", "detailed", "architecture"]),
+    default="flow",
+    help="Type of graph to generate",
+)
+@click.option(
+    "--format",
+    "-o",
+    "output_format",
+    type=click.Choice(["mermaid", "terminal"]),
+    default="mermaid",
+    help="Output format",
+)
+@click.option(
+    "--output",
+    type=click.Path(),
+    default=None,
+    help="Output file path (prints to console if not specified)",
+)
+def graph(file: str, graph_type: str, output_format: str, output: str | None) -> None:
+    """Generate visual graph of Secretfile relationships.
+
+    This command creates visual representations of your secret flows,
+    showing generators, secrets, and their target destinations.
+
+    Graph Types:
+
+    - flow: Simple flowchart showing generator → secret → target relationships
+    - detailed: Detailed view with configuration parameters
+    - architecture: High-level system architecture view
+
+    Output Formats:
+
+    - mermaid: Mermaid diagram markdown (can be rendered in GitHub, docs, etc.)
+    - terminal: Text-based summary for console viewing
+
+    Examples:
+
+        # Generate simple flow diagram
+        secretzero graph
+
+        # Generate detailed diagram with configs
+        secretzero graph --type detailed
+
+        # Generate architecture overview
+        secretzero graph --type architecture
+
+        # Save to file
+        secretzero graph --output secretflow.md
+
+        # Terminal-friendly summary
+        secretzero graph --format terminal
+    """
+    file_path = Path(file)
+
+    if not file_path.exists():
+        console.print(f"[red]Error:[/red] Secretfile not found: {file_path}")
+        raise click.Abort()
+
+    try:
+        # Show appropriate message based on output format
+        if output_format == "terminal":
+            console.print("[bold]Generating configuration summary...[/bold]\n")
+        else:
+            console.print(f"[bold]Generating {graph_type} graph...[/bold]\n")
+
+        # Generate the graph
+        graph_output = generate_graph(
+            secretfile_path=file_path,
+            graph_type=graph_type,  # type: ignore
+            output_format=output_format,  # type: ignore
+        )
+
+        # Output to file or console
+        if output:
+            output_path = Path(output)
+            output_path.write_text(graph_output)
+            console.print(f"[green]✓[/green] Graph saved to: {output_path}")
+        else:
+            # Print to console
+            if output_format == "mermaid":
+                console.print("[dim]Copy the following Mermaid diagram to render it:[/dim]\n")
+            console.print(graph_output)
+
+        # Show format-specific tips
+        if output_format == "mermaid":
+            console.print(
+                "\n[dim]Tip: Mermaid diagrams can be rendered in GitHub README files, "
+                "GitLab docs, or at https://mermaid.live[/dim]"
+            )
+
+    except Exception as e:
+        console.print(f"[red]Error generating graph:[/red] {e}")
+        raise click.Abort()
+
+
+# Register provider CLI group
+main.add_command(providers_group)
 
 
 if __name__ == "__main__":

@@ -2,6 +2,7 @@
 
 from secretzero.targets.base import BaseTarget
 from secretzero.targets.file import FileTarget
+from secretzero.targets.template import TemplateTarget
 
 # Optional cloud provider targets
 try:
@@ -28,6 +29,7 @@ except ImportError:
 __all__ = [
     "BaseTarget",
     "FileTarget",
+    "TemplateTarget",
 ]
 
 if _has_aws:

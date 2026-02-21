@@ -99,7 +99,7 @@ class TestKubernetesProvider:
         from secretzero.providers.kubernetes import KubernetesProvider
 
         with (
-            patch("kubernetes.config.load_kube_config") as mock_load_config,
+            patch("kubernetes.config.load_incluster_config"),
             patch("kubernetes.client.ApiClient") as mock_api_client_class,
             patch("kubernetes.client.CoreV1Api") as mock_core_v1_class,
         ):
@@ -111,14 +111,18 @@ class TestKubernetesProvider:
             mock_core_v1_class.return_value = mock_core_v1
             mock_core_v1.list_namespace.return_value = Mock()
 
+            # Setup the api_client property on CoreV1Api
+            mock_core_v1.api_client = mock_api_client
+
             # Mock version call
             mock_api_client.call_api.return_value = ({"gitVersion": "v1.28.0"}, None, None)
 
-            config = {"auth": {}}
+            # Use in_cluster mode to avoid needing kubeconfig
+            config = {"auth": {"in_cluster": True}}
             provider = KubernetesProvider(name="k8s", config=config)
 
             success, message = provider.test_connection()
-            assert success is True
+            assert success is True, f"Connection failed: {message}"
             assert "v1.28.0" in message
 
     def test_get_supported_targets(self):

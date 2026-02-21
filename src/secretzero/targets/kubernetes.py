@@ -95,8 +95,13 @@ class KubernetesSecretTarget(BaseTarget):
                 api.replace_namespaced_secret(
                     name=self.secret_name, namespace=self.namespace, body=existing
                 )
-            except ApiException as e:
-                if e.status == 404:
+            except Exception as e:
+                # Check if it's a 404 error (secret doesn't exist)
+                is_not_found = (isinstance(e, ApiException) and e.status == 404) or (
+                    hasattr(e, "status") and e.status == 404
+                )
+
+                if is_not_found:
                     # Secret doesn't exist, create it
                     api.create_namespaced_secret(namespace=self.namespace, body=secret)
                 else:

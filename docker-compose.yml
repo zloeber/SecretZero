@@ -6,7 +6,7 @@ services:
       - "4566"       # LocalStack Gateway
       - "4510-4559"  # External services port range
     environment:
-      - SERVICES=secretsmanager,kms,iam,sts
+      - SERVICES=secretsmanager,kms,sts,ssm
       - DEBUG=1
       - DOCKER_HOST=unix:///var/run/docker.sock
       - AWS_DEFAULT_REGION=us-east-1
@@ -43,6 +43,37 @@ services:
     restart: unless-stopped
     networks:
       - secretzero-network
+
+  # api:
+  #   build:
+  #     context: .
+  #     target: api
+  #   container_name: secretzero-api
+  #   ports:
+  #     - "8000:8000"
+  #   volumes:
+  #     - ./config.yaml:/app/config/config.yaml:ro
+  #     - ./output:/app/output
+  #     - ./repos:/app/repos
+  #     - ~/.ssh:/root/.ssh:ro  # For private repo access via SSH keys
+  #   environment:
+  #     - TERRAFORM_INGEST_CONFIG=/app/config/config.yaml
+  #     - UVICORN_HOST=0.0.0.0
+  #     - UVICORN_PORT=8000
+  #     - UVICORN_LOG_LEVEL=info
+  #     - UVICORN_RELOAD=false
+  #   profiles:
+  #     - api
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 5s
+  #   # Override for API mode
+  #   entrypoint: python
+  #   command: ["-m", "uvicorn", "terraform_ingest.api:app", "--host", "0.0.0.0", "--port", "8000"]
 
   # localstack-azure:
   #   container_name: secretzero-localstack-azure

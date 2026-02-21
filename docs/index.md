@@ -130,7 +130,7 @@ pip install secretzero[all]
 
 ```bash
 # Create a new Secretfile
-secretzero init
+secretzero create
 
 # Validate configuration
 secretzero validate

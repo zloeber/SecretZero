@@ -337,7 +337,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Graceful error handling** for interpolation failures
 
 #### CLI Tool
-- `secretzero init` - Create new Secretfile from template
+- `secretzero create` - Create new Secretfile from template
 - `secretzero validate` - Validate configuration
 - `secretzero secret-types` - List available types
 - `secretzero test` - Test provider connectivity

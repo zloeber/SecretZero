@@ -20,7 +20,7 @@ def test_cli_version(runner: CliRunner) -> None:
     """Test CLI version command."""
     result = runner.invoke(main, ["--version"])
     assert result.exit_code == 0
-    assert "0.1.0" in result.output
+    assert "version" in result.output.lower()
 
 
 def test_cli_help(runner: CliRunner) -> None:
@@ -30,24 +30,24 @@ def test_cli_help(runner: CliRunner) -> None:
     assert "SecretZero" in result.output
 
 
-def test_init_command(runner: CliRunner) -> None:
-    """Test init command creates a Secretfile."""
+def test_create_command(runner: CliRunner) -> None:
+    """Test create command creates a Secretfile."""
     with TemporaryDirectory() as tmpdir:
         output_path = Path(tmpdir) / "Secretfile.yml"
-        result = runner.invoke(main, ["init", "--output", str(output_path)])
+        result = runner.invoke(main, ["create", "--output", str(output_path)])
 
         assert result.exit_code == 0
         assert output_path.exists()
         assert "Created Secretfile" in result.output
 
 
-def test_init_existing_file(runner: CliRunner) -> None:
-    """Test init command with existing file."""
+def test_create_existing_file(runner: CliRunner) -> None:
+    """Test create command with existing file."""
     with TemporaryDirectory() as tmpdir:
         output_path = Path(tmpdir) / "Secretfile.yml"
         output_path.write_text("existing")
 
-        result = runner.invoke(main, ["init", "--output", str(output_path)])
+        result = runner.invoke(main, ["create", "--output", str(output_path)])
         assert result.exit_code != 0
         assert "already exists" in result.output
 

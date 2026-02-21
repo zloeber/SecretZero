@@ -61,22 +61,26 @@ templates:
     description: Application secrets
     fields:
       database_url:
+        description: PostgreSQL database connection URL
         generator:
           kind: static
           config:
             default: postgresql://user:pass@postgres:5432/myapp
       redis_url:
+        description: Redis server connection URL
         generator:
           kind: static
           config:
             default: redis://redis:6379/0
       secret_key:
+        description: Application secret key for encryption
         generator:
           kind: random_string
           config:
             length: 64
             charset: base64
       api_token:
+        description: API authentication token
         generator:
           kind: random_string
           config:
@@ -100,6 +104,7 @@ templates:
     description: TLS certificate for ingress
     fields:
       tls.crt:
+        description: TLS certificate in PEM format
         generator:
           kind: static
           config:
@@ -109,6 +114,7 @@ templates:
               MIICljCCAX4CCQCExample...
               -----END CERTIFICATE-----
       tls.key:
+        description: TLS private key in PEM format
         generator:
           kind: static
           config:
@@ -135,6 +141,7 @@ templates:
     description: Docker registry authentication
     fields:
       .dockerconfigjson:
+        description: Docker config JSON with auth credentials
         generator:
           kind: static
           config:
@@ -167,11 +174,13 @@ templates:
     description: HTTP basic authentication
     fields:
       username:
+        description: Basic auth username
         generator:
           kind: static
           config:
             default: admin
       password:
+        description: Basic auth password
         generator:
           kind: random_password
           config:
@@ -195,6 +204,7 @@ templates:
     description: SSH deployment key
     fields:
       ssh-privatekey:
+        description: SSH private key in OpenSSH format
         generator:
           kind: static
           config:
@@ -204,6 +214,7 @@ templates:
               b3BlbnNzaC1rZXktdjEAExample...
               -----END OPENSSH PRIVATE KEY-----
       ssh-publickey:
+        description: SSH public key in OpenSSH format
         generator:
           kind: static
           config:

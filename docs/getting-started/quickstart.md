@@ -17,7 +17,7 @@ See the [Installation Guide](installation.md) for more options.
 Create a new Secretfile in your project directory:
 
 ```bash
-secretzero init
+secretzero create
 ```
 
 This creates a `Secretfile.yml` with example configuration:

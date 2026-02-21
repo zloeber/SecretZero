@@ -7,13 +7,25 @@ from typing import Any
 class BaseTarget(ABC):
     """Abstract base class for secret storage targets."""
 
-    def __init__(self, config: dict[str, Any]) -> None:
+    def __init__(
+        self,
+        provider: Any | None = None,
+        config: dict[str, Any] | None = None,
+    ) -> None:
         """Initialize target with configuration.
 
         Args:
+            provider: Optional provider instance for targets that need credentials
             config: Target configuration dictionary
         """
-        self.config = config
+        # Handle backward compatibility: if provider is a dict and config is None,
+        # assume old calling convention where only config was passed
+        if isinstance(provider, dict) and config is None:
+            self.provider = None
+            self.config = provider
+        else:
+            self.provider = provider
+            self.config = config or {}
 
     @abstractmethod
     def store(self, secret_name: str, secret_value: str) -> bool:

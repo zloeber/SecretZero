@@ -1,14 +1,23 @@
 # SecretZero
 
-SecretZero is a secrets orchestration, lifecycle, and bootstrap engine, not a secret database.
+SecretZero is a secrets orchestration, lifecycle, and bootstrap engine.
 
-Think of it as:
-	•	Terraform for secrets lifecycle
-	•	Renovate for credentials
-	•	NPM/Yarn for secret dependencies
-	•	A lockfile for compliance
+This is:
+-	Terraform for secrets lifecycle
+-	Renovate for credentials
+-	NPM/Yarn for secret dependencies
+-	A lockfile for compliance
 
-SecretZero is a secrets management tool that automates the creation, seeding, and lifecycle management of project secrets through a declarative, schema-driven workflow. SecretZero streamlines secret zero bootstrap processes and their future rotation making project bootstrapping and multi-environment deployments a breeze. 
+SecretZero is a secrets management tool that automates the creation, seeding, and lifecycle management of project secrets through self-documenting declarative manifests. Using git-compatible lockfiles we make handling the very first secrets, (known as 'secret zero') a streamlined and maintainable process.
+<img 
+    style="display: block; 
+           margin-left: auto;
+           margin-right: auto;
+           width: 80%;"
+    src="./docs/inc/secret0_angel_small.png" 
+    alt="Secret0 Logo">
+</img>
+
 
 ## The Problem
 
@@ -50,7 +59,8 @@ If you have ever asked any of these questions about a new or existing codebase t
 ### CLI Commands
 ```bash
 # Initialize and validate
-secretzero init                    # Create new Secretfile from template
+secretzero create                    # Create new Secretfile from template
+secretzero init                      # Check and install provider dependencies
 secretzero validate                # Validate Secretfile configuration
 secretzero test                    # Test provider connectivity
 
@@ -58,6 +68,13 @@ secretzero test                    # Test provider connectivity
 secretzero sync                    # Generate and sync secrets to targets
 secretzero sync --dry-run         # Preview changes without applying
 secretzero show <secret>          # Show secret metadata
+
+# Visualization
+secretzero graph                   # Generate visual flow diagram
+secretzero graph --type detailed  # Show detailed configuration
+secretzero graph --type architecture  # Show system architecture
+secretzero graph --format terminal    # Text-based summary
+secretzero graph --output diagram.md  # Save to file
 
 # Rotation and policies (Phase 6)
 secretzero rotate                  # Rotate secrets based on policies
@@ -354,8 +371,8 @@ pip install secretzero[all]
 git clone https://github.com/zloeber/SecretZero.git
 cd SecretZero
 
-# Create virtual environment
-uv sync
+# Create virtual environment (include pip and other tools)
+uv sync --all-extras
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # Install in development mode
@@ -374,7 +391,7 @@ secretzero secret-types
 secretzero secret-types --type password --verbose
 
 # Create a new manifest from template
-secretzero init --template-type basic
+secretzero create --template-type basic
 
 # Validate your manifest
 secretzero validate

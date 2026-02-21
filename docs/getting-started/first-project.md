@@ -41,7 +41,7 @@ Create a new directory and initialize:
 ```bash
 mkdir my-project
 cd my-project
-secretzero init
+secretzero create
 ```
 
 This creates a basic `Secretfile.yml`. We'll replace it with our complete configuration.

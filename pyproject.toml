@@ -73,9 +73,9 @@ cicd = [
     "python-jenkins>=1.8.0",
 ]
 api = [
-    "fastapi>=0.104.0",
-    "uvicorn[standard]>=0.24.0",
-    "python-multipart>=0.0.6",
+    "fastapi>=0.129.0",
+    "uvicorn[standard]>=0.41.0",
+    "python-multipart>=0.0.22",
 ]
 docs = [
     "mkdocs>=1.5.0",

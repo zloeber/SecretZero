@@ -267,7 +267,7 @@ secretzero --help
 ```
 
 You should see all available commands:
-- `init` - Create new Secretfile
+- `create` - Create new Secretfile
 - `validate` - Validate configuration
 - `sync` - Generate and sync secrets
 - `show` - Show secret status
@@ -281,7 +281,7 @@ You should see all available commands:
 Create a test Secretfile:
 
 ```bash
-secretzero init
+secretzero create
 ```
 
 This creates a `Secretfile.yml` with example configuration.

@@ -27,6 +27,11 @@ class DummyAuth(ProviderAuth):
 class DummyProvider(BaseProvider):
     """Dummy provider for testing."""
 
+    @property
+    def provider_kind(self) -> str:
+        """Return provider type identifier."""
+        return "dummy"
+
     def test_connection(self) -> tuple[bool, str | None]:
         if self.is_authenticated():
             return True, "Connected"
@@ -241,10 +246,9 @@ def test_aws_provider_supported_targets():
 def test_azure_auth_default():
     """Test Azure default authentication (mocked)."""
     try:
-        from azure.identity import DefaultAzureCredential
         from secretzero.providers.azure import AzureAuth
 
-        with patch("secretzero.providers.azure.DefaultAzureCredential") as mock_cred:
+        with patch("azure.identity.DefaultAzureCredential") as mock_cred:
             mock_cred_instance = MagicMock()
             mock_cred_instance.get_token.return_value = MagicMock()
             mock_cred.return_value = mock_cred_instance

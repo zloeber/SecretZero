@@ -124,7 +124,7 @@ Create the `Secretfile.yml` in your project root:
 
 ```bash
 # Option 1: Create from template
-secretzero init --template-type basic
+secretzero create --template-type basic
 
 # Option 2: Create from scratch using the configuration above
 ```

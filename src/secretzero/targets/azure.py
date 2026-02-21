@@ -21,7 +21,7 @@ class KeyVaultTarget(BaseTarget):
                 - vault_url: Key Vault URL (e.g., https://myvault.vault.azure.net)
                 - secret_name: Name of the secret in Key Vault
         """
-        super().__init__(provider, config)
+        super().__init__(provider=provider, config=config)
 
     def store(self, secret_name: str, secret_value: Any) -> bool:
         """Store secret in Azure Key Vault.

@@ -17,6 +17,7 @@ SecretZero supports the following providers:
 
 | Provider | Description | Target Types | Use Cases |
 |----------|-------------|--------------|-----------|
+| [Local](local.md) | Local Filesystem | `file`, `template` | Local development, `.env` files, configuration files |
 | [AWS](aws.md) | Amazon Web Services | `ssm_parameter`, `secrets_manager` | Cloud infrastructure, serverless apps, ECS/EKS |
 | [Azure](azure.md) | Microsoft Azure | `key_vault` | Azure cloud services, App Service, AKS |
 | [Vault](vault.md) | HashiCorp Vault | `kv` | Multi-cloud secrets, centralized secret management |

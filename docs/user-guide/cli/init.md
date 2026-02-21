@@ -1,6 +1,6 @@
 # secretzero init
 
-Create a new Secretfile from a template.
+Initialize project dependencies by checking and installing required provider libraries.
 
 ## Synopsis
 
@@ -10,481 +10,332 @@ secretzero init [OPTIONS]
 
 ## Description
 
-The `init` command generates a starter `Secretfile.yml` with example configurations for different provider types. This is the recommended way to start a new SecretZero project.
+The `init` command reads your Secretfile, identifies configured providers, checks if required libraries are installed, and can optionally install missing dependencies automatically. This is useful when setting up a project for the first time or ensuring all team members have the necessary dependencies installed.
 
 ## Options
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `--template-type` | choice | `basic` | Template type to use |
-| `--output`, `-o` | path | `Secretfile.yml` | Output file path |
+| `--file`, `-f` | path | `Secretfile.yml` | Path to Secretfile |
+| `--install` | flag | `False` | Automatically install missing dependencies |
+| `--dry-run` | flag | `False` | Show what would be installed without installing |
 | `--help` | flag | - | Show help message |
 
-### Template Types
+## Provider Dependencies
 
-| Template | Description |
-|----------|-------------|
-| `basic` | Simple local file storage |
-| `aws` | AWS SSM and Secrets Manager |
-| `azure` | Azure Key Vault |
-| `vault` | HashiCorp Vault |
-| `kubernetes` | Kubernetes Secrets |
+SecretZero maps provider kinds to their required Python packages:
+
+| Provider | Required Package | Install Command |
+|----------|-----------------|-----------------|
+| `aws` | `boto3` | `pip install secretzero[aws]` |
+| `azure` | `azure.identity` | `pip install secretzero[azure]` |
+| `vault` | `hvac` | `pip install secretzero[vault]` |
+| `kubernetes` | `kubernetes` | `pip install secretzero[kubernetes]` |
+| `github` | `github` (PyGithub) | `pip install secretzero[github]` |
+| `gitlab` | `gitlab` (python-gitlab) | `pip install secretzero[gitlab]` |
+| `jenkins` | `jenkins` (python-jenkins) | `pip install secretzero[jenkins]` |
 
 ## Examples
 
-### Basic Template
+### Check Dependencies
 
-Create a basic Secretfile with local file storage:
+Check which provider dependencies are installed:
 
 ```bash
 secretzero init
 ```
 
-**Generated Secretfile.yml:**
+**Output:**
 
-```yaml
-# Secretfile.yml
-version: '1.0'
+```
+Checking provider dependencies...
 
-# Variables for dynamic configuration
-variables:
-  environment: local
-  region: us-east-1
+✓ local (local): dependency installed
+✗ aws (aws): missing dependency
+✗ kubernetes (kubernetes): missing dependency
 
-# Optional metadata
-metadata:
-  project: my-project
-  owner: platform-team
-  environments:
-    - dev
-    - prod
-  compliance:
-    - soc2
+✓ 1 provider(s) have required dependencies
 
-# Provider configurations
-providers:
-  local:
-    kind: local
-    config: {}
+⚠ 2 provider(s) missing dependencies:
+  • aws (aws): pip install secretzero[aws]
+  • kubernetes (kubernetes): pip install secretzero[kubernetes]
 
-# Secret definitions
-secrets:
-  - name: example_password
-    kind: random_password
-    config:
-      length: 32
-      special: true
-      upper: true
-      lower: true
-      number: true
-    targets:
-      - provider: local
-        kind: file
-        config:
-          path: .env.local
-          format: dotenv
-          merge: true
-
-# Secret templates for complex secrets
-templates: {}
-
-# Reserved for future use
-policies: {}
-labels: {}
-annotations: {}
+Run with --install to automatically install missing dependencies
 ```
 
-### AWS Template
+### Dry Run
 
-Create a Secretfile configured for AWS:
+Preview what would be installed without making changes:
 
 ```bash
-secretzero init --template-type aws
+secretzero init --dry-run
 ```
 
-**Generated configuration includes:**
+**Output:**
 
-- AWS provider with SSM Parameter Store
-- AWS Secrets Manager examples
-- IAM role assumption examples
-- Common AWS secret patterns
+```
+Checking provider dependencies...
 
-### Custom Output Location
+✗ aws (aws): missing dependency
+✗ kubernetes (kubernetes): missing dependency
 
-Specify a different output file:
+⚠ 2 provider(s) missing dependencies:
+  • aws (aws): pip install secretzero[aws]
+  • kubernetes (kubernetes): pip install secretzero[kubernetes]
+
+Dry run mode - no packages will be installed
+```
+
+### Auto-Install Dependencies
+
+Automatically install all missing dependencies:
 
 ```bash
-secretzero init --output my-secrets.yml
+secretzero init --install
 ```
 
-### Environment-Specific Files
+**Output:**
 
-Create separate files for different environments:
+```
+Checking provider dependencies...
+
+✗ aws (aws): missing dependency
+✗ kubernetes (kubernetes): missing dependency
+
+⚠ 2 provider(s) missing dependencies:
+  • aws (aws): pip install secretzero[aws]
+  • kubernetes (kubernetes): pip install secretzero[kubernetes]
+
+Installing missing dependencies...
+
+Installing secretzero[aws]...
+✓ Installed secretzero[aws]
+
+Installing secretzero[kubernetes]...
+✓ Installed secretzero[kubernetes]
+
+✓ Dependency installation complete!
+```
+
+### Check Specific Secretfile
+
+Check dependencies for a specific Secretfile:
 
 ```bash
-# Development
-secretzero init -o Secretfile.dev.yml
-
-# Staging
-secretzero init -o Secretfile.staging.yml
-
-# Production
-secretzero init -o Secretfile.prod.yml --template-type aws
+secretzero init --file Secretfile.prod.yml
 ```
 
-## After Initialization
+## Complete Workflow
 
-After creating your Secretfile, follow these next steps:
-
-### 1. Edit the Secretfile
-
-Customize the generated configuration:
+Typical project initialization workflow:
 
 ```bash
-vim Secretfile.yml
-```
+# 1. Create a new Secretfile from template
+secretzero create --template-type aws
 
-Add your actual secrets, providers, and targets.
-
-### 2. Validate Configuration
-
-Check that your configuration is valid:
-
-```bash
-secretzero validate
-```
-
-Expected output:
-
-```
-Validating: Secretfile.yml
-✓ Configuration is valid
-
-Configuration Summary:
-  Version: 1.0
-  Variables: 2
-  Providers: 1
-  Secrets: 1
-  Templates: 0
-```
-
-### 3. Test Providers
-
-Verify provider connectivity:
-
-```bash
-secretzero test
-```
-
-### 4. Dry Run
-
-Preview what would be generated:
-
-```bash
-secretzero sync --dry-run
-```
-
-### 5. Generate Secrets
-
-Actually generate and sync secrets:
-
-```bash
-secretzero sync
-```
-
-## Complete Workflow Example
-
-```bash
-# 1. Initialize project
-secretzero init --template-type aws
-
-# 2. Customize configuration
+# 2. Edit the Secretfile to add your secrets
 vim Secretfile.yml
 
-# 3. Set required environment variables
-export ENVIRONMENT=production
-export AWS_REGION=us-east-1
+# 3. Check and install provider dependencies
+secretzero init --install
 
-# 4. Validate
+# 4. Validate configuration
 secretzero validate
 
 # 5. Test provider connectivity
 secretzero test
 
-# 6. Preview changes
+# 6. Preview secret generation
 secretzero sync --dry-run
 
-# 7. Generate secrets
+# 7. Generate and sync secrets
 secretzero sync
+```
+
+## Repository Setup
+
+For team collaboration, add to your repository setup instructions:
+
+```bash
+# Clone repository
+git clone https://github.com/myorg/myproject.git
+cd myproject
+
+# Install SecretZero
+pip install secretzero
+
+# Install provider dependencies
+secretzero init --install
+
+# Configure secrets
+secretzero sync
+```
+
+## CI/CD Integration
+
+Use in CI/CD pipelines to ensure dependencies are available:
+
+```yaml
+# .github/workflows/setup.yml
+name: Setup Secrets
+
+on: [push]
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Install SecretZero
+        run: pip install secretzero
+      
+      - name: Install provider dependencies
+        run: secretzero init --install
+      
+      - name: Validate configuration
+        run: secretzero validate
+      
+      - name: Sync secrets
+        run: secretzero sync
 ```
 
 ## Error Handling
 
-### File Already Exists
+### Secretfile Not Found
 
 **Error:**
 
 ```
-Error: File already exists: Secretfile.yml
-```
+Error: Secretfile not found: Secretfile.yml
 
-**Solutions:**
-
-1. Use a different output file:
-
-```bash
-secretzero init -o Secretfile.new.yml
-```
-
-2. Remove existing file first:
-
-```bash
-rm Secretfile.yml
-secretzero init
-```
-
-3. Backup and replace:
-
-```bash
-mv Secretfile.yml Secretfile.yml.backup
-secretzero init
-```
-
-### Permission Denied
-
-**Error:**
-
-```
-Error: Permission denied: Secretfile.yml
+Create one first with: secretzero create
 ```
 
 **Solution:**
 
-Check directory permissions:
+Create a Secretfile first:
 
 ```bash
-# Check current directory permissions
-ls -ld .
-
-# Ensure you have write permission
-chmod u+w .
+secretzero create
 ```
 
-## Template Customization
+### Installation Failed
 
-### Modifying the Basic Template
+**Error:**
 
-After initialization, customize for your use case:
-
-**Add more secrets:**
-
-```yaml
-secrets:
-  - name: database_password
-    kind: random_password
-    config:
-      length: 32
-    targets:
-      - provider: local
-        kind: file
-        config:
-          path: .env
-          format: dotenv
-  
-  - name: api_key
-    kind: static
-    config:
-      default: ${API_KEY}
-    targets:
-      - provider: local
-        kind: file
-        config:
-          path: .env
-          format: dotenv
+```
+✗ Failed to install secretzero[aws]: subprocess exited with code 1
 ```
 
-**Add more providers:**
+**Common causes and solutions:**
 
-```yaml
-providers:
-  local:
-    kind: local
-    config: {}
-  
-  aws:
-    kind: aws
-    auth:
-      kind: ambient
-      config:
-        region: us-east-1
+1. **Permission denied**: Use a virtual environment or `--user` flag
+   ```bash
+   python -m venv venv
+   source venv/bin/activate
+   secretzero init --install
+   ```
+
+2. **Network issues**: Check internet connectivity and PyPI access
+
+3. **Incompatible Python version**: Ensure Python 3.12+ is installed
+   ```bash
+   python --version
+   ```
+
+### No Providers Configured
+
+If no providers requiring external dependencies are configured:
+
+```
+Checking provider dependencies...
+
+✓ local (local): dependency installed
+
+All provider dependencies are installed!
 ```
 
-**Add templates:**
-
-```yaml
-templates:
-  database_credentials:
-    description: Database connection credentials
-    fields:
-      username:
-        generator:
-          kind: static
-          config:
-            default: appuser
-      password:
-        generator:
-          kind: random_password
-          config:
-            length: 32
-```
+This is normal for projects using only the built-in `local` provider.
 
 ## Best Practices
 
-### 1. Use Appropriate Template
+### 1. Run After Cloning
 
-Choose the template that matches your infrastructure:
-
-```bash
-# Local development
-secretzero init --template-type basic
-
-# AWS deployment
-secretzero init --template-type aws
-
-# Kubernetes deployment
-secretzero init --template-type kubernetes
-```
-
-### 2. Commit to Version Control
-
-After initialization and customization:
+Always run `init --install` after cloning a repository:
 
 ```bash
-git add Secretfile.yml
-git commit -m "Initialize SecretZero configuration"
+git clone https://github.com/myorg/myproject.git
+cd myproject
+pip install secretzero
+secretzero init --install
 ```
 
-### 3. Document Requirements
+### 2. Use in Setup Scripts
 
-Add comments to your Secretfile:
-
-```yaml
-# Secretfile.yml
-version: '1.0'
-
-# Required environment variables:
-# - ENVIRONMENT: deployment environment (dev, staging, prod)
-# - AWS_REGION: AWS region for resources
-# - DATABASE_URL: database connection string
-
-variables:
-  environment: ${ENVIRONMENT}
-  aws_region: ${AWS_REGION}
-```
-
-### 4. Use Environment-Specific Files
-
-For multiple environments:
-
-```bash
-# Create base configuration
-secretzero init -o Secretfile.base.yml
-
-# Create environment-specific overrides
-secretzero init -o Secretfile.dev.yml
-secretzero init -o Secretfile.prod.yml --template-type aws
-```
-
-### 5. Start Simple
-
-Begin with a basic configuration and add complexity as needed:
-
-```yaml
-# Start with one secret
-secrets:
-  - name: my_first_secret
-    kind: random_password
-    config:
-      length: 32
-    targets:
-      - provider: local
-        kind: file
-        config:
-          path: .env
-          format: dotenv
-```
-
-Then expand:
-
-```yaml
-# Add more secrets, templates, providers as you grow
-```
-
-## Interactive Initialization
-
-While SecretZero doesn't currently support interactive initialization, you can create a helper script:
+Include in project setup scripts:
 
 ```bash
 #!/bin/bash
-# init-secretzero.sh
+# setup.sh
 
-echo "SecretZero Project Initialization"
-echo "=================================="
-echo ""
+# Install SecretZero
+pip install secretzero
 
-# Prompt for project details
-read -p "Project name: " project_name
-read -p "Owner/team: " owner
-read -p "Environment (dev/staging/prod): " environment
-read -p "Cloud provider (aws/azure/vault/kubernetes/none): " provider
+# Install provider dependencies
+secretzero init --install
 
-# Create Secretfile based on provider
-if [ "$provider" = "none" ]; then
-  template="basic"
-else
-  template="$provider"
-fi
-
-secretzero init --template-type "$template"
-
-# Customize with provided values
-sed -i "s/project: my-project/project: $project_name/" Secretfile.yml
-sed -i "s/owner: platform-team/owner: $owner/" Secretfile.yml
-sed -i "s/environment: local/environment: $environment/" Secretfile.yml
-
-echo ""
-echo "Created Secretfile.yml for $project_name"
-echo "Next steps:"
-echo "  1. Edit Secretfile.yml to add your secrets"
-echo "  2. Run 'secretzero validate' to check configuration"
-echo "  3. Run 'secretzero sync --dry-run' to preview"
+# Validate and sync
+secretzero validate
+secretzero sync --dry-run
 ```
 
-Make executable and use:
+### 3. Document Required Providers
+
+In your README.md:
+
+```markdown
+## Setup
+
+This project uses the following secret providers:
+- AWS (SSM Parameter Store, Secrets Manager)
+- Kubernetes (Secrets)
+- HashiCorp Vault
+
+Install all dependencies with:
+```bash
+secretzero init --install
+```
+```
+
+### 4. Check Before Syncing
+
+Always verify dependencies before syncing secrets:
 
 ```bash
-chmod +x init-secretzero.sh
-./init-secretzero.sh
+secretzero init       # Check dependencies
+secretzero validate   # Validate configuration
+secretzero sync       # Sync secrets
 ```
 
 ## Related Commands
 
-- [`validate`](validate.md) - Validate the generated Secretfile
+- [`create`](create.md) - Create a new Secretfile from template
+- [`validate`](validate.md) - Validate Secretfile configuration
 - [`test`](test.md) - Test provider connectivity
 - [`sync`](sync.md) - Generate and sync secrets
 
 ## See Also
 
-- [Configuration Guide](../configuration/index.md) - Learn about Secretfile structure
-- [Secretfile Reference](../configuration/secretfile.md) - Complete Secretfile specification
-- [Getting Started](../../getting-started/quickstart.md) - Step-by-step tutorial
-- [Examples](../../examples/index.md) - Real-world examples
+- [Installation Guide](../../getting-started/installation.md) - Installing SecretZero and extras
+- [Providers Overview](../providers/index.md) - Available provider types
+- [Getting Started](../../getting-started/quickstart.md) - Complete tutorial
+- [Configuration Guide](../configuration/index.md) - Secretfile structure
 
 ## Next Steps
 
-After initializing your project:
+After initializing dependencies:
 
-1. **[Edit your Secretfile](../configuration/secretfile.md)** - Customize for your needs
-2. **[Validate configuration](validate.md)** - Check for errors
-3. **[Test providers](test.md)** - Verify connectivity
-4. **[Sync secrets](sync.md)** - Generate and store secrets
+1. **[Validate configuration](validate.md)** - Check for errors
+2. **[Test providers](test.md)** - Verify connectivity
+3. **[Sync secrets](sync.md)** - Generate and store secrets

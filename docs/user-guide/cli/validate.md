@@ -386,7 +386,7 @@ secrets:
 
 ## Related Commands
 
-- [`init`](init.md) - Create a new Secretfile
+- [`create`](create.md) - Create a new Secretfile
 - [`test`](test.md) - Test provider connectivity
 - [`policy`](policy.md) - Check policy compliance
 - [`sync`](sync.md) - Sync secrets after validation

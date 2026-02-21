@@ -22,7 +22,7 @@ class VaultKVTarget(BaseTarget):
                 - mount_point: KV mount point (default: "secret")
                 - version: KV version (1 or 2, default: 2)
         """
-        super().__init__(provider, config)
+        super().__init__(provider=provider, config=config)
 
     def store(self, secret_name: str, secret_value: Any) -> bool:
         """Store secret in Vault KV.

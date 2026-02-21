@@ -42,7 +42,7 @@ secrets:
       - provider: aws
         kind: secrets_manager
         config:
-          name: {{var.environment}}/stripe/api-key
+          name: "{{var.environment}}/stripe/api-key"
           description: Stripe API key for payment processing
 
 metadata:

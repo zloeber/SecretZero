@@ -1,5 +1,6 @@
 """Configuration loading and variable interpolation."""
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -70,6 +71,10 @@ class ConfigLoader:
     def _interpolate_string(self, text: str, variables: dict[str, Any]) -> str:
         """Interpolate variables in a string.
 
+        Supports two syntax styles:
+        - Jinja2 style: {{var.name}} or {{var['name']}}
+        - Shell style: ${VAR_NAME}
+
         Args:
             text: String that may contain variable references
             variables: Dictionary of variables
@@ -77,7 +82,17 @@ class ConfigLoader:
         Returns:
             String with variables interpolated
         """
-        # Check if string contains variable references
+        if not isinstance(text, str):
+            return text
+
+        # First, handle shell-style variables: ${VAR_NAME}
+        def replace_shell_var(match: Any) -> str:
+            var_name = match.group(1)
+            return str(variables.get(var_name, match.group(0)))
+
+        text = re.sub(r"\$\{([^}]+)\}", replace_shell_var, text)
+
+        # Then, handle Jinja2-style variables: {{var.name}}
         if "{{" not in text:
             return text
 

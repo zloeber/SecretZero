@@ -22,7 +22,7 @@ providers:
   azure:
     kind: azure
     auth:
-      kind: default  # Tries managed identity, CLI, environment vars in order
+      kind: ambient  # Tries managed identity, CLI, environment vars in order
     
   # HashiCorp Vault - Uses token authentication
   vault:
@@ -111,12 +111,14 @@ templates:
           config:
             default: "svc_{{var.app_name}}_{{var.environment}}"
       password:
+        description: Service account password
         generator:
           kind: random_password
           config:
             length: 24
             special: true
       api_endpoint:
+        description: API endpoint URL for the service
         generator:
           kind: static
           config:

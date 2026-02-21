@@ -20,11 +20,22 @@ class SecretLockEntry(BaseModel):
     targets: dict[str, str] = Field(default_factory=dict)  # target_id -> hash
 
 
+class SecretfileMetadata(BaseModel):
+    """Metadata about the source Secretfile."""
+
+    filename: str = Field(description="Relative filename of the Secretfile")
+    hash: str = Field(description="SHA-256 hash of the Secretfile content")
+    synced_at: str = Field(description="ISO 8601 timestamp of last sync")
+
+
 class Lockfile(BaseModel):
     """Lockfile for tracking generated secrets."""
 
     version: str = "1.0"
     secrets: dict[str, SecretLockEntry] = Field(default_factory=dict)
+    secretfile: SecretfileMetadata | None = Field(
+        default=None, description="Metadata about the source Secretfile"
+    )
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     def add_secret(
@@ -120,6 +131,61 @@ class Lockfile(BaseModel):
             SecretLockEntry if found, None otherwise
         """
         return self.secrets.get(secret_name)
+
+    def track_secretfile(self, secretfile_path: Path, secretfile_content: str) -> None:
+        """Track the Secretfile definition for change detection.
+
+        Args:
+            secretfile_path: Path to the Secretfile
+            secretfile_content: Content of the Secretfile (typically YAML text)
+        """
+        relative_filename = secretfile_path.name  # Use only the filename, not full path
+        content_hash = self._hash_value(secretfile_content)
+        now = datetime.now(UTC).isoformat()
+
+        self.secretfile = SecretfileMetadata(
+            filename=relative_filename,
+            hash=content_hash,
+            synced_at=now,
+        )
+
+    def secretfile_changed(self, secretfile_path: Path, secretfile_content: str) -> bool:
+        """Check if the Secretfile has changed since the last sync.
+
+        Args:
+            secretfile_path: Path to the current Secretfile
+            secretfile_content: Current content of the Secretfile
+
+        Returns:
+            True if file has changed or no tracking info exists, False if unchanged
+        """
+        if not self.secretfile:
+            # No tracking info, consider it changed
+            return True
+
+        # Check if filename matches (for renamed/moved Secretfiles)
+        current_filename = secretfile_path.name
+        if self.secretfile.filename != current_filename:
+            return True
+
+        # Check if content hash matches
+        current_hash = self._hash_value(secretfile_content)
+        return self.secretfile.hash != current_hash
+
+    def get_secretfile_info(self) -> dict[str, str | None]:
+        """Get tracked Secretfile information.
+
+        Returns:
+            Dictionary with filename and hash, or empty dict if not tracked
+        """
+        if not self.secretfile:
+            return {}
+
+        return {
+            "filename": self.secretfile.filename,
+            "hash": self.secretfile.hash,
+            "synced_at": self.secretfile.synced_at,
+        }
 
     @staticmethod
     def _hash_value(value: str) -> str:

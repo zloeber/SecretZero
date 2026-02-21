@@ -105,7 +105,7 @@ The `.gitsecrets.lock` file tracks generated secrets using SHA-256 hashes, enabl
 
 ```bash
 # Create a new Secretfile
-secretzero init
+secretzero create
 
 # Validate configuration
 secretzero validate

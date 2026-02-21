@@ -13,12 +13,7 @@ providers:
     auth:
       kind: ambient
       config:
-        # Use kubeconfig file (default: ~/.kube/config)
-        # kubeconfig: /path/to/kubeconfig
-        # context: my-cluster
-        
-        # Or use in-cluster authentication (when running inside a pod)
-        # in_cluster: true
+        context: "{{ var.cluster_context }}"
 
 secrets:
   # Basic Opaque secret

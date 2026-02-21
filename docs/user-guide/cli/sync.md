@@ -246,7 +246,7 @@ database_password [random_password]: generated
 
 ```bash
 # 1. Create Secretfile
-secretzero init
+secretzero create
 
 # 2. Customize configuration
 vim Secretfile.yml

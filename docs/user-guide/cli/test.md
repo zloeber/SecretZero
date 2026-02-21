@@ -583,7 +583,7 @@ fi
 
 ```bash
 # New environment setup
-secretzero init
+secretzero create
 vim Secretfile.yml
 secretzero validate
 secretzero test  # Test before syncing
@@ -659,7 +659,8 @@ providers:
 
 - [`validate`](validate.md) - Validate configuration
 - [`sync`](sync.md) - Generate and sync secrets
-- [`init`](init.md) - Initialize project
+- [`create`](create.md) - Create a new Secretfile
+- [`init`](init.md) - Initialize project dependencies
 
 ## See Also
 

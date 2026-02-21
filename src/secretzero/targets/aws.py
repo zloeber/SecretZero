@@ -24,7 +24,7 @@ class SSMParameterTarget(BaseTarget):
                 - description: Parameter description (optional)
                 - tier: Parameter tier (Standard, Advanced, Intelligent-Tiering)
         """
-        super().__init__(provider, config)
+        super().__init__(provider=provider, config=config)
 
     def store(self, secret_name: str, secret_value: Any) -> bool:
         """Store secret in SSM Parameter Store.
@@ -158,7 +158,7 @@ class SecretsManagerTarget(BaseTarget):
                 - description: Secret description (optional)
                 - kms_key_id: KMS key for encryption (optional)
         """
-        super().__init__(provider, config)
+        super().__init__(provider=provider, config=config)
 
     def store(self, secret_name: str, secret_value: Any) -> bool:
         """Store secret in AWS Secrets Manager.
