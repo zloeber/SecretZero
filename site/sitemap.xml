@@ -2,254 +2,274 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://secret0.com/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/api-getting-started/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/development/</loc>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/extending/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/schema/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/status/</loc>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/use_cases/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/examples/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/examples/complete/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/examples/repository/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/getting-started/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/getting-started/concepts/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/getting-started/first-project/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/getting-started/installation/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/getting-started/quickstart/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/reference/architecture/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/reference/changelog/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/reference/faq/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/reference/troubleshooting/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/use-cases/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/use-cases/compliance/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/use-cases/github-actions/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/use-cases/gitlab-cicd/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/use-cases/jenkins/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/use-cases/kubernetes/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/use-cases/local-development/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/use-cases/migration/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/use-cases/multi-cloud/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/api/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/api/authentication/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/api/deployment/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/api/endpoints/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/api/getting-started/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/api/python-client/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/cli/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/cli/create/</loc>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/cli/drift/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/cli/graph/</loc>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/cli/init/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/cli/policy/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/cli/rotate/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/cli/show/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/cli/sync/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/cli/test/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/cli/validate/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/configuration/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/configuration/secretfile/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/configuration/validation/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/configuration/variables/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/providers/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/providers/aws/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/providers/azure/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/providers/github/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/providers/gitlab/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/providers/jenkins/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/providers/kubernetes/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
+    </url>
+    <url>
+         <loc>https://secret0.com/user-guide/providers/local/</loc>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/providers/vault/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/targets/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/targets/aws/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/targets/azure/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/targets/github/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/targets/gitlab/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/targets/jenkins/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/targets/kubernetes/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/targets/local/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
     <url>
          <loc>https://secret0.com/user-guide/targets/vault/</loc>
-         <lastmod>2026-02-18</lastmod>
+         <lastmod>2026-02-21</lastmod>
     </url>
 </urlset>

@@ -43,8 +43,8 @@ RUN pip install uv
 # Copy the wheel file from builder stage
 COPY --from=builder /app/dist/*.whl /tmp/
 
-# Install the wheel file
-RUN uv pip install --system /tmp/*.whl && rm -rf /tmp/*.whl
+# Install the wheel file (use the first/only wheel if multiple exist)
+RUN uv pip install --system $(ls -1 /tmp/*.whl | head -1) && rm -rf /tmp/*.whl
 
 # Create non-root user
 RUN useradd --create-home --shell /bin/bash app

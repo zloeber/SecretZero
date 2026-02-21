@@ -143,6 +143,7 @@ tasks:
   cli:build:
     desc: Build CLI package (sdist + wheel)
     cmds:
+      - rm -rf dist
       - uv build
 
   docs:build:
