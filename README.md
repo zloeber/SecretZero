@@ -11,7 +11,7 @@ SecretZero is a secrets orchestration, lifecycle, and bootstrap engine.
     alt="Secret0 Logo">
 </img>
 
-SecretZero is a secrets management tool that automates the creation, seeding, and lifecycle management of project secrets through self-documenting declarative manifests. The very first secrets you seed for a new project or environment (known in the industry as 'secret-zero') become timestamped, rotatable, and maintainable with git-compatible lock files.
+SecretZero is a secrets as code management tool that automates the creation, seeding, and lifecycle management of project secrets through self-documenting declarative manifests. The very first secrets you seed for a new project or environment (known in the industry as 'secret-zero') become timestamped, rotatable, and maintainable with git-compatible lock files.
 
 ## The Problem
 
