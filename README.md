@@ -6,7 +6,7 @@ SecretZero is a secrets orchestration, lifecycle, and bootstrap engine.
     style="display: block; 
            margin-left: auto;
            margin-right: auto;
-           width: 80%;"
+           width: 100%;"
     src="./docs/inc/secret0_angel_small.png" 
     alt="Secret0 Logo">
 </img>
@@ -360,32 +360,32 @@ Secret sources are provider bound. If authentication fails, the user is (optiona
 ### Basic Installation
 
 ```bash
-pip install secretzero
+uv tool install secretzero
 ```
 
 ### With Provider Support
 
 ```bash
 # AWS support
-pip install secretzero[aws]
+uv tool install secretzero[aws]
 
 # Azure support
-pip install secretzero[azure]
+uv tool install secretzero[azure]
 
 # Vault support
-pip install secretzero[vault]
+uv tool install secretzero[vault]
 
 # Kubernetes support
-pip install secretzero[kubernetes]
+uv tool install secretzero[kubernetes]
 
 # CI/CD support (GitHub, GitLab, Jenkins)
-pip install secretzero[cicd]
+uv tool install secretzero[cicd]
 
 # API server support
-pip install secretzero[api]
+uv tool install secretzero[api]
 
 # Everything
-pip install secretzero[all]
+uv tool install secretzero[all]
 ```
 
 ## Installation (Development)
@@ -400,7 +400,7 @@ uv sync --all-extras
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # Install in development mode
-uv pip install -e ".[dev]"
+uv uv tool install -e ".[dev]"
 ```
 
 ## Quick Start
@@ -431,7 +431,7 @@ secretzero sync --dry-run
 
 ```bash
 # Install API dependencies
-pip install secretzero[api]
+uv tool install secretzero[api]
 
 # Set API key (optional, enables authentication)
 export SECRETZERO_API_KEY=$(python -c "import secrets; print(secrets.token_urlsafe(32))")
@@ -504,4 +504,4 @@ SecretZero manages secret creation, bootstrap, lifecycle, and auditability upstr
 
 ## Relationship to [Vault|Infiscal|Others]
 
-A secrets management solution like Infisical is a strong control plane for secret storage and policy. SecretZero compliments this and other secrets solutions by adding deterministic orchestration and cross-provider lifecycle modeling. We simply map out the secrets from inception to usage and beyond.
+A secrets management solution like Infisical is a strong control plane for secret storage and policy. SecretZero compliments this and other secrets solutions by adding deterministic orchestration and cross-provider lifecycle modeling. SecretZero simply maps out the secrets from inception to usage and beyond.

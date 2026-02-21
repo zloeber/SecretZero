@@ -1,9 +1,21 @@
 # Welcome to SecretZero
 
+<img 
+    style="display: block; 
+           margin-left: auto;
+           margin-right: auto;
+           width: 100%;"
+    src="./inc/secret0_angel_small.png" 
+    alt="Secret0 Logo">
+</img>
+
 <div align="center">
   <img src="https://img.shields.io/badge/status-stable-green.svg" alt="Status: Stable">
   <img src="https://img.shields.io/badge/python-3.9+-blue.svg" alt="Python 3.9+">
   <img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License: Apache 2.0">
+  <img src="https://github.com/zloeber/SecretZero/workflows/tests/badge.svg" alt="Tests">
+  <img src="https://github.com/zloeber/SecretZero/workflows/build/badge.svg" alt="Build">
+  <img src="https://codecov.io/gh/zloeber/SecretZero/branch/main/graph/badge.svg" alt="Coverage">
 </div>
 
 ## Secrets Orchestration, Lifecycle, and Bootstrap Engine
@@ -15,8 +27,9 @@ SecretZero is a secrets management tool that automates the creation, seeding, an
 - **npm/yarn for secret dependencies** - Dependency graph and lockfile tracking
 - **A compliance tool** - Built-in policies for SOC2, ISO27001, and custom requirements
 
-!!! success "Production Ready"
-    SecretZero has been battle-tested across multiple phases of development with comprehensive test coverage (200+ tests) and zero security vulnerabilities.
+!!! warning "Active Development"
+    SecretZero is actively being developed. Features and APIs may change between releases. Please refer to the [CHANGELOG](CHANGELOG.md) for breaking changes and version your dependencies accordingly.
+
 
 ## Why SecretZero?
 
@@ -72,7 +85,7 @@ secrets:
 
 ### 🔄 Secret Rotation
 
-- **Automated Rotation** - Policy-based rotation (90d, 2w, custom periods)
+- **Secret Rotation** - Policy-based rotation (90d, 2w, custom periods)
 - **Rotation Tracking** - History, count, and timestamps in lockfile
 - **One-Time Secrets** - Support for secrets that should never rotate
 - **Compliance Policies** - Built-in SOC2 and ISO27001 support
@@ -111,19 +124,19 @@ secrets:
 
 ```bash
 # Basic installation
-pip install secretzero
+uv tool install secretzero
 
 # With cloud providers
-pip install secretzero[aws,azure,vault]
+uv tool install secretzero[aws,azure,vault]
 
 # With CI/CD support
-pip install secretzero[cicd]
+uv tool install secretzero[cicd]
 
 # With API server
-pip install secretzero[api]
+uv tool install secretzero[api]
 
 # Everything
-pip install secretzero[all]
+uv tool install secretzero[all]
 ```
 
 ### Initialize a Project
