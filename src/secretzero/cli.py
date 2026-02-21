@@ -1720,8 +1720,7 @@ def sync(
     secret_names = list(secrets) if secrets else None
     if secret_names:
         console.print(
-            f"[bold]Synchronizing {len(secret_names)} secret(s):[/bold] "
-            f"{', '.join(secret_names)}\n"
+            f"[bold]Synchronizing {len(secret_names)} secret(s):[/bold] {', '.join(secret_names)}\n"
         )
     else:
         console.print("[bold]Synchronizing secrets...[/bold]\n")

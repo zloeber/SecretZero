@@ -7,7 +7,7 @@ from secretzero.targets.base import BaseTarget
 
 class GitHubSecretTarget(BaseTarget):
     """Store secrets in GitHub Actions.
-    
+
     Important: Classic Personal Access Tokens (PATs) cannot manage environment secrets.
     For environment secrets, use Fine-grained Personal Access Tokens with appropriate permissions.
     """
@@ -97,7 +97,10 @@ class GitHubSecretTarget(BaseTarget):
                     )
                 except Exception as e:
                     error_msg = str(e)
-                    if "Resource not accessible by personal access token" in error_msg or "403" in error_msg:
+                    if (
+                        "Resource not accessible by personal access token" in error_msg
+                        or "403" in error_msg
+                    ):
                         print(
                             f"Failed to create environment secret '{actual_secret_name}' in GitHub: {e}"
                         )
@@ -110,7 +113,9 @@ class GitHubSecretTarget(BaseTarget):
                         print(
                             "  Solution 2: Create a Fine-grained PAT at https://github.com/settings/tokens?type=beta"
                         )
-                        print("              with 'Actions', 'Secrets', and 'Environments' permissions")
+                        print(
+                            "              with 'Actions', 'Secrets', and 'Environments' permissions"
+                        )
                     else:
                         print(
                             f"Failed to create environment secret '{actual_secret_name}' in GitHub: {e}"

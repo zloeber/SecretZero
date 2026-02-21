@@ -425,7 +425,9 @@ def show_token_info(provider: str, token: str | None) -> None:
             else:
                 console.print("  ✗ Cannot update workflows (needs 'workflow' scope)")
 
-            console.print("\n[dim]For more info on GitHub scopes: https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/scopes-for-oauth-apps[/dim]")
+            console.print(
+                "\n[dim]For more info on GitHub scopes: https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/scopes-for-oauth-apps[/dim]"
+            )
 
         except RuntimeError as e:
             console.print(f"[red]Error:[/red] {e}")

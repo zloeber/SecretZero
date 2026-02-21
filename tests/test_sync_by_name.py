@@ -20,8 +20,7 @@ def sample_secretfile(tmp_path: Path) -> Path:
         Path to sample Secretfile
     """
     secretfile = tmp_path / "Secretfile.yml"
-    secretfile.write_text(
-        """
+    secretfile.write_text("""
 version: '1.0'
 
 providers:
@@ -61,8 +60,7 @@ secrets:
         config:
           path: .env
           format: dotenv
-"""
-    )
+""")
     return secretfile
 
 

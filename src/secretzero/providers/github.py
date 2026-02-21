@@ -101,7 +101,9 @@ class GitHubAuth(ProviderAuth):
             # Get token for API request
             token = self.config.get("token") or os.environ.get(self.ENV_TOKEN)
             if not token:
-                raise RuntimeError("No GitHub token found in config or GITHUB_TOKEN environment variable")
+                raise RuntimeError(
+                    "No GitHub token found in config or GITHUB_TOKEN environment variable"
+                )
 
             api_url = self.config.get("api_url", "https://api.github.com")
 

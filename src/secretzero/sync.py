@@ -278,9 +278,7 @@ class SyncEngine:
         # Filter secrets by name if specified
         secrets_to_sync = self.secretfile.secrets
         if secret_names:
-            secrets_to_sync = [
-                s for s in self.secretfile.secrets if s.name in secret_names
-            ]
+            secrets_to_sync = [s for s in self.secretfile.secrets if s.name in secret_names]
             # Warn about secrets that don't exist
             found_names = {s.name for s in secrets_to_sync}
             missing_names = set(secret_names) - found_names
@@ -430,14 +428,14 @@ class SyncEngine:
 
         # Store in targets (only targets that need syncing)
         if not dry_run:
-            #all_targets_ok = True
+            # all_targets_ok = True
             any_target_stored = False
             for target_config in targets_to_sync:
                 target_result = self._store_in_target(secret.name, secret_value, target_config)
                 result["targets"].append(target_result)
 
                 if target_result.get("status") in {"failed", "error", "unsupported"}:
-                    #all_targets_ok = False
+                    # all_targets_ok = False
                     message = target_result.get("message", "Target store failed")
                     result["errors"].append(
                         f"{secret.name} -> {target_result['provider']}/{target_result['kind']}: {message}"
@@ -788,14 +786,14 @@ class SyncEngine:
             # Local file targets
             if target_config.provider == "local" and target_config.kind == "file":
                 target = FileTarget(target_config.config)
-                
+
                 # Validate target before attempting to store
                 is_valid, error_msg = target.validate()
                 if not is_valid:
                     result["status"] = "error"
                     result["message"] = f"File target validation failed: {error_msg}"
                     return result
-                
+
                 success = target.store(secret_name, secret_value)
                 result["status"] = "stored" if success else "failed"
 
