@@ -23,7 +23,7 @@ htmlcov/
 
 # IDE
 .DS_Store
-.vscode/
+#.vscode/
 .idea/
 
 # SecretZero specific

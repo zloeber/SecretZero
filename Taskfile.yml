@@ -250,3 +250,12 @@ tasks:
           echo "Running validation test: $file"
           uv run secretzero validate -f "$file"
         done
+  
+  docs:publish:
+    desc: Publish docs to Cloudflare Pages
+    cmds:
+      - |
+        npm i -D wrangler@latest
+        npx wrangler login --api-token $CLOUDFLARE_API_TOKEN
+        npx wrangler pages deploy ./site
+        
