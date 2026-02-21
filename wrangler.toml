@@ -1,8 +1,5 @@
 name = "secretzero"
-compatibility_date = "2025-10-19"
+compatibility_date = "2026-02-21"
 
 # This tells Wrangler where your static files are
 pages_build_output_dir = "site"
-
-#[site]
-#bucket = "./site"
