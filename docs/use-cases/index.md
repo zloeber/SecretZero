@@ -60,12 +60,12 @@ SecretZero is designed to solve common challenges in secret management across di
     - Policy enforcement
     - Compliance reporting
 
-### Migration & Adoption
+### Augmentation & Adoption
 
-- **[Migration Guides](migration.md)** - Migrate from other secret management tools
-    - From dotenv files
-    - From AWS Secrets Manager CLI
-    - From HashiCorp Vault scripts
+- **[Augmentation Guides](augmenting.md)** - Augment your secret management tools
+    - dotenv files
+    - AWS Secrets Manager
+    - HashiCorp Vault
     - From manual processes
 
 ## How to Use These Use Cases

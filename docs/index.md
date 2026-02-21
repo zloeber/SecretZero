@@ -28,7 +28,7 @@ SecretZero is a secrets management tool that automates the creation, seeding, an
 - **A compliance tool** - Built-in policies for SOC2, ISO27001, and custom requirements
 
 !!! warning "Active Development"
-    SecretZero is actively being developed. Features and APIs may change between releases. Please refer to the [CHANGELOG](CHANGELOG.md) for breaking changes and version your dependencies accordingly.
+    SecretZero is actively being developed. Features and APIs may change between releases. Please refer to the [CHANGELOG](./reference/changelog.md) for breaking changes and version your dependencies accordingly.
 
 
 ## Why SecretZero?
@@ -235,13 +235,13 @@ secretzero-api
     
     [Learn more →](use-cases/compliance.md)
 
--   :material-swap-horizontal: **Migration**
+-   :material-swap-horizontal: **Augmenting**
 
     ---
 
-    Migrate from existing secret management tools
+    Augment your existing secret management tools
     
-    [Learn more →](use-cases/migration.md)
+    [Learn more →](use-cases/augmenting.md)
 
 </div>
 

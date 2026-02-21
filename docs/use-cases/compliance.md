@@ -1719,7 +1719,7 @@ secretzero compliance-report --framework iso27001 --output iso27001-report.pdf
 
 - **[Multi-Cloud Setup](multi-cloud.md)** - Extend compliance across cloud providers
 - **[Kubernetes Integration](kubernetes.md)** - Compliance in Kubernetes environments
-- **[Migration Guide](migration.md)** - Migrate to compliance-ready configuration
+- **[Augmentation Guide](augmenting.md)** - Migrate to compliance-ready configuration
 - **[SOC2 Resources](https://www.aicpa.org/soc)** - Official SOC2 documentation
 - **[ISO27001 Standards](https://www.iso.org/isoiec-27001-information-security.html)** - ISO27001 requirements
 - **[PCI-DSS](https://www.pcisecuritystandards.org/)** - PCI-DSS standards

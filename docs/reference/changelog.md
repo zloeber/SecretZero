@@ -424,6 +424,6 @@ SecretZero meets the following compliance standards:
 ## See Also
 
 - [Installation Guide](../getting-started/installation.md)
-- [Migration Guide](migration.md) - Upgrading between versions
+- [Migration Guide](augmenting.md) - Upgrading between versions
 - [GitHub Releases](https://github.com/zloeber/SecretZero/releases)
 - [Roadmap](../../project/ROADMAP.md) - Future plans

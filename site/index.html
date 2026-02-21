@@ -3897,7 +3897,7 @@
   
   
     <li class="md-nav__item">
-      <a href="use-cases/migration/" class="md-nav__link">
+      <a href="use-cases/migration.md" class="md-nav__link">
         
   
   
@@ -4546,10 +4546,21 @@
 
 
 <h1 id="welcome-to-secretzero">Welcome to SecretZero<a class="headerlink" href="#welcome-to-secretzero" title="Permanent link">&para;</a></h1>
+<p><img 
+    style="display: block; 
+           margin-left: auto;
+           margin-right: auto;
+           width: 100%;"
+    src="./inc/secret0_angel_small.png" 
+    alt="Secret0 Logo">
+</img></p>
 <div align="center">
   <img src="https://img.shields.io/badge/status-stable-green.svg" alt="Status: Stable">
   <img src="https://img.shields.io/badge/python-3.9+-blue.svg" alt="Python 3.9+">
   <img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License: Apache 2.0">
+  <img src="https://github.com/zloeber/SecretZero/workflows/tests/badge.svg" alt="Tests">
+  <img src="https://github.com/zloeber/SecretZero/workflows/build/badge.svg" alt="Build">
+  <img src="https://codecov.io/gh/zloeber/SecretZero/branch/main/graph/badge.svg" alt="Coverage">
 </div>
 
 <h2 id="secrets-orchestration-lifecycle-and-bootstrap-engine">Secrets Orchestration, Lifecycle, and Bootstrap Engine<a class="headerlink" href="#secrets-orchestration-lifecycle-and-bootstrap-engine" title="Permanent link">&para;</a></h2>
@@ -4560,9 +4571,9 @@
 <li><strong>npm/yarn for secret dependencies</strong> - Dependency graph and lockfile tracking</li>
 <li><strong>A compliance tool</strong> - Built-in policies for SOC2, ISO27001, and custom requirements</li>
 </ul>
-<div class="admonition success">
-<p class="admonition-title">Production Ready</p>
-<p>SecretZero has been battle-tested across multiple phases of development with comprehensive test coverage (200+ tests) and zero security vulnerabilities.</p>
+<div class="admonition warning">
+<p class="admonition-title">Active Development</p>
+<p>SecretZero is actively being developed. Features and APIs may change between releases. Please refer to the <a href="CHANGELOG/">CHANGELOG</a> for breaking changes and version your dependencies accordingly.</p>
 </div>
 <h2 id="why-secretzero">Why SecretZero?<a class="headerlink" href="#why-secretzero" title="Permanent link">&para;</a></h2>
 <h3 id="the-problem">The Problem<a class="headerlink" href="#the-problem" title="Permanent link">&para;</a></h3>
@@ -4611,7 +4622,7 @@
 </ul>
 <h3 id="secret-rotation">🔄 Secret Rotation<a class="headerlink" href="#secret-rotation" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>Automated Rotation</strong> - Policy-based rotation (90d, 2w, custom periods)</li>
+<li><strong>Secret Rotation</strong> - Policy-based rotation (90d, 2w, custom periods)</li>
 <li><strong>Rotation Tracking</strong> - History, count, and timestamps in lockfile</li>
 <li><strong>One-Time Secrets</strong> - Support for secrets that should never rotate</li>
 <li><strong>Compliance Policies</strong> - Built-in SOC2 and ISO27001 support</li>
@@ -4658,19 +4669,19 @@
 <h2 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
 <h3 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Basic installation</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pip<span class="w"> </span>install<span class="w"> </span>secretzero
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>secretzero
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
 </span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># With cloud providers</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>pip<span class="w"> </span>install<span class="w"> </span>secretzero<span class="o">[</span>aws,azure,vault<span class="o">]</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>secretzero<span class="o">[</span>aws,azure,vault<span class="o">]</span>
 </span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
 </span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c1"># With CI/CD support</span>
-</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>pip<span class="w"> </span>install<span class="w"> </span>secretzero<span class="o">[</span>cicd<span class="o">]</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>secretzero<span class="o">[</span>cicd<span class="o">]</span>
 </span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>
 </span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="c1"># With API server</span>
-</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>pip<span class="w"> </span>install<span class="w"> </span>secretzero<span class="o">[</span>api<span class="o">]</span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>secretzero<span class="o">[</span>api<span class="o">]</span>
 </span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>
 </span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="c1"># Everything</span>
-</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>pip<span class="w"> </span>install<span class="w"> </span>secretzero<span class="o">[</span>all<span class="o">]</span>
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>secretzero<span class="o">[</span>all<span class="o">]</span>
 </span></code></pre></div>
 <h3 id="initialize-a-project">Initialize a Project<a class="headerlink" href="#initialize-a-project" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Create a new Secretfile</span>
@@ -4749,7 +4760,7 @@
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m21 9-4-4v3h-7v2h7v3M7 11l-4 4 4 4v-3h7v-2H7z"/></svg></span> <strong>Migration</strong></p>
 <hr />
 <p>Migrate from existing secret management tools</p>
-<p><a href="use-cases/migration/">Learn more →</a></p>
+<p><a href="use-cases/augmenting/">Learn more →</a></p>
 </li>
 </ul>
 </div>

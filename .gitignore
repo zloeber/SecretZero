@@ -39,3 +39,4 @@ data/
 src/secretzero/_version.py
 node_modules
 .wrangler
+secret_reports_*

@@ -2108,7 +2108,7 @@ secretzero rotate
 
 - **[Kubernetes Integration](kubernetes.md)** - Sync multi-cloud secrets to Kubernetes
 - **[Compliance Scenarios](compliance.md)** - Implement SOC2/ISO27001 across clouds
-- **[Migration Guide](migration.md)** - Migrate from single-cloud to multi-cloud
+- **[Augmentation Guide](augmenting.md)** - Augment your current secrets manager
 - **[AWS Secrets Manager](https://aws.amazon.com/secrets-manager/)** - AWS-specific features
 - **[Azure Key Vault](https://azure.microsoft.com/en-us/products/key-vault)** - Azure-specific features
 - **[HashiCorp Vault](https://www.vaultproject.io/)** - Vault-specific features

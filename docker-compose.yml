@@ -1,10 +1,10 @@
 services:
-  localstack-aws:
-    container_name: secretzero-localstack-aws
+  localstack:
+    container_name: secretzero-localstack
     image: localstack/localstack:latest
     ports:
-      - "4566"       # LocalStack Gateway
-      - "4510-4559"  # External services port range
+      - "4566"
+      - "4510-4559"
     environment:
       - SERVICES=secretsmanager,kms,sts,ssm
       - DEBUG=1
@@ -15,8 +15,6 @@ services:
     volumes:
       - ./data/localstack/aws:/var/lib/localstack
       - /var/run/docker.sock:/var/run/docker.sock
-    networks:
-      - secretzero-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
       interval: 10s
@@ -24,25 +22,46 @@ services:
       retries: 5
       start_period: 10s
 
-  openbao:
-    image: quay.io/openbao/openbao:latest
-    container_name: openbao
+  # openbao:
+  #   image: quay.io/openbao/openbao:latest
+  #   container_name: openbao
+  #   cap_add:
+  #     - IPC_LOCK
+  #   user: root
+  #   ports:
+  #     - "8200:8200"
+  #   volumes:
+  #     - ./data/bao/config:/bao/config:ro
+  #     - ./data/bao/data:/bao/data
+  #   environment:
+  #     - BAO_ADDR=http://0.0.0.0:8200
+  #     - BAO_API_ADDR=http://0.0.0.0:8200
+  #     - SKIP_SETCAP=true
+  #   command: server -config=/bao/config/openbao.hcl
+  #   restart: unless-stopped
+  vault:
+    image: hashicorp/vault:latest
+    container_name: vault
     cap_add:
       - IPC_LOCK
     user: root
     ports:
       - "8200:8200"
+      - "8201:8201"
+    privileged: true
     volumes:
-      - ./data/bao/config:/bao/config:ro
-      - ./data/bao/data:/bao/data
+      #- ./data/vault/config:/vault/config:ro
+      - vault-data:/vault/data
+
     environment:
-      - BAO_ADDR=http://0.0.0.0:8200
-      - BAO_API_ADDR=http://0.0.0.0:8200
+      - VAULT_ADDR=http://0.0.0.0:8200
+      - VAULT_API_ADDR=http://0.0.0.0:8200
       - SKIP_SETCAP=true
-    command: server -config=/bao/config/openbao.hcl
+    command: server -config=/vault/config/vault.hcl
     restart: unless-stopped
-    networks:
-      - secretzero-network
+
+volumes:
+  vault-data:
 
   # api:
   #   build:
@@ -101,10 +120,10 @@ services:
   #     retries: 5
   #     start_period: 10s
 
-networks:
-  secretzero-network:
-    driver: bridge
+# networks:
+#   secretzero-network:
+#     driver: bridge
 
 # volumes:
-#   localstack-aws-data:
+#   localstack-data:
 #   localstack-azure-data:
