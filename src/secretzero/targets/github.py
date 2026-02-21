@@ -6,7 +6,11 @@ from secretzero.targets.base import BaseTarget
 
 
 class GitHubSecretTarget(BaseTarget):
-    """Store secrets in GitHub Actions."""
+    """Store secrets in GitHub Actions.
+    
+    Important: Classic Personal Access Tokens (PATs) cannot manage environment secrets.
+    For environment secrets, use Fine-grained Personal Access Tokens with appropriate permissions.
+    """
 
     def __init__(self, provider: Any, config: dict[str, Any] | None = None):
         """Initialize GitHub secret target.
@@ -17,6 +21,7 @@ class GitHubSecretTarget(BaseTarget):
                 - owner: Repository owner (username or organization)
                 - repo: Repository name
                 - environment: Optional environment name for environment-specific secrets
+                  (requires Fine-grained PAT, not Classic PAT)
                 - secret_name: Optional custom secret name (overrides default)
                 - create_environment: Auto-create environment if it doesn't exist (default: False)
         """
@@ -85,14 +90,31 @@ class GitHubSecretTarget(BaseTarget):
 
                 # Store as environment secret
                 # PyGithub handles encryption automatically
+                # Note: Requires Fine-grained PAT with Environments permission
                 try:
                     repo.get_environment(self.environment).create_secret(
                         secret_name=actual_secret_name, unencrypted_value=secret_value
                     )
                 except Exception as e:
-                    print(
-                        f"Failed to create environment secret '{actual_secret_name}' in GitHub: {e}"
-                    )
+                    error_msg = str(e)
+                    if "Resource not accessible by personal access token" in error_msg or "403" in error_msg:
+                        print(
+                            f"Failed to create environment secret '{actual_secret_name}' in GitHub: {e}"
+                        )
+                        print(
+                            "  ⚠️  Classic Personal Access Tokens cannot manage environment secrets."
+                        )
+                        print(
+                            "  Solution 1: Remove 'environment' field to use repository-level secrets instead"
+                        )
+                        print(
+                            "  Solution 2: Create a Fine-grained PAT at https://github.com/settings/tokens?type=beta"
+                        )
+                        print("              with 'Actions', 'Secrets', and 'Environments' permissions")
+                    else:
+                        print(
+                            f"Failed to create environment secret '{actual_secret_name}' in GitHub: {e}"
+                        )
                     return False
             else:
                 # Store as repository secret

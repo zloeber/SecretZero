@@ -218,12 +218,18 @@ class SyncEngine:
             "results": results,
         }
 
-    def sync(self, dry_run: bool = False, force_rotation: bool = False) -> dict[str, Any]:
+    def sync(
+        self,
+        dry_run: bool = False,
+        force_rotation: bool = False,
+        secret_names: list[str] | None = None,
+    ) -> dict[str, Any]:
         """Synchronize all secrets to their targets.
 
         Args:
             dry_run: If True, only simulate without making changes
             force_rotation: If True, regenerate secrets even if they exist
+            secret_names: If provided, only sync secrets with these names
 
         Returns:
             Dictionary with sync results and statistics
@@ -269,7 +275,21 @@ class SyncEngine:
             if not dry_run:
                 self.lockfile.track_secretfile(self.secretfile_path, self.secretfile_content)
 
-        for secret in self.secretfile.secrets:
+        # Filter secrets by name if specified
+        secrets_to_sync = self.secretfile.secrets
+        if secret_names:
+            secrets_to_sync = [
+                s for s in self.secretfile.secrets if s.name in secret_names
+            ]
+            # Warn about secrets that don't exist
+            found_names = {s.name for s in secrets_to_sync}
+            missing_names = set(secret_names) - found_names
+            if missing_names:
+                results["errors"].append(
+                    f"Warning: Secrets not found in Secretfile: {', '.join(sorted(missing_names))}"
+                )
+
+        for secret in secrets_to_sync:
             try:
                 result = self._sync_secret(secret, dry_run, force_rotation)
                 results["secrets_processed"] += 1
@@ -768,6 +788,14 @@ class SyncEngine:
             # Local file targets
             if target_config.provider == "local" and target_config.kind == "file":
                 target = FileTarget(target_config.config)
+                
+                # Validate target before attempting to store
+                is_valid, error_msg = target.validate()
+                if not is_valid:
+                    result["status"] = "error"
+                    result["message"] = f"File target validation failed: {error_msg}"
+                    return result
+                
                 success = target.store(secret_name, secret_value)
                 result["status"] = "stored" if success else "failed"
 

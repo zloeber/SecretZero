@@ -327,3 +327,163 @@ def _dict_to_yaml(d: dict, indent: int = 0) -> str:
             lines.append(f"{indent_str}{key}: {value}")
 
     return "\n".join(lines)
+
+
+@providers_group.command("token-info")
+@click.option(
+    "--provider",
+    "-p",
+    type=click.Choice(["github"]),
+    default="github",
+    help="Provider to check token permissions for",
+)
+@click.option(
+    "--token",
+    "-t",
+    help="Token to check (uses GITHUB_TOKEN env var if not provided)",
+)
+def show_token_info(provider: str, token: str | None) -> None:
+    """Show authentication token permissions and scopes.
+
+    Currently supports GitHub tokens. Displays OAuth scopes,
+    user information, and token capabilities.
+
+    Examples:
+
+        # Check GITHUB_TOKEN environment variable
+        secretzero providers token-info
+
+        # Check specific token
+        secretzero providers token-info --token ghp_xxxxx
+
+        # Explicitly specify provider
+        secretzero providers token-info --provider github
+    """
+    if provider == "github":
+        import os
+
+        from secretzero.providers.github import GitHubAuth, GitHubProvider
+
+        # Prepare auth config
+        auth_config = {}
+        if token:
+            auth_config["token"] = token
+        elif "GITHUB_TOKEN" in os.environ:
+            auth_config["token"] = os.environ["GITHUB_TOKEN"]
+        else:
+            console.print(
+                "[red]Error:[/red] No GitHub token found. "
+                "Set GITHUB_TOKEN environment variable or use --token"
+            )
+            raise click.Abort()
+
+        try:
+            # Create auth instance and provider
+            auth = GitHubAuth(auth_config)
+            provider_instance = GitHubProvider("github", auth=auth)
+
+            # Get token info (uses requests directly, no PyGithub needed)
+            console.print("\n[bold]GitHub Token Information[/bold]\n")
+
+            token_info = provider_instance.get_token_permissions()
+
+            # Display user info
+            console.print(f"[cyan]User:[/cyan] {token_info.get('user', 'unknown')}")
+            if token_info.get("name"):
+                console.print(f"[cyan]Name:[/cyan] {token_info['name']}")
+            if token_info.get("email"):
+                console.print(f"[cyan]Email:[/cyan] {token_info['email']}")
+
+            # Display scopes
+            scopes = token_info.get("scopes", [])
+            if scopes:
+                console.print(f"\n[cyan]Token Scopes ({len(scopes)}):[/cyan]")
+                for scope in sorted(scopes):
+                    scope_info = _get_scope_description(scope)
+                    console.print(f"  ✓ [green]{scope}[/green] - {scope_info}")
+            else:
+                console.print("\n[yellow]No OAuth scopes found (may be a classic PAT)[/yellow]")
+
+            # Show common operations
+            console.print("\n[bold]Common Operations:[/bold]")
+            can_read_repo = "repo" in scopes or not scopes
+            can_write_secrets = "repo" in scopes or not scopes
+            can_write_actions = "workflow" in scopes or not scopes
+
+            if can_read_repo:
+                console.print("  ✓ Read repository data")
+            else:
+                console.print("  ✗ Cannot read repository data (needs 'repo' scope)")
+
+            if can_write_secrets:
+                console.print("  ✓ Create/update repository secrets")
+            else:
+                console.print("  ✗ Cannot write secrets (needs 'repo' scope)")
+
+            if can_write_actions:
+                console.print("  ✓ Update GitHub Actions workflows")
+            else:
+                console.print("  ✗ Cannot update workflows (needs 'workflow' scope)")
+
+            console.print("\n[dim]For more info on GitHub scopes: https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/scopes-for-oauth-apps[/dim]")
+
+        except RuntimeError as e:
+            console.print(f"[red]Error:[/red] {e}")
+            raise click.Abort()
+        except Exception as e:
+            console.print(f"[red]Error:[/red] Failed to get token information: {e}")
+            raise click.Abort()
+    else:
+        console.print(f"[yellow]Token info not yet implemented for {provider}[/yellow]")
+
+
+def _get_scope_description(scope: str) -> str:
+    """Get description for a GitHub OAuth scope.
+
+    Args:
+        scope: OAuth scope name
+
+    Returns:
+        Human-readable description
+    """
+    scope_descriptions = {
+        "repo": "Full control of private repositories",
+        "repo:status": "Access commit status",
+        "repo_deployment": "Access deployment status",
+        "public_repo": "Access public repositories",
+        "repo:invite": "Access repository invitations",
+        "security_events": "Read and write security events",
+        "admin:repo_hook": "Full control of repository hooks",
+        "write:repo_hook": "Write repository hooks",
+        "read:repo_hook": "Read repository hooks",
+        "admin:org": "Full control of orgs and teams",
+        "write:org": "Read and write org and team membership",
+        "read:org": "Read org and team membership",
+        "admin:public_key": "Full control of user public keys",
+        "write:public_key": "Write user public keys",
+        "read:public_key": "Read user public keys",
+        "admin:org_hook": "Full control of organization hooks",
+        "gist": "Create gists",
+        "notifications": "Access notifications",
+        "user": "Update all user data",
+        "read:user": "Read all user profile data",
+        "user:email": "Access user email addresses",
+        "user:follow": "Follow and unfollow users",
+        "delete_repo": "Delete repositories",
+        "write:discussion": "Read and write team discussions",
+        "read:discussion": "Read team discussions",
+        "write:packages": "Upload packages",
+        "read:packages": "Download packages",
+        "delete:packages": "Delete packages",
+        "admin:gpg_key": "Full control of user GPG keys",
+        "write:gpg_key": "Write user GPG keys",
+        "read:gpg_key": "Read user GPG keys",
+        "workflow": "Update GitHub Action workflows",
+        "admin:enterprise": "Full control of enterprises",
+        "manage_runners:enterprise": "Manage enterprise runners and runner groups",
+        "manage_billing:enterprise": "Read and write enterprise billing data",
+        "read:enterprise": "Read enterprise profile data",
+        "codespace": "Full control of codespaces",
+        "copilot": "Full control of GitHub Copilot settings",
+    }
+    return scope_descriptions.get(scope, "Permission granted")

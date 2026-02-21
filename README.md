@@ -2,13 +2,6 @@
 
 SecretZero is a secrets orchestration, lifecycle, and bootstrap engine.
 
-This is:
--	Terraform for secrets lifecycle
--	Renovate for credentials
--	NPM/Yarn for secret dependencies
--	A lockfile for compliance
-
-SecretZero is a secrets management tool that automates the creation, seeding, and lifecycle management of project secrets through self-documenting declarative manifests. Using git-compatible lockfiles we make handling the very first secrets, (known as 'secret zero') a streamlined and maintainable process.
 <img 
     style="display: block; 
            margin-left: auto;
@@ -18,6 +11,7 @@ SecretZero is a secrets management tool that automates the creation, seeding, an
     alt="Secret0 Logo">
 </img>
 
+SecretZero is a secrets management tool that automates the creation, seeding, and lifecycle management of project secrets through self-documenting declarative manifests. The very first secrets you seed for a new project or environment (known in the industry as 'secret-zero') become timestamped, rotatable, and maintainable with git-compatible lock files.
 
 ## The Problem
 
@@ -67,6 +61,7 @@ secretzero test                    # Test provider connectivity
 # Secret management
 secretzero sync                    # Generate and sync secrets to targets
 secretzero sync --dry-run         # Preview changes without applying
+secretzero sync -s db_password    # Sync only specific secret(s)
 secretzero show <secret>          # Show secret metadata
 
 # Visualization
@@ -82,6 +77,12 @@ secretzero rotate --dry-run       # Preview rotation status
 secretzero rotate --force         # Force rotation even if not due
 secretzero policy                  # Check policy compliance
 secretzero drift                   # Detect drift in secrets
+
+# Provider management
+secretzero providers list          # List available providers
+secretzero providers capabilities  # Show provider capabilities
+secretzero providers token-info    # Show GitHub token permissions
+secretzero providers token-info --provider github  # Explicit provider
 
 # API Server (Phase 7)
 secretzero-api                     # Start REST API server
@@ -262,6 +263,29 @@ sequenceDiagram
 ## Auto-Authentication
 
 Not shown in the above workflows are the fact that SecretZero will attempt to also automatically authenticate via OIDC, environment variables, or whichever manner the provider is able to support.
+
+### Checking Provider Permissions
+
+SecretZero can introspect provider authentication tokens to verify they have the necessary permissions:
+
+```bash
+# Check GitHub token permissions and scopes
+secretzero providers token-info
+
+# Output shows:
+# - User information
+# - OAuth scopes (repo, workflow, admin:org, etc.)
+# - Capabilities (can read repos, write secrets, etc.)
+# - Links to documentation on permission requirements
+```
+
+This is useful for:
+- **Troubleshooting** - Verify token has required scopes before attempting operations
+- **Security auditing** - Document what permissions are granted to tokens
+- **Compliance** - Ensure tokens follow principle of least privilege
+- **Onboarding** - Help new team members create tokens with correct permissions
+
+Currently supported providers: GitHub (more providers coming soon).
 
 ## Use Cases
 

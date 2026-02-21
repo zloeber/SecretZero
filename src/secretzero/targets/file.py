@@ -70,6 +70,50 @@ class FileTarget(BaseTarget):
         data = self._read_file()
         return data.get(secret_name)
 
+    def validate(self) -> tuple[bool, str | None]:
+        """Validate that the file path is writable.
+
+        Returns:
+            Tuple of (success, error_message)
+        """
+        try:
+            # Check if parent directory exists or can be created
+            parent_dir = self.path.parent
+            
+            if not parent_dir.exists():
+                # Try to check if we can create it
+                try:
+                    parent_dir.mkdir(parents=True, exist_ok=True)
+                except (PermissionError, OSError) as e:
+                    return False, f"Cannot create directory '{parent_dir}': {e}"
+            
+            # Check if parent directory is writable
+            if not parent_dir.is_dir():
+                return False, f"Path '{parent_dir}' exists but is not a directory"
+            
+            if not parent_dir.exists():
+                return False, f"Directory '{parent_dir}' does not exist"
+                
+            # Test write permissions
+            test_file = parent_dir / f".secretzero_write_test_{id(self)}"
+            try:
+                test_file.touch()
+                test_file.unlink()
+            except (PermissionError, OSError) as e:
+                return False, f"Directory '{parent_dir}' is not writable: {e}"
+            
+            # If file exists, check if it's writable
+            if self.path.exists():
+                if not self.path.is_file():
+                    return False, f"Path '{self.path}' exists but is not a file"
+                if not self.path.stat().st_mode & 0o200:  # Check write permission
+                    return False, f"File '{self.path}' exists but is not writable"
+            
+            return True, None
+            
+        except Exception as e:
+            return False, f"Validation failed: {e}"
+
     def _read_file(self) -> dict[str, str]:
         """Read and parse file content.
 

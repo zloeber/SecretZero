@@ -51,3 +51,15 @@ class BaseTarget(ABC):
             Secret value if found, None otherwise
         """
         pass
+
+    def validate(self) -> tuple[bool, str | None]:
+        """Validate that the target is accessible and writable.
+
+        Returns:
+            Tuple of (success, error_message)
+            If successful, error_message is None.
+            If failed, error_message describes the issue.
+        """
+        # Default implementation assumes target is valid
+        # Subclasses should override to provide specific validation
+        return True, None

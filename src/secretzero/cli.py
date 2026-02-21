@@ -1643,12 +1643,39 @@ def _show_provider_details(provider_name: str, target_name: str | None, verbose:
     is_flag=True,
     help="Disable interactive prompts (fail if values are missing) - useful for CI/CD",
 )
-def sync(file: str, lockfile: str, dry_run: bool, show_input: bool, no_prompt: bool) -> None:
+@click.option(
+    "--secret",
+    "-s",
+    "secrets",
+    multiple=True,
+    help="Sync only specific secrets by name (can be specified multiple times)",
+)
+def sync(
+    file: str,
+    lockfile: str,
+    dry_run: bool,
+    show_input: bool,
+    no_prompt: bool,
+    secrets: tuple[str, ...],
+) -> None:
     """Generate and synchronize secrets to targets.
 
     This command generates secret values according to your Secretfile
     configuration and stores them in the specified targets (local files,
     cloud providers, etc.).
+
+    By default, syncs all secrets. Use --secret to sync specific secrets only.
+
+    Examples:
+
+        # Sync all secrets
+        secretzero sync
+
+        # Sync only specific secrets
+        secretzero sync --secret db_password --secret api_key
+
+        # Short form
+        secretzero sync -s db_password -s api_key
     """
     file_path = Path(file)
 
@@ -1689,10 +1716,18 @@ def sync(file: str, lockfile: str, dry_run: bool, show_input: bool, no_prompt: b
     if dry_run:
         console.print("[yellow]DRY RUN:[/yellow] No changes will be made\n")
 
-    console.print("[bold]Synchronizing secrets...[/bold]\n")
+    # Prepare secret name filter
+    secret_names = list(secrets) if secrets else None
+    if secret_names:
+        console.print(
+            f"[bold]Synchronizing {len(secret_names)} secret(s):[/bold] "
+            f"{', '.join(secret_names)}\n"
+        )
+    else:
+        console.print("[bold]Synchronizing secrets...[/bold]\n")
 
     try:
-        results = engine.sync(dry_run=dry_run)
+        results = engine.sync(dry_run=dry_run, secret_names=secret_names)
 
         # Display summary with improved visual formatting
         success_count = results["secrets_stored"]

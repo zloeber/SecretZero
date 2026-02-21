@@ -11,6 +11,8 @@ providers:
     auth:
       kind: token
       config:
+        # For repository-level secrets: Classic PAT works
+        # For environment secrets: Requires Fine-grained PAT
         token: ${GITHUB_TOKEN}
 
 secrets:
@@ -28,20 +30,21 @@ secrets:
           path: .env
           format: dotenv
       
-      # Store as GitHub Actions repository secret
+      # Store as GitHub Actions repository secret (works with Classic PAT)
       - provider: github
         kind: github_secret
         config:
           owner: ${github_org}
           repo: ${github_repo}
       
-      # Store as environment-specific secret
+      # Store as environment-specific secret (requires Fine-grained PAT)
+      # Classic PATs will fail with "Resource not accessible by personal access token"
       - provider: github
         kind: github_secret
         config:
           owner: ${github_org}
           repo: ${github_repo}
-          environment: ${environment}
+          environment: ${environment}  # Requires Fine-grained PAT!
 
   # Database password
   - name: database_password

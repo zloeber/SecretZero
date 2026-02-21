@@ -24,12 +24,37 @@ Managing secrets in GitHub Actions workflows presents several challenges:
 
 ### 1. Generate GitHub Personal Access Token
 
-Create a token at [GitHub Settings → Developer settings → Personal access tokens](https://github.com/settings/tokens):
+There are two types of GitHub tokens:
+
+#### Classic Personal Access Token (PAT)
+
+**Limitations:**
+- ❌ Cannot manage environment secrets
+- ✅ Can manage repository secrets
+- ✅ Can manage organization secrets
+
+Create at [GitHub Settings → Tokens (classic)](https://github.com/settings/tokens):
 
 **Required Scopes:**
 - `repo` - For repository secrets
 - `admin:org` - For organization secrets (optional)
 - `workflow` - For updating workflow files (optional)
+
+#### Fine-grained Personal Access Token (Recommended for Environments)
+
+**Capabilities:**
+- ✅ Can manage environment secrets
+- ✅ Can manage repository secrets  
+- ✅ Can manage organization secrets
+- ✅ More granular permission control
+
+Create at [GitHub Settings → Fine-grained tokens](https://github.com/settings/tokens?type=beta):
+
+**Required Permissions:**
+- **Actions**: Read and write (for workflow secrets)
+- **Secrets**: Read and write (for managing secrets)
+- **Environments**: Read and write (for environment secrets)
+- **Administration**: Read and write (for repository settings)
 
 ### 2. Configure Environment
 
@@ -615,6 +640,58 @@ Add to `.gitignore`:
 ```
 
 ## Troubleshooting
+
+### Environment Secrets Fail with "Resource not accessible by personal access token"
+
+**Problem**: `Failed to create environment secret: Resource not accessible by personal access token: 403`
+
+**Cause**: Classic Personal Access Tokens (PATs) cannot manage environment secrets due to GitHub API limitations.
+
+**Solutions**:
+
+**Option 1: Use Fine-grained PAT (Recommended)**
+
+```bash
+# 1. Create Fine-grained PAT at:
+#    https://github.com/settings/tokens?type=beta
+
+# 2. Grant these permissions:
+#    - Actions: Read and write
+#    - Secrets: Read and write
+#    - Environments: Read and write
+
+# 3. Set the new token
+export GITHUB_TOKEN=github_pat_your_fine_grained_token
+```
+
+**Option 2: Use Repository-level Secrets Instead**
+
+```yaml
+# Remove environment field from Secretfile
+secrets:
+  - name: api_key
+    targets:
+      - provider: github
+        kind: github_secret
+        config:
+          owner: myorg
+          repo: myrepo
+          # Remove this line:
+          # environment: production
+```
+
+**Verification**:
+
+```bash
+# Check what type of token you have
+secretzero providers token-info
+
+# Classic PAT output shows:
+#   "No OAuth scopes found (may be a classic PAT)"
+#   
+# Fine-grained PAT output shows:
+#   "OAuth Scopes: repo, workflow, ..."
+```
 
 ### Authentication Failed
 

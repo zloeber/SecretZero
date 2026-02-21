@@ -81,6 +81,55 @@ class GitHubAuth(ProviderAuth):
             self.authenticate()
         return self._client
 
+    def get_token_info(self) -> dict[str, Any]:
+        """Get information about the authenticated token.
+
+        Uses GitHub REST API directly (doesn't require PyGithub client).
+
+        Returns:
+            Dictionary containing:
+                - user: GitHub username
+                - scopes: List of OAuth scopes granted to the token
+                - token_type: Type of token (e.g., 'OAuth', 'PAT')
+
+        Raises:
+            RuntimeError: If token is not available or API request fails
+        """
+        try:
+            import requests
+
+            # Get token for API request
+            token = self.config.get("token") or os.environ.get(self.ENV_TOKEN)
+            if not token:
+                raise RuntimeError("No GitHub token found in config or GITHUB_TOKEN environment variable")
+
+            api_url = self.config.get("api_url", "https://api.github.com")
+
+            # Make authenticated request to /user endpoint
+            headers = {
+                "Authorization": f"token {token}",
+                "Accept": "application/vnd.github.v3+json",
+            }
+
+            response = requests.get(f"{api_url}/user", headers=headers)
+            response.raise_for_status()
+
+            user_data = response.json()
+
+            # Get scopes from header
+            scopes_header = response.headers.get("X-OAuth-Scopes", "")
+            scopes = [s.strip() for s in scopes_header.split(",") if s.strip()]
+
+            return {
+                "user": user_data.get("login", "unknown"),
+                "name": user_data.get("name"),
+                "email": user_data.get("email"),
+                "scopes": scopes,
+                "token_type": response.headers.get("X-GitHub-SSO", "PAT"),
+            }
+        except Exception as e:
+            raise RuntimeError(f"Failed to get token info: {e}")
+
 
 class GitHubProvider(BaseProvider):
     """GitHub provider for Actions secrets."""
@@ -151,6 +200,21 @@ class GitHubProvider(BaseProvider):
             List of target type identifiers.
         """
         return ["github_secret", "github_environment_secret"]
+
+    def get_token_permissions(self) -> dict[str, Any]:
+        """Get information about the current GitHub token.
+
+        Returns:
+            Dictionary with token information including scopes/permissions.
+
+        Raises:
+            RuntimeError: If not authenticated or token info cannot be retrieved.
+        """
+        if not self.auth:
+            raise RuntimeError("No authentication configured")
+
+        # get_token_info() uses requests directly, doesn't need PyGithub client
+        return self.auth.get_token_info()
 
     # ===== GENERATE CAPABILITY =====
 
