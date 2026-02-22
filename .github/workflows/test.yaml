@@ -28,13 +28,13 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-          cache-dependency-path: setup.py
+          cache-dependency-path: pyproject.toml
 
       - name: Set up environment
         run: |
           pip install uv
           uv venv
-          uv pip install -e ".[test]"
+          uv sync --all-extras
 
       - name: Unit Tests
         run: |
@@ -45,11 +45,6 @@ jobs:
         run: |
           uv run black --check ${{ env.PROJECT_PATH }}
           uv run ruff format --check ${{ env.PROJECT_PATH }}
-      # - name: Type Checking
-      #   if: matrix.os != 'windows-latest'
-      #   run: |
-      #     mypy metagit
       - name: Build Check
         run: |
-          uv sync
           uv build
