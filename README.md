@@ -35,7 +35,7 @@ If you have ever asked any of these questions about a new or existing codebase t
 - **Manual secret fallbacks** via environment variables when automatic generation isn't possible
 - **Self-documenting** secrets-as-code showing when secrets were created, from where, and where they are now
 
-### Phase 6: Advanced Features (NEW)
+### Advanced Features
 - **Secret Rotation Policies** - Automated rotation based on configurable time periods (90d, 2w, etc.)
 - **Policy Enforcement** - Validate secrets against rotation, compliance, and access control policies
 - **Compliance Support** - Built-in SOC2 and ISO27001 compliance policies
@@ -43,7 +43,7 @@ If you have ever asked any of these questions about a new or existing codebase t
 - **Rotation Tracking** - Track rotation history, count, and last rotation timestamp in lockfile
 - **One-time Secrets** - Support for secrets that should only be generated once
 
-### Phase 7: API Service (NEW)
+### API Service
 - **REST API** - FastAPI-based HTTP API for programmatic secret management
 - **OpenAPI Documentation** - Interactive API docs with Swagger UI and ReDoc
 - **API Authentication** - Secure API key-based authentication
@@ -71,7 +71,7 @@ secretzero graph --type architecture  # Show system architecture
 secretzero graph --format terminal    # Text-based summary
 secretzero graph --output diagram.md  # Save to file
 
-# Rotation and policies (Phase 6)
+# Rotation and policies
 secretzero rotate                  # Rotate secrets based on policies
 secretzero rotate --dry-run       # Preview rotation status
 secretzero rotate --force         # Force rotation even if not due
@@ -84,7 +84,7 @@ secretzero providers capabilities  # Show provider capabilities
 secretzero providers token-info    # Show GitHub token permissions
 secretzero providers token-info --provider github  # Explicit provider
 
-# API Server (Phase 7)
+# API Server
 secretzero-api                     # Start REST API server
 ```
 
@@ -115,7 +115,6 @@ GET  /audit/logs                   # Get audit logs
 ## How It Works
 
 At its core SecretZero is a declarative manifest that defines your secret usage in a project then does its very best to help you request and seed your secrets. It is like a package dependency list but for your secrets. SecretZero processes a simple declarative configuration file in your project that lays out where your secrets come from and where they need to go. 
-
 
 A user with all the correctly authenticated providers can run 'secretzero sync' to bootstrap the environment from scratch. SecretZero will validate if the environment has already been bootstrapped (lockfile) and attempt to automate requesting and storing them. In it's simplest form, you can use the local system to generate random passwords for you then store them into AWS Secrets Manager, A local .env file, Azure KeyVault, Kubernetes Secret, or Vault KV store.
 
