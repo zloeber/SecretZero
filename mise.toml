@@ -9,3 +9,9 @@ uv = "latest"
 gitleaks = "latest"
 yq = "latest"
 npm = "latest"
+node = "latest"
+
+[tools."github:asciinema/agg"]
+version = "latest"
+asset_pattern = "agg-aarch64-apple-darwin"
+bin = "agg"

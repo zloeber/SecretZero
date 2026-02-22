@@ -84,6 +84,12 @@ docs = [
     "mkdocstrings[python]>=0.24.0",
     "pymdown-extensions>=10.0.0",
 ]
+demos = [
+    "asciinema>=2.4.0",
+    "termtosvg",
+    "pyte",
+    "wcwidth",
+]
 all = [
     "boto3>=1.26.0",
     "azure-identity>=1.12.0",

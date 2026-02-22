@@ -1,0 +1,10 @@
+$ secretzero validate
+Validating: Secretfile.yml
+✓ Valid Secretfile
+
+Configuration Summary:
+  Version: 1.0
+  Variables: 2
+  Providers: 1
+  Secrets: 3
+  Templates: 0

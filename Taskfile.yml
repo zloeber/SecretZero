@@ -258,3 +258,38 @@ tasks:
         npm i -D wrangler@latest
         #npx wrangler login --api-token $CLOUDFLARE_API_TOKEN
         npx wrangler pages deploy site/ --project-name secretzero --branch main
+
+  demo:install:
+      desc: "Install demo recording dependencies"
+      cmds:
+        - |
+          uv sync --extra demos
+
+  demo:record:
+    desc: "Record CLI demos and convert to SVG"
+    cmds:
+      - |
+        bash scripts/record-demos.sh
+
+  demo:clean:
+    desc: "Clean demo recordings"
+    cmds:
+      - |
+        rm -f demos/*.cast demos/*.cast.sh
+
+  demo:shrink:
+    desc: "Shrink demo recording using gifsicle"
+    cmds:
+      - |
+        for file in $(find ./docs/inc/demos -type f -name "*.gif"); do
+          gifsicle -O3 "$file" -o "$file" --colors 256
+          echo "Shrunk $file"
+        done
+
+  demo:
+    desc: "Run all demo tasks"
+    cmds:
+      - task: demo:install
+      - task: demo:record
+      - task: demo:clean
+      - task: demo:shrink

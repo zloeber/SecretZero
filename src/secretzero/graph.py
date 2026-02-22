@@ -73,32 +73,6 @@ class SecretGraphGenerator:
 
                 lines.append(f"    {secret_id} -->|syncs to| {target_id}")
 
-        # Add styling
-        lines.extend(
-            [
-                "",
-                "    %% Styling",
-                "    classDef generatorStyle fill:#e1f5ff,stroke:#0288d1,stroke-width:2px",
-                "    classDef secretStyle fill:#fff4e1,stroke:#f57c00,stroke-width:2px",
-                "    classDef targetStyle fill:#e8f5e9,stroke:#388e3c,stroke-width:2px",
-                "",
-            ]
-        )
-
-        # Apply styles
-        if generators_seen:
-            generators_list = ",".join(generators_seen)
-            lines.append(f"    class {generators_list} generatorStyle")
-
-        secret_ids = [self._safe_id(s.name) for s in self.secretfile.secrets]
-        if secret_ids:
-            secrets_list = ",".join(secret_ids)
-            lines.append(f"    class {secrets_list} secretStyle")
-
-        if targets_seen:
-            targets_list = ",".join(targets_seen)
-            lines.append(f"    class {targets_list} targetStyle")
-
         lines.append("```")
         return "\n".join(lines)
 
@@ -136,16 +110,6 @@ class SecretGraphGenerator:
                 lines.append(f"    {secret_id} --> {target_id}")
 
             lines.append("")  # Add spacing between secrets
-
-        # Styling
-        lines.extend(
-            [
-                "    %% Styling",
-                "    classDef generatorStyle fill:#e1f5ff,stroke:#0288d1,stroke-width:2px",
-                "    classDef secretStyle fill:#fff4e1,stroke:#f57c00,stroke-width:3px",
-                "    classDef targetStyle fill:#e8f5e9,stroke:#388e3c,stroke-width:2px",
-            ]
-        )
 
         lines.append("```")
         return "\n".join(lines)
@@ -210,16 +174,6 @@ class SecretGraphGenerator:
             for kind in sorted(target_kinds):
                 target_id = self._safe_id(f"tgt_{provider}_{kind}")
                 lines.append(f"    SecretZero --> {target_id}")
-
-        # Styling
-        lines.extend(
-            [
-                "",
-                "    style SecretZero fill:#fff4e1,stroke:#f57c00,stroke-width:3px",
-                "    style Sources fill:#e1f5ff,stroke:#0288d1,stroke-width:2px",
-                "    style Targets fill:#e8f5e9,stroke:#388e3c,stroke-width:2px",
-            ]
-        )
 
         lines.append("```")
         return "\n".join(lines)

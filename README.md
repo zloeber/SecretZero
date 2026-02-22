@@ -462,9 +462,31 @@ curl -X POST -H "X-API-Key: $SECRETZERO_API_KEY" \
 
 For more API examples, see [docs/api-getting-started.md](docs/api-getting-started.md).
 
-## Example Manifests
+## Demo
 
-See local `Secretfile.*.yml` files or other [local examples](./examples/)
+See local `Secretfile.*.yml` files or other [local examples](./examples/). Here we run some of the commands against the local `Secretfile.yml` manifest:
+
+![Demo of secretzero cli](./docs/inc/demos/demo-all.gif)
+
+Below is the generated mermaid diagram from the above demonstration.
+
+```mermaid
+flowchart LR
+    %% Generators/Sources
+    gen_static[📝 Static]
+    cloudflare_pages_api_token["Secret<br/>cloudflare_pages_api_token<br/>type: static"]
+    gen_static -->|generates| cloudflare_pages_api_token
+    target_cloudflare_pages_api_token_github_github_secret_0["Target<br/>github/github_secret"]
+    cloudflare_pages_api_token -->|syncs to| target_cloudflare_pages_api_token_github_github_secret_0
+    testpypi_token["Secret<br/>testpypi_token<br/>type: static"]
+    gen_static -->|generates| testpypi_token
+    target_testpypi_token_github_github_secret_0["Target<br/>github/github_secret"]
+    testpypi_token -->|syncs to| target_testpypi_token_github_github_secret_0
+    production_token["Secret<br/>production_token<br/>type: static"]
+    gen_static -->|generates| production_token
+    target_production_token_github_github_secret_0["Target<br/>github/github_secret"]
+    production_token -->|syncs to| target_production_token_github_github_secret_0
+```
 
 ## Documentation
 

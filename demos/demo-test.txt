@@ -1,0 +1,6 @@
+$ secretzero test
+Testing Provider Connectivity:
+
+  • github: ✗ PyGithub not installed (pip install PyGithub)
+
+Some provider tests failed. Check the messages above.

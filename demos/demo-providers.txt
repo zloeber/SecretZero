@@ -1,0 +1,18 @@
+$ secretzero providers
+Usage: secretzero providers [OPTIONS] COMMAND [ARGS]...
+
+  Manage and introspect providers.
+
+  Providers are external systems (Vault, AWS, Azure, etc.) that store or help
+  manage secrets. These commands let you discover available providers and
+  their capabilities.
+
+Options:
+  --help  Show this message and exit.
+
+Commands:
+  capabilities  Show capabilities of a specific provider.
+  list          List all registered providers.
+  methods       List methods for a provider, optionally filtered by type.
+  schema        Show schema/signature for a specific provider method.
+  token-info    Show authentication token permissions and scopes.
