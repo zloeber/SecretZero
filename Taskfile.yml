@@ -257,5 +257,5 @@ tasks:
       - |
         npm i -D wrangler@latest
         npx wrangler login --api-token $CLOUDFLARE_API_TOKEN
-        npx wrangler pages deploy ./site
+        npx wrangler pages deploy ./site --project-name secretzero --branch main
         
