@@ -462,17 +462,13 @@ curl -X POST -H "X-API-Key: $SECRETZERO_API_KEY" \
 
 For more API examples, see [docs/api-getting-started.md](docs/api-getting-started.md).
 
-# Actually create and deploy secrets
-secretzero sync
-```
+## Example Manifests
 
-## Example Manifest
-
-** See [Secretfile.yml](./Secretfile.yml) **
+See local `Secretfile.*.yml` files or other [local examples](./examples/)
 
 ## Documentation
 
-- **[Docs][./docs]**
+- **[Docs][https://docs.secret0.com]**
 - **[Extending SecretZero](./docs/extending.md)** - Guide for adding new secret types and providers
 
 ## Security
