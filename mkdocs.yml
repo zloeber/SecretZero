@@ -1,5 +1,5 @@
 site_name: SecretZero
-site_url: https://secret0.com
+site_url: https://docs.secret0.com
 site_description: Secrets orchestration, lifecycle, and bootstrap engine for code repositories
 site_author: Zachary Loeber
 repo_name: zloeber/SecretZero
