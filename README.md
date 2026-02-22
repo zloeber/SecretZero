@@ -259,10 +259,6 @@ sequenceDiagram
   end
 ```
 
-## Auto-Authentication
-
-Not shown in the above workflows are the fact that SecretZero will attempt to also automatically authenticate via OIDC, environment variables, or whichever manner the provider is able to support.
-
 ### Checking Provider Permissions
 
 SecretZero can introspect provider authentication tokens to verify they have the necessary permissions:
@@ -489,7 +485,23 @@ SecretZero is designed with security as a priority:
 - ✅ Idempotent operations to prevent accidental overwrites
 - ✅ Audit trail through lock file tracking
 
-## License
+# Roadmap
+
+Here are some features I'd like to add to this project.
+
+## Better OIDC Support
+
+I'd like to more easily support automatic authentication via OIDC for interactive sessions. I'll include a `--auto-auth` prompt that will attempt to do automated OIDC based authentication with providers by popping open oidc web pages and walking the user through authenticating.
+
+## Customized Secret Types and Generator Output.
+
+These would be tied to a provider specifically for things like generating a PAT or API tokens via their API. In cases where the secret cannot be generated and the user enters a static secret then a custom provider generator should be able to provide their own explicit instructions on attaining the api key (for example).
+
+## Non-Secret Handling
+
+Secrets are often meaningless without the context of multiple non-secret variables. Currently we allow these non-secrets as standard parts of a multi-part secret. They need only be set to static with a default value. Instead I'd like to allow for these values to exist as both a source and target within a secret definition as a secret type of 'local' or 'nonsecret'. These are put into the lockfile alongside any other secrets but require no targets and will not prompt a user for values unless explicitly passing in an option to force the prompt for these values like static secrets. In this situation I'd like to explore allowing for the secret source to be a json, env, or other configuration file that contains an environment's additional non-secret keys with their values.
+
+# License
 
 [Apache](./LICENSE)
 
