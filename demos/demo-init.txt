@@ -1,9 +1,0 @@
-$ secretzero init --dry-run
-Checking provider dependencies...
-
-✗ github (github): missing dependency
-
-⚠ 1 provider(s) missing dependencies:
-  • github (github): pip install secretzero[github\]
-
-Dry run mode - no packages will be installed
