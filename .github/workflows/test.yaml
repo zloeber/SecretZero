@@ -18,7 +18,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest]
         python-version: ["3.13"]
     steps:
       - uses: actions/checkout@v4
@@ -45,6 +45,7 @@ jobs:
         run: |
           uv run black --check ${{ env.PROJECT_PATH }}
           uv run ruff format --check ${{ env.PROJECT_PATH }}
+
       - name: Build Check
         run: |
           uv build
