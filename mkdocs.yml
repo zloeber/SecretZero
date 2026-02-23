@@ -5,6 +5,8 @@ site_author: Zachary Loeber
 repo_name: zloeber/SecretZero
 repo_url: https://github.com/zloeber/SecretZero
 edit_uri: edit/main/docs/
+docs_dir: docs
+site_dir: site
 
 theme:
   name: material

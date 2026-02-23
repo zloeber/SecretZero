@@ -7,7 +7,7 @@
            width: 100%;"
     src="./inc/secret0_angel_small.png" 
     alt="Secret0 Logo">
-</img>
+
 
 <div align="center">
   <img src="https://img.shields.io/badge/status-stable-green.svg" alt="Status: Stable">
