@@ -17,7 +17,7 @@ from secretzero.api.app import create_app
 def run() -> None:
     """Run the SecretZero API server."""
     # Get configuration from environment
-    host = os.environ.get("SECRETZERO_HOST", "0.0.0.0")
+    host = os.environ.get("SECRETZERO_HOST", "127.0.0.1")
     port = int(os.environ.get("SECRETZERO_PORT", "8000"))
     secretfile_path = os.environ.get("SECRETZERO_CONFIG", "Secretfile.yml")
     reload = os.environ.get("SECRETZERO_RELOAD", "false").lower() == "true"

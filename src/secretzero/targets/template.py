@@ -79,7 +79,7 @@ class TemplateTarget(BaseTarget):
             RuntimeError: If rendering fails
         """
         try:
-            from jinja2 import Environment, FileSystemLoader, TemplateNotFound
+            from jinja2 import Environment, FileSystemLoader, TemplateNotFound, select_autoescape
         except ImportError:
             raise RuntimeError(
                 "Jinja2 is required for template targets. Install with: pip install jinja2"
@@ -96,6 +96,7 @@ class TemplateTarget(BaseTarget):
             env = Environment(
                 loader=FileSystemLoader(str(template_dir)),
                 keep_trailing_newline=True,
+                autoescape=select_autoescape(default=False),
             )
 
             # Load and render template

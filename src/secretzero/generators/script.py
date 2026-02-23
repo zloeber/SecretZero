@@ -1,5 +1,6 @@
 """Script-based generator."""
 
+import os
 import subprocess
 from typing import Any
 
@@ -41,7 +42,10 @@ class ScriptGenerator(BaseGenerator):
         try:
             # Build command list
             if self.use_shell:
-                cmd = self.command
+                if os.name == "nt":
+                    cmd = ["cmd", "/c", self.command]
+                else:
+                    cmd = ["/bin/sh", "-c", self.command]
             else:
                 cmd = [self.command] + self.args
 
@@ -50,7 +54,7 @@ class ScriptGenerator(BaseGenerator):
                 cmd,
                 capture_output=True,
                 text=True,
-                shell=self.use_shell,
+                shell=False,
                 timeout=self.timeout,
                 check=True,
             )
