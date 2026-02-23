@@ -1,6 +1,7 @@
 """Tests for file target validation."""
 
 import os
+import platform
 import tempfile
 from pathlib import Path
 
@@ -14,7 +15,14 @@ class TestFileTargetValidation:
 
     def test_validate_writable_directory(self):
         """Test validation passes for writable directory."""
-        target = FileTarget({"path": "/tmp/test_secret.env", "format": "dotenv"})
+        # Use OS-specific writable temp directory
+        if platform.system() == "Windows":
+            temp_dir = os.environ.get("TEMP", "C:\\Temp")
+            writable_path = os.path.join(temp_dir, "test_secret.env")
+        else:
+            writable_path = "/tmp/test_secret.env"
+
+        target = FileTarget({"path": writable_path, "format": "dotenv"})
         is_valid, error = target.validate()
 
         assert is_valid is True
@@ -35,7 +43,15 @@ class TestFileTargetValidation:
 
     def test_validate_non_writable_directory(self):
         """Test validation fails for non-writable directory."""
-        target = FileTarget({"path": "/root/test_secret.env", "format": "dotenv"})
+        # Use OS-specific non-writable paths
+        if platform.system() == "Windows":
+            # Windows: System32 directory is protected
+            non_writable_path = r"C:\Windows\System32\test_secret.env"
+        else:
+            # Unix-like: /root is typically not writable by normal users
+            non_writable_path = "/root/test_secret.env"
+
+        target = FileTarget({"path": non_writable_path, "format": "dotenv"})
         is_valid, error = target.validate()
 
         assert is_valid is False
