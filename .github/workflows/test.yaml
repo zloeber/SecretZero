@@ -32,9 +32,15 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/uv
-          key: uv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
+          key: uv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml', 'uv.lock') }}
           restore-keys: |
             uv-${{ runner.os }}-${{ matrix.python-version }}-
+
+      - name: Cache venv - ${{ matrix.os }}
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml', 'uv.lock') }}
 
       - name: Setup - ${{ matrix.os }}
         run: |
@@ -58,13 +64,11 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Cache uv - ${{ matrix.os }}
+      - name: Cache venv - ${{ matrix.os }}
         uses: actions/cache@v4
         with:
-          path: ~/.cache/uv
-          key: uv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
-          restore-keys: |
-            uv-${{ runner.os }}-${{ matrix.python-version }}-
+          path: .venv
+          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml', 'uv.lock') }}
 
       - name: Unit Tests - ${{ matrix.os }}
         run: |
@@ -87,13 +91,11 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Cache uv - ${{ matrix.os }}
+      - name: Cache venv - ${{ matrix.os }}
         uses: actions/cache@v4
         with:
-          path: ~/.cache/uv
-          key: uv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
-          restore-keys: |
-            uv-${{ runner.os }}-${{ matrix.python-version }}-
+          path: .venv
+          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml', 'uv.lock') }}
 
       - name: Lint Checks - ${{ matrix.os }}
         run: |
@@ -117,13 +119,11 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Cache uv - ${{ matrix.os }}
+      - name: Cache venv - ${{ matrix.os }}
         uses: actions/cache@v4
         with:
-          path: ~/.cache/uv
-          key: uv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
-          restore-keys: |
-            uv-${{ runner.os }}-${{ matrix.python-version }}-
+          path: .venv
+          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml', 'uv.lock') }}
 
       - name: Security Scans - ${{ matrix.os }}
         run: |
@@ -147,13 +147,11 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Cache uv - ${{ matrix.os }}
+      - name: Cache venv - ${{ matrix.os }}
         uses: actions/cache@v4
         with:
-          path: ~/.cache/uv
-          key: uv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
-          restore-keys: |
-            uv-${{ runner.os }}-${{ matrix.python-version }}-
+          path: .venv
+          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml', 'uv.lock') }}
 
       - name: Build Tests - ${{ matrix.os }}
         run: |
