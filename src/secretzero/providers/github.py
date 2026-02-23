@@ -113,7 +113,7 @@ class GitHubAuth(ProviderAuth):
                 "Accept": "application/vnd.github.v3+json",
             }
 
-            response = requests.get(f"{api_url}/user", headers=headers)
+            response = requests.get(f"{api_url}/user", headers=headers, timeout=10)
             response.raise_for_status()
 
             user_data = response.json()

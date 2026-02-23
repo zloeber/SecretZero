@@ -13,8 +13,8 @@ permissions:
   contents: read
 
 jobs:
-  test:
-    name: Test - ${{ matrix.os }} - ${{ matrix.python-version }} - ${{ github.ref_name }}
+  setup:
+    name: Setup - ${{ matrix.os }} - ${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -23,29 +23,137 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Python ${{ matrix.python-version }} on ${{ matrix.os }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          cache: pip
-          cache-dependency-path: pyproject.toml
 
-      - name: Set up environment
+      - name: Cache uv - ${{ matrix.os }}
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml', 'uv.lock') }}
+          restore-keys: |
+            uv-${{ runner.os }}-${{ matrix.python-version }}-
+
+      - name: Cache venv - ${{ matrix.os }}
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml', 'uv.lock') }}
+
+      - name: Setup - ${{ matrix.os }}
         run: |
           pip install uv
-          uv venv
           uv sync --all-extras
+          uv pip install -e ".[dev]"
 
-      - name: Unit Tests
+  unit-tests:
+    name: Unit Tests - ${{ matrix.os }} - ${{ matrix.python-version }} - ${{ github.ref_name }}
+    runs-on: ${{ matrix.os }}
+    needs: setup
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python ${{ matrix.python-version }} on ${{ matrix.os }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache venv - ${{ matrix.os }}
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml', 'uv.lock') }}
+
+      - name: Unit Tests - ${{ matrix.os }}
         run: |
+          pip install uv
           uv run pytest --maxfail=1 --disable-warnings -v tests
 
-      - name: Linting
-        if: matrix.os != 'windows-latest'
+  lint-checks:
+    name: Lint Checks - ${{ matrix.os }} - ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    needs: setup
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python ${{ matrix.python-version }} on ${{ matrix.os }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache venv - ${{ matrix.os }}
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml', 'uv.lock') }}
+
+      - name: Lint Checks - ${{ matrix.os }}
         run: |
+          pip install uv
           uv run black --check ${{ env.PROJECT_PATH }}
           uv run ruff format --check ${{ env.PROJECT_PATH }}
 
-      - name: Build Check
+  security-scans:
+    name: Security Scans - ${{ matrix.os }} - ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    needs: setup
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python ${{ matrix.python-version }} on ${{ matrix.os }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache venv - ${{ matrix.os }}
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml', 'uv.lock') }}
+
+      - name: Security Scans - ${{ matrix.os }}
         run: |
+          pip install uv
+          uv run pip-audit
+          uv run bandit -r ${{ env.PROJECT_PATH }} -ll
+
+  build-tests:
+    name: Build Tests - ${{ matrix.os }} - ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    needs: setup
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python ${{ matrix.python-version }} on ${{ matrix.os }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache venv - ${{ matrix.os }}
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml', 'uv.lock') }}
+
+      - name: Build Tests - ${{ matrix.os }}
+        run: |
+          pip install uv
           uv build

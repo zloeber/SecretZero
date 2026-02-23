@@ -226,6 +226,13 @@ tasks:
     cmds:
       - |
         uv run ruff check --fix .
+
+  security:scan:
+    desc: Run Python security scans (dependencies + code)
+    cmds:
+      - |
+        uv run pip-audit
+        uv run bandit -r src -ll
   
   test:
     desc: Run the tests

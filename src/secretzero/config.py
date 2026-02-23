@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from jinja2 import Environment, StrictUndefined
+from jinja2 import Environment, StrictUndefined, select_autoescape
 
 from secretzero.models import Secretfile
 
@@ -15,7 +15,10 @@ class ConfigLoader:
 
     def __init__(self) -> None:
         """Initialize the config loader."""
-        self.jinja_env = Environment(undefined=StrictUndefined)
+        self.jinja_env = Environment(
+            undefined=StrictUndefined,
+            autoescape=select_autoescape(default=False, default_for_string=False),
+        )
 
     def load_var_file(self, path: Path) -> dict[str, Any]:
         """Load a .szvar variable file.
@@ -167,7 +170,10 @@ class ConfigLoader:
                 def __str__(self) -> str:
                     return ""
 
-            env = Environment(undefined=SilentUndefined)
+            env = Environment(
+                undefined=SilentUndefined,
+                autoescape=select_autoescape(default=False, default_for_string=False),
+            )
             template = env.from_string(text)
             context = {"var": variables}
             return template.render(context)
