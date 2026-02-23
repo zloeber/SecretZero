@@ -5,16 +5,16 @@ Features to improve SecretZero's usefulness for AI coding agents and automated w
 ## Priority 1: Foundation (High Impact, Straightforward)
 
 ### 1. Structured JSON Output Format
-**Goal:** Add `--output json` flag to all major commands for machine-readable results
+**Goal:** Add `--format json` flag to all major commands for machine-readable results
 
-- [ ] Add `--output` option to `validate` command
-- [ ] Add `--output` option to `status` command  
-- [ ] Add `--output` option to `sync` command
-- [ ] Add `--output` option to `rotate` command
-- [ ] Add `--output` option to `policy` command
-- [ ] Add `--output` option to `drift` command
-- [ ] Create standard output schema for each command
-- [ ] Add JSON tests for each command's output
+- [x] Add `--format` option to `validate` command
+- [x] Add `--format` option to `status` command  
+- [x] Add `--format` option to `sync` command
+- [x] Add `--format` option to `rotate` command
+- [x] Add `--format` option to `policy` command
+- [x] Add `--format` option to `drift` command
+- [x] Create standard output schema for each command
+- [x] Add JSON tests for each command's output
 
 **Why:** Makes it trivial for AI agents to parse results and extract data
 
@@ -32,9 +32,9 @@ Exit codes:
 - `5` = configuration error
 - `127` = unknown error
 
-- [ ] Document exit codes in reference guide
-- [ ] Implement exit code mapping for each command
-- [ ] Add tests for exit codes
+- [x] Implement exit code mapping for each command (EXIT_SUCCESS, EXIT_VALIDATION_ERROR, EXIT_MISSING_DEPENDENCY, EXIT_AUTH_FAILURE, EXIT_DRIFT_DETECTED, EXIT_CONFIG_ERROR, EXIT_UNKNOWN_ERROR)
+- [x] Add tests for exit codes
+- [ ] Document exit codes in CLI reference guide
 
 **Why:** Enables agents to quickly categorize failures without parsing output
 
@@ -43,11 +43,11 @@ Exit codes:
 ### 3. Better Dry-Run / Plan Mode
 **Goal:** Show detailed execution plan with `--plan` flag
 
-- [ ] Add `--plan` flag to `sync` command
-- [ ] Implement plan output showing: created, updated, deleted, unchanged
-- [ ] Add JSON output support for plans
-- [ ] Include affected targets and paths in plan
-- [ ] Add tests for plan generation
+- [x] Add `--plan` flag to `sync` command
+- [x] Implement plan output showing: created, updated, skipped
+- [x] Add JSON output support for plans (`--plan --format json`)
+- [x] Include affected targets and paths in plan
+- [x] Add tests for plan generation
 
 **Why:** Agents can preview changes before executing them
 
@@ -58,13 +58,13 @@ Exit codes:
 ### 4. Query/Inspect Commands
 **Goal:** Allow targeted queries without full configuration rendering
 
-- [ ] Create `secretzero list` command:
-  - [ ] `list secrets` - show secret names, kinds, rotation periods
-  - [ ] `list providers` - show provider types and auth methods
-  - [ ] `list targets` - show all target destinations
-  - [ ] `list variables` - show all variables in config
-  - [ ] Add `--output json` support
-  - [ ] Add filtering/search options
+- [x] Create `secretzero list` command:
+  - [x] `list secrets` - show secret names, kinds, rotation periods
+  - [x] `list providers` - show provider types and auth methods
+  - [x] `list targets` - show all target destinations
+  - [x] `list variables` - show all variables in config
+  - [x] Add `--format json` support
+  - [x] Add `--filter` search option for secrets and variables
 
 - [ ] Create `secretzero inspect` command:
   - [ ] `inspect secret <name>` - detailed secret info
@@ -79,8 +79,8 @@ Exit codes:
 ### 5. Dependency Graph Export
 **Goal:** Export configuration dependencies in machine-readable format
 
-- [ ] Add `--output json` to `graph` command (already supports DOT)
-- [ ] Export graph as JSON with nodes and edges
+- [x] Add `--format json` to `graph` command
+- [x] Export graph as JSON with nodes and edges
 - [ ] Create `secretzero dependencies` command:
   - [ ] Show what a secret depends on
   - [ ] Show what depends on a variable
@@ -104,11 +104,11 @@ Exit codes:
   - [ ] `--interactive` - guided setup wizard
   - [ ] Output to stdout with `--dry-run`
 
-- [ ] Create `secretzero detect` command:
-  - [ ] Scan directory for potential secrets
-  - [ ] Suggest secret definitions
-  - [ ] Show secrets defined but not used
-  - [ ] Output as partial Secretfile
+- [x] Create `secretzero detect` command:
+  - [x] Scan directory for potential secrets
+  - [x] Suggest secret definitions
+  - [x] Output as partial Secretfile
+  - [x] JSON output format support
 
 - [ ] Create `secretzero suggest` command:
   - [ ] Suggest config improvements
@@ -193,8 +193,8 @@ Exit codes:
 ---
 
 ## Testing Strategy
-- [ ] Add JSON output schema validation tests
-- [ ] Add exit code verification tests
+- [x] Add JSON output schema validation tests (tests/test_cli_features.py)
+- [x] Add exit code verification tests (tests/test_cli_features.py)
 - [ ] Add integration tests for AI agent workflows
 - [ ] Add performance tests for large configs
 - [ ] Create AI agent test suite

@@ -1,6 +1,7 @@
 """CLI interface for SecretZero."""
 
 import json
+import sys
 from pathlib import Path
 
 import click
@@ -21,6 +22,15 @@ from secretzero.rotation import should_rotate_secret
 from secretzero.sync import SyncEngine
 
 console = Console()
+
+# Standardized exit codes for automation / AI agent consumption
+EXIT_SUCCESS = 0
+EXIT_VALIDATION_ERROR = 1
+EXIT_MISSING_DEPENDENCY = 2
+EXIT_AUTH_FAILURE = 3
+EXIT_DRIFT_DETECTED = 4
+EXIT_CONFIG_ERROR = 5
+EXIT_UNKNOWN_ERROR = 127
 
 
 @click.group(context_settings={"help_option_names": ["-h", "--help"]})
@@ -275,7 +285,14 @@ def init(file: str, install: bool, dry_run: bool) -> None:
     multiple=True,
     help="Path to .szvar variable file(s) to validate with (can be specified multiple times)",
 )
-def validate(file: str, var_files: tuple[str, ...]) -> None:
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    help="Output format (text or json)",
+)
+def validate(file: str, var_files: tuple[str, ...], output_format: str) -> None:
     """Validate Secretfile configuration.
 
     This command checks the syntax and structure of your Secretfile.yml,
@@ -288,11 +305,30 @@ def validate(file: str, var_files: tuple[str, ...]) -> None:
     var_file_paths = [Path(vf) for vf in var_files] if var_files else None
     loader = ConfigLoader()
 
+    is_valid, message = loader.validate_file(file_path, var_files=var_file_paths)
+
+    if output_format == "json":
+        result: dict = {"valid": is_valid, "message": message, "file": str(file_path)}
+        if is_valid:
+            try:
+                config = loader.load_file(file_path, var_files=var_file_paths)
+                result["config"] = {
+                    "version": config.version,
+                    "variables_count": len(config.variables),
+                    "providers_count": len(config.providers),
+                    "secrets_count": len(config.secrets),
+                    "templates_count": len(config.templates),
+                }
+            except (ValueError, KeyError, AttributeError):
+                pass
+        click.echo(json.dumps(result, indent=2))
+        if not is_valid:
+            sys.exit(EXIT_VALIDATION_ERROR)
+        return
+
     console.print(f"Validating: {file_path}")
     if var_file_paths:
         console.print(f"With variable file(s): {', '.join(str(vf) for vf in var_file_paths)}")
-
-    is_valid, message = loader.validate_file(file_path, var_files=var_file_paths)
 
     if is_valid:
         console.print(f"[green]✓[/green] {message}")
@@ -307,7 +343,7 @@ def validate(file: str, var_files: tuple[str, ...]) -> None:
         console.print(f"  Templates: {len(config.templates)}")
     else:
         console.print(f"[red]✗[/red] {message}")
-        raise click.Abort()
+        sys.exit(EXIT_VALIDATION_ERROR)
 
 
 @main.command()
@@ -411,7 +447,14 @@ def render(file: str, var_files: tuple[str, ...], format: str, output: str | Non
     is_flag=True,
     help="Show detailed information including target hashes",
 )
-def status(file: str, lockfile: str, verbose: bool) -> None:
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    help="Output format (text or json)",
+)
+def status(file: str, lockfile: str, verbose: bool, output_format: str) -> None:
     """Show synchronization status of secrets and targets.
 
     This command displays which secrets have been generated and synced to their
@@ -425,11 +468,45 @@ def status(file: str, lockfile: str, verbose: bool) -> None:
     try:
         config = loader.load_file(file_path)
     except Exception as e:
-        console.print(f"[red]Error loading Secretfile:[/red] {e}")
-        raise click.Abort()
+        if output_format == "json":
+            click.echo(json.dumps({"error": str(e)}))
+        else:
+            console.print(f"[red]Error loading Secretfile:[/red] {e}")
+        sys.exit(EXIT_CONFIG_ERROR)
 
     # Load lockfile
     lock = Lockfile.load(lockfile_path)
+
+    if output_format == "json":
+        secrets_data = []
+        for secret in config.secrets:
+            entry = lock.get_secret_info(secret.name)
+            secret_info: dict = {
+                "name": secret.name,
+                "kind": secret.kind,
+                "one_time": secret.one_time,
+                "rotation_period": secret.rotation_period,
+                "status": "synced" if entry else "not_synced",
+                "targets": [
+                    {"provider": t.provider, "kind": t.kind} for t in secret.targets
+                ],
+            }
+            if entry:
+                secret_info["created_at"] = str(entry.created_at)
+                secret_info["updated_at"] = str(entry.updated_at)
+                if entry.last_rotated:
+                    secret_info["last_rotated"] = str(entry.last_rotated)
+                    secret_info["rotation_count"] = entry.rotation_count
+            secrets_data.append(secret_info)
+        result = {
+            "secrets": secrets_data,
+            "total": len(config.secrets),
+            "synced": sum(1 for s in secrets_data if s["status"] == "synced"),
+            "lockfile": str(lockfile_path),
+            "lockfile_exists": lockfile_path.exists(),
+        }
+        click.echo(json.dumps(result, indent=2))
+        return
 
     console.print("[bold]Secret Synchronization Status:[/bold]\n")
 
@@ -1737,6 +1814,11 @@ def _show_provider_details(provider_name: str, target_name: str | None, verbose:
     help="Show what would be done without making changes",
 )
 @click.option(
+    "--plan",
+    is_flag=True,
+    help="Show detailed execution plan (created/updated/unchanged/skipped) without applying",
+)
+@click.option(
     "--show-input",
     is_flag=True,
     help="Show secret input as plain text when prompting (default: masked)",
@@ -1753,14 +1835,23 @@ def _show_provider_details(provider_name: str, target_name: str | None, verbose:
     multiple=True,
     help="Sync only specific secrets by name (can be specified multiple times)",
 )
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    help="Output format (text or json)",
+)
 def sync(
     file: str,
     lockfile: str,
     var_files: tuple[str, ...],
     dry_run: bool,
+    plan: bool,
     show_input: bool,
     no_prompt: bool,
     secrets: tuple[str, ...],
+    output_format: str,
 ) -> None:
     """Generate and synchronize secrets to targets.
 
@@ -1790,7 +1881,16 @@ def sync(
 
         # Short form
         secretzero sync -s db_password -s api_key
+
+        # Preview plan before applying
+        secretzero sync --plan
+
+        # Machine-readable plan output
+        secretzero sync --plan --format json
     """
+    # --plan implies --dry-run
+    if plan:
+        dry_run = True
     file_path = Path(file)
 
     # Generate default lockfile name from secretfile if not explicitly provided
@@ -1812,8 +1912,11 @@ def sync(
     try:
         config = loader.load_file(file_path, var_files=var_file_paths)
     except Exception as e:
-        console.print(f"[red]Error loading Secretfile:[/red] {e}")
-        raise click.Abort()
+        if output_format == "json":
+            click.echo(json.dumps({"error": str(e), "exit_code": EXIT_CONFIG_ERROR}))
+        else:
+            console.print(f"[red]Error loading Secretfile:[/red] {e}")
+        sys.exit(EXIT_CONFIG_ERROR)
 
     # Read secretfile content for change detection
     secretfile_content = file_path.read_text()
@@ -1831,25 +1934,101 @@ def sync(
         prompt_on_empty=not no_prompt,
     )
 
-    if dry_run:
-        console.print("[yellow]DRY RUN:[/yellow] No changes will be made\n")
+    if dry_run and output_format == "text":
+        if plan:
+            console.print("[cyan]PLAN:[/cyan] Showing execution plan without applying changes\n")
+        else:
+            console.print("[yellow]DRY RUN:[/yellow] No changes will be made\n")
 
     # Prepare secret name filter
     secret_names = list(secrets) if secrets else None
-    if secret_names:
+    if secret_names and output_format == "text":
         console.print(
             f"[bold]Synchronizing {len(secret_names)} secret(s):[/bold] {', '.join(secret_names)}\n"
         )
-    else:
+    elif output_format == "text" and not plan:
         console.print("[bold]Synchronizing secrets...[/bold]\n")
 
     try:
         results = engine.sync(dry_run=dry_run, secret_names=secret_names)
 
+        if output_format == "json":
+            # Build plan data when --plan flag used
+            plan_details = None
+            if plan:
+                plan_details = []
+                for detail in results.get("details", []):
+                    is_stored = detail.get("stored")
+                    is_skipped = detail.get("skipped")
+                    exists = lock.get_secret_info(detail["name"]) is not None
+                    if is_stored and not exists:
+                        action = "create"
+                    elif is_stored:
+                        action = "update"
+                    elif is_skipped:
+                        action = "skip"
+                    else:
+                        action = "unchanged"
+                    plan_details.append({
+                        "name": detail["name"],
+                        "kind": detail["kind"],
+                        "action": action,
+                        "reason": detail.get("reason", ""),
+                        "targets": detail.get("targets", []),
+                    })
+            json_result: dict = {
+                "dry_run": dry_run,
+                "plan": plan,
+                "secrets_stored": results["secrets_stored"],
+                "secrets_skipped": results["secrets_skipped"],
+                "errors": results.get("errors", []),
+                "details": results.get("details", []),
+            }
+            if plan_details is not None:
+                json_result["plan_details"] = plan_details
+            click.echo(json.dumps(json_result, indent=2, default=str))
+            if results.get("errors"):
+                sys.exit(EXIT_UNKNOWN_ERROR)
+            return
+
         # Display summary with improved visual formatting
         success_count = results["secrets_stored"]
         failed_count = len([d for d in results["details"] if d.get("errors")])
         skipped_count = results["secrets_skipped"]
+
+        if plan:
+            console.print("\n[bold cyan]Execution Plan[/bold cyan]")
+            plan_table = Table(show_header=True, header_style="bold cyan", box=box.ROUNDED)
+            plan_table.add_column("Action", justify="center", width=10)
+            plan_table.add_column("Secret Name", style="bold")
+            plan_table.add_column("Type", style="dim")
+            plan_table.add_column("Targets")
+
+            for detail in results["details"]:
+                secret_name = detail["name"]
+                secret_kind = detail["kind"]
+                is_skipped = detail.get("skipped")
+                is_stored = detail.get("stored")
+                existing = lock.get_secret_info(secret_name)
+
+                if is_skipped:
+                    action = "[yellow]skip[/yellow]"
+                elif is_stored and not existing:
+                    action = "[green]create[/green]"
+                elif is_stored:
+                    action = "[blue]update[/blue]"
+                else:
+                    action = "[dim]unchanged[/dim]"
+
+                targets_str = ", ".join(
+                    f"{t['provider']}/{t['kind']}" for t in detail.get("targets", [])
+                ) or "[dim]none[/dim]"
+                plan_table.add_row(action, secret_name, secret_kind, targets_str)
+
+            console.print(plan_table)
+            console.print(f"\n[dim]Plan summary: {success_count} create/update, {skipped_count} skip[/dim]")
+            console.print("\n[cyan]Run 'secretzero sync' to apply this plan.[/cyan]")
+            return
 
         console.print("\n[bold]Summary[/bold]")
         console.print(f"[green]✓ Success:[/green] {success_count} secret(s) stored")
@@ -1995,11 +2174,17 @@ def sync(
 
     except RuntimeError as e:
         # RuntimeError from validation or sync has detailed error message
-        console.print(f"\n[red]{e}[/red]")
-        raise click.Abort()
+        if output_format == "json":
+            click.echo(json.dumps({"error": str(e), "exit_code": EXIT_VALIDATION_ERROR}))
+        else:
+            console.print(f"\n[red]{e}[/red]")
+        sys.exit(EXIT_VALIDATION_ERROR)
     except Exception as e:
-        console.print(f"\n[red]Error during sync:[/red] {e}")
-        raise click.Abort()
+        if output_format == "json":
+            click.echo(json.dumps({"error": str(e), "exit_code": EXIT_UNKNOWN_ERROR}))
+        else:
+            console.print(f"\n[red]Error during sync:[/red] {e}")
+        sys.exit(EXIT_UNKNOWN_ERROR)
 
 
 def _show_all_secrets(engine: SyncEngine, config) -> None:
@@ -2336,9 +2521,22 @@ def show(secret_name: str | None, file: str, lockfile: str, detailed: bool) -> N
     is_flag=True,
     help="Show secret input as plain text when prompting (default: masked)",
 )
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    help="Output format (text or json)",
+)
 @click.argument("secret_name", required=False)
 def rotate(
-    file: str, lockfile: str, force: bool, dry_run: bool, show_input: bool, secret_name: str | None
+    file: str,
+    lockfile: str,
+    force: bool,
+    dry_run: bool,
+    show_input: bool,
+    output_format: str,
+    secret_name: str | None,
 ) -> None:
     """Rotate secrets based on rotation policies.
 
@@ -2353,23 +2551,31 @@ def rotate(
     try:
         config = loader.load_file(file_path)
     except Exception as e:
-        console.print(f"[red]Error loading Secretfile:[/red] {e}")
-        raise click.Abort()
+        if output_format == "json":
+            click.echo(json.dumps({"error": str(e)}))
+        else:
+            console.print(f"[red]Error loading Secretfile:[/red] {e}")
+        sys.exit(EXIT_CONFIG_ERROR)
 
     # Load lockfile
     lock = Lockfile.load(lockfile_path)
 
-    console.print("[bold]Checking secrets for rotation...[/bold]\n")
+    if output_format == "text":
+        console.print("[bold]Checking secrets for rotation...[/bold]\n")
 
     # Filter secrets
     secrets_to_check = config.secrets
     if secret_name:
         secrets_to_check = [s for s in config.secrets if s.name == secret_name]
         if not secrets_to_check:
-            console.print(f"[red]Error:[/red] Secret '{secret_name}' not found")
-            raise click.Abort()
+            if output_format == "json":
+                click.echo(json.dumps({"error": f"Secret '{secret_name}' not found"}))
+            else:
+                console.print(f"[red]Error:[/red] Secret '{secret_name}' not found")
+            sys.exit(EXIT_VALIDATION_ERROR)
 
     secrets_to_rotate = []
+    rotation_details = []
 
     for secret in secrets_to_check:
         # Check if secret has rotation period
@@ -2383,7 +2589,9 @@ def rotate(
 
         # Check if one_time secret
         if secret.one_time:
-            console.print(f"  ⚠️  {secret.name}: one_time secret (rotation disabled)")
+            if output_format == "text":
+                console.print(f"  ⚠️  {secret.name}: one_time secret (rotation disabled)")
+            rotation_details.append({"name": secret.name, "status": "skipped", "reason": "one_time secret"})
             continue
 
         # Check if rotation needed
@@ -2395,25 +2603,48 @@ def rotate(
 
         if should_rotate_flag or force:
             secrets_to_rotate.append(secret)
-            status = "⚠️" if should_rotate_flag else "ℹ️"
-            console.print(f"  {status}  {secret.name}: {reason}")
+            rotation_details.append({"name": secret.name, "status": "needs_rotation", "reason": reason})
+            if output_format == "text":
+                status_icon = "⚠️" if should_rotate_flag else "ℹ️"
+                console.print(f"  {status_icon}  {secret.name}: {reason}")
         else:
-            console.print(f"  ✓  {secret.name}: {reason}")
+            rotation_details.append({"name": secret.name, "status": "ok", "reason": reason})
+            if output_format == "text":
+                console.print(f"  ✓  {secret.name}: {reason}")
 
     if not secrets_to_rotate:
-        console.print("\n[green]No secrets need rotation.[/green]")
+        if output_format == "json":
+            click.echo(json.dumps({
+                "dry_run": dry_run,
+                "secrets_rotated": 0,
+                "details": rotation_details,
+                "errors": [],
+            }, indent=2))
+        else:
+            console.print("\n[green]No secrets need rotation.[/green]")
         return
 
-    console.print(f"\n[yellow]Found {len(secrets_to_rotate)} secret(s) to rotate[/yellow]")
+    if output_format == "text":
+        console.print(f"\n[yellow]Found {len(secrets_to_rotate)} secret(s) to rotate[/yellow]")
 
     if dry_run:
-        console.print("\n[yellow]DRY RUN:[/yellow] No changes will be made")
-        for secret in secrets_to_rotate:
-            console.print(f"  Would rotate: {secret.name}")
+        if output_format == "json":
+            click.echo(json.dumps({
+                "dry_run": True,
+                "secrets_rotated": 0,
+                "would_rotate": [s.name for s in secrets_to_rotate],
+                "details": rotation_details,
+                "errors": [],
+            }, indent=2))
+        else:
+            console.print("\n[yellow]DRY RUN:[/yellow] No changes will be made")
+            for secret in secrets_to_rotate:
+                console.print(f"  Would rotate: {secret.name}")
         return
 
     # Perform rotation via sync with force flag
-    console.print("\n[bold]Rotating secrets...[/bold]\n")
+    if output_format == "text":
+        console.print("\n[bold]Rotating secrets...[/bold]\n")
 
     engine = SyncEngine(config, lock, hide_input=not show_input)
 
@@ -2424,20 +2655,32 @@ def rotate(
     try:
         results = engine.sync(dry_run=False, force_rotation=True)
 
-        console.print(f"[green]✓[/green] Rotated {results['secrets_generated']} secrets")
+        if output_format == "json":
+            click.echo(json.dumps({
+                "dry_run": False,
+                "secrets_rotated": results.get("secrets_generated", 0),
+                "details": rotation_details,
+                "errors": results.get("errors", []),
+            }, indent=2))
+        else:
+            console.print(f"[green]✓[/green] Rotated {results['secrets_generated']} secrets")
 
-        if results["errors"]:
-            console.print("\n[red]Errors:[/red]")
-            for error in results["errors"]:
-                console.print(f"  • {error}")
+            if results["errors"]:
+                console.print("\n[red]Errors:[/red]")
+                for error in results["errors"]:
+                    console.print(f"  • {error}")
 
-        # Save lockfile
+        # Save lockfile regardless of output format
         lock.save(lockfile_path)
-        console.print(f"\n[green]✓[/green] Lockfile updated: {lockfile_path}")
+        if output_format != "json":
+            console.print(f"\n[green]✓[/green] Lockfile updated: {lockfile_path}")
 
     except Exception as e:
-        console.print(f"\n[red]Error during rotation:[/red] {e}")
-        raise click.Abort()
+        if output_format == "json":
+            click.echo(json.dumps({"error": str(e)}))
+        else:
+            console.print(f"\n[red]Error during rotation:[/red] {e}")
+        sys.exit(EXIT_UNKNOWN_ERROR)
     finally:
         # Restore original secrets list
         config.secrets = original_secrets
@@ -2463,7 +2706,14 @@ def rotate(
     is_flag=True,
     help="Exit with error code on policy warnings",
 )
-def policy(file: str, lockfile: str, fail_on_warning: bool) -> None:
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    help="Output format (text or json)",
+)
+def policy(file: str, lockfile: str, fail_on_warning: bool, output_format: str) -> None:
     """Check secrets against policy rules.
 
     This command validates secrets against rotation, compliance, and
@@ -2477,15 +2727,16 @@ def policy(file: str, lockfile: str, fail_on_warning: bool) -> None:
     try:
         config = loader.load_file(file_path)
     except Exception as e:
-        console.print(f"[red]Error loading Secretfile:[/red] {e}")
-        raise click.Abort()
+        if output_format == "json":
+            click.echo(json.dumps({"error": str(e)}))
+        else:
+            console.print(f"[red]Error loading Secretfile:[/red] {e}")
+        sys.exit(EXIT_CONFIG_ERROR)
 
     # Load lockfile
     lock = None
     if lockfile_path.exists():
         lock = Lockfile.load(lockfile_path)
-
-    console.print("[bold]Checking policy compliance...[/bold]\n")
 
     # Create policy engine
     engine = PolicyEngine(config)
@@ -2493,14 +2744,36 @@ def policy(file: str, lockfile: str, fail_on_warning: bool) -> None:
     # Validate all secrets
     violations = engine.validate_all(lock)
 
-    if not violations:
-        console.print("[green]✓ All secrets comply with policies[/green]")
-        return
-
     # Group violations by severity
     errors = [v for v in violations if v.severity == "error"]
     warnings = [v for v in violations if v.severity == "warning"]
     infos = [v for v in violations if v.severity == "info"]
+
+    if output_format == "json":
+        click.echo(json.dumps({
+            "compliant": len(violations) == 0,
+            "violations": [
+                {
+                    "secret": v.secret_name,
+                    "severity": v.severity,
+                    "message": v.message,
+                    "suggestion": v.suggestion,
+                }
+                for v in violations
+            ],
+            "errors_count": len(errors),
+            "warnings_count": len(warnings),
+            "info_count": len(infos),
+        }, indent=2))
+        if errors or (fail_on_warning and warnings):
+            sys.exit(EXIT_VALIDATION_ERROR)
+        return
+
+    console.print("[bold]Checking policy compliance...[/bold]\n")
+
+    if not violations:
+        console.print("[green]✓ All secrets comply with policies[/green]")
+        return
 
     # Display violations
     if errors:
@@ -2533,7 +2806,7 @@ def policy(file: str, lockfile: str, fail_on_warning: bool) -> None:
 
     # Exit with error if needed
     if errors or (fail_on_warning and warnings):
-        raise click.Abort()
+        sys.exit(EXIT_VALIDATION_ERROR)
 
 
 @main.command()
@@ -2551,8 +2824,15 @@ def policy(file: str, lockfile: str, fail_on_warning: bool) -> None:
     default=".gitsecrets.lock",
     help="Path to lockfile",
 )
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    help="Output format (text or json)",
+)
 @click.argument("secret_name", required=False)
-def drift(file: str, lockfile: str, secret_name: str | None) -> None:
+def drift(file: str, lockfile: str, output_format: str, secret_name: str | None) -> None:
     """Detect drift between lockfile and actual targets.
 
     This command checks if secrets have been modified outside of
@@ -2562,20 +2842,40 @@ def drift(file: str, lockfile: str, secret_name: str | None) -> None:
     lockfile_path = Path(lockfile)
 
     if not lockfile_path.exists():
-        console.print(f"[red]Error:[/red] Lockfile not found: {lockfile_path}")
-        console.print("Run 'secretzero sync' first to generate secrets")
-        raise click.Abort()
-
-    console.print("[bold]Checking for drift...[/bold]\n")
+        if output_format == "json":
+            click.echo(json.dumps({"error": f"Lockfile not found: {lockfile_path}"}))
+        else:
+            console.print(f"[red]Error:[/red] Lockfile not found: {lockfile_path}")
+            console.print("Run 'secretzero sync' first to generate secrets")
+        sys.exit(EXIT_CONFIG_ERROR)
 
     detector = DriftDetector(file_path, lockfile_path)
     results = detector.check_drift(secret_name)
 
+    drift_found = any(r.has_drift for r in results)
+
+    if output_format == "json":
+        click.echo(json.dumps({
+            "drift_detected": drift_found,
+            "results": [
+                {
+                    "secret_name": r.secret_name,
+                    "has_drift": r.has_drift,
+                    "message": r.message,
+                    "details": r.details or {},
+                }
+                for r in results
+            ],
+        }, indent=2))
+        if drift_found:
+            sys.exit(EXIT_DRIFT_DETECTED)
+        return
+
+    console.print("[bold]Checking for drift...[/bold]\n")
+
     # Display results
-    drift_found = False
     for result in results:
         if result.has_drift:
-            drift_found = True
             console.print(f"  ⚠️  {result.secret_name}: {result.message}")
             if result.details:
                 for key, value in result.details.items():
@@ -2587,6 +2887,7 @@ def drift(file: str, lockfile: str, secret_name: str | None) -> None:
         console.print(
             "\n[yellow]Drift detected. Run 'secretzero sync --force' to remediate.[/yellow]"
         )
+        sys.exit(EXIT_DRIFT_DETECTED)
     else:
         console.print("\n[green]No drift detected.[/green]")
 
@@ -2611,9 +2912,9 @@ def drift(file: str, lockfile: str, secret_name: str | None) -> None:
     "--format",
     "-o",
     "output_format",
-    type=click.Choice(["mermaid", "terminal"]),
+    type=click.Choice(["mermaid", "terminal", "json"]),
     default="mermaid",
-    help="Output format",
+    help="Output format (mermaid, terminal, or json)",
 )
 @click.option(
     "--output",
@@ -2637,6 +2938,7 @@ def graph(file: str, graph_type: str, output_format: str, output: str | None) ->
 
     - mermaid: Mermaid diagram markdown (can be rendered in GitHub, docs, etc.)
     - terminal: Text-based summary for console viewing
+    - json: Machine-readable nodes and edges
 
     Examples:
 
@@ -2654,14 +2956,52 @@ def graph(file: str, graph_type: str, output_format: str, output: str | None) ->
 
         # Terminal-friendly summary
         secretzero graph --format terminal
+
+        # Machine-readable JSON graph
+        secretzero graph --format json
     """
     file_path = Path(file)
 
     if not file_path.exists():
         console.print(f"[red]Error:[/red] Secretfile not found: {file_path}")
-        raise click.Abort()
+        sys.exit(EXIT_CONFIG_ERROR)
 
     try:
+        if output_format == "json":
+            # Build machine-readable graph
+            loader = ConfigLoader()
+            config = loader.load_file(file_path)
+            nodes = []
+            edges = []
+            for secret in config.secrets:
+                nodes.append({
+                    "id": secret.name,
+                    "type": "secret",
+                    "kind": secret.kind,
+                    "one_time": secret.one_time,
+                    "rotation_period": secret.rotation_period,
+                })
+                # Generator → secret edge
+                edges.append({
+                    "from": secret.kind,
+                    "to": secret.name,
+                    "label": "generates",
+                })
+                # Secret → target edges
+                for target in secret.targets:
+                    target_id = f"{target.provider}/{target.kind}"
+                    if not any(n["id"] == target_id for n in nodes):
+                        nodes.append({"id": target_id, "type": "target", "provider": target.provider, "kind": target.kind})
+                    edges.append({"from": secret.name, "to": target_id, "label": "stored_in"})
+            json_graph = {"nodes": nodes, "edges": edges}
+            graph_str = json.dumps(json_graph, indent=2)
+            if output:
+                Path(output).write_text(graph_str)
+                console.print(f"[green]✓[/green] Graph saved to: {output}")
+            else:
+                click.echo(graph_str)
+            return
+
         # Show appropriate message based on output format
         if output_format == "terminal":
             console.print("[bold]Generating configuration summary...[/bold]\n")
@@ -2695,7 +3035,413 @@ def graph(file: str, graph_type: str, output_format: str, output: str | None) ->
 
     except Exception as e:
         console.print(f"[red]Error generating graph:[/red] {e}")
-        raise click.Abort()
+        sys.exit(EXIT_UNKNOWN_ERROR)
+
+
+@main.group()
+def list() -> None:
+    """List secrets, providers, targets, or variables from a Secretfile."""
+    pass
+
+
+@list.command("secrets")
+@click.option(
+    "--file",
+    "-f",
+    type=click.Path(exists=True),
+    default="Secretfile.yml",
+    help="Path to Secretfile",
+)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    help="Output format (text or json)",
+)
+@click.option(
+    "--filter",
+    "name_filter",
+    default=None,
+    help="Filter secrets by name substring",
+)
+def list_secrets(file: str, output_format: str, name_filter: str | None) -> None:
+    """List all secrets defined in the Secretfile."""
+    loader = ConfigLoader()
+    try:
+        config = loader.load_file(Path(file))
+    except Exception as e:
+        if output_format == "json":
+            click.echo(json.dumps({"error": str(e)}))
+        else:
+            console.print(f"[red]Error loading Secretfile:[/red] {e}")
+        sys.exit(EXIT_CONFIG_ERROR)
+
+    secrets = config.secrets
+    if name_filter:
+        secrets = [s for s in secrets if name_filter.lower() in s.name.lower()]
+
+    if output_format == "json":
+        click.echo(json.dumps(
+            {
+                "secrets": [
+                    {
+                        "name": s.name,
+                        "kind": s.kind,
+                        "one_time": s.one_time,
+                        "rotation_period": s.rotation_period,
+                        "targets_count": len(s.targets),
+                        "targets": [{"provider": t.provider, "kind": t.kind} for t in s.targets],
+                    }
+                    for s in secrets
+                ],
+                "total": len(secrets),
+            },
+            indent=2,
+        ))
+        return
+
+    if not secrets:
+        console.print("[dim]No secrets configured[/dim]")
+        return
+
+    table = Table(show_header=True, header_style="bold cyan")
+    table.add_column("Name", style="green")
+    table.add_column("Kind")
+    table.add_column("One-time", justify="center")
+    table.add_column("Rotation")
+    table.add_column("Targets")
+
+    for s in secrets:
+        targets_str = ", ".join(f"{t.provider}/{t.kind}" for t in s.targets) or "[dim]—[/dim]"
+        table.add_row(
+            s.name,
+            s.kind,
+            "[yellow]Yes[/yellow]" if s.one_time else "[dim]No[/dim]",
+            s.rotation_period or "[dim]—[/dim]",
+            targets_str,
+        )
+
+    console.print(table)
+    console.print(f"\n[dim]Total: {len(secrets)} secret(s)[/dim]")
+
+
+@list.command("providers")
+@click.option(
+    "--file",
+    "-f",
+    type=click.Path(exists=True),
+    default="Secretfile.yml",
+    help="Path to Secretfile",
+)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    help="Output format (text or json)",
+)
+def list_providers(file: str, output_format: str) -> None:
+    """List all providers configured in the Secretfile."""
+    loader = ConfigLoader()
+    try:
+        config = loader.load_file(Path(file))
+    except Exception as e:
+        if output_format == "json":
+            click.echo(json.dumps({"error": str(e)}))
+        else:
+            console.print(f"[red]Error loading Secretfile:[/red] {e}")
+        sys.exit(EXIT_CONFIG_ERROR)
+
+    if output_format == "json":
+        click.echo(json.dumps(
+            {
+                "providers": [
+                    {
+                        "name": name,
+                        "kind": p.kind,
+                        "auth_kind": p.auth.kind if p.auth else None,
+                        "fallback_generator": p.fallback_generator,
+                    }
+                    for name, p in config.providers.items()
+                ],
+                "total": len(config.providers),
+            },
+            indent=2,
+        ))
+        return
+
+    if not config.providers:
+        console.print("[dim]No providers configured[/dim]")
+        return
+
+    table = Table(show_header=True, header_style="bold cyan")
+    table.add_column("Name", style="green")
+    table.add_column("Kind")
+    table.add_column("Auth Method")
+    table.add_column("Fallback Generator")
+
+    for name, p in config.providers.items():
+        auth_method = p.auth.kind if p.auth and p.auth.kind else "[dim]—[/dim]"
+        fallback = p.fallback_generator or "[dim]—[/dim]"
+        table.add_row(name, p.kind or "[dim]—[/dim]", str(auth_method), fallback)
+
+    console.print(table)
+    console.print(f"\n[dim]Total: {len(config.providers)} provider(s)[/dim]")
+
+
+@list.command("targets")
+@click.option(
+    "--file",
+    "-f",
+    type=click.Path(exists=True),
+    default="Secretfile.yml",
+    help="Path to Secretfile",
+)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    help="Output format (text or json)",
+)
+def list_targets(file: str, output_format: str) -> None:
+    """List all target destinations across all secrets in the Secretfile."""
+    loader = ConfigLoader()
+    try:
+        config = loader.load_file(Path(file))
+    except Exception as e:
+        if output_format == "json":
+            click.echo(json.dumps({"error": str(e)}))
+        else:
+            console.print(f"[red]Error loading Secretfile:[/red] {e}")
+        sys.exit(EXIT_CONFIG_ERROR)
+
+    all_targets = []
+    for secret in config.secrets:
+        for t in secret.targets:
+            all_targets.append({
+                "secret": secret.name,
+                "provider": t.provider,
+                "kind": t.kind,
+                "config": t.config,
+            })
+
+    if output_format == "json":
+        click.echo(json.dumps({"targets": all_targets, "total": len(all_targets)}, indent=2))
+        return
+
+    if not all_targets:
+        console.print("[dim]No targets configured[/dim]")
+        return
+
+    table = Table(show_header=True, header_style="bold cyan")
+    table.add_column("Secret", style="green")
+    table.add_column("Provider")
+    table.add_column("Kind")
+    table.add_column("Config")
+
+    for t in all_targets:
+        config_str = ", ".join(f"{k}={v}" for k, v in t["config"].items()) if t["config"] else "[dim]—[/dim]"
+        table.add_row(t["secret"], t["provider"], t["kind"], config_str)
+
+    console.print(table)
+    console.print(f"\n[dim]Total: {len(all_targets)} target(s)[/dim]")
+
+
+@list.command("variables")
+@click.option(
+    "--file",
+    "-f",
+    type=click.Path(exists=True),
+    default="Secretfile.yml",
+    help="Path to Secretfile",
+)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    help="Output format (text or json)",
+)
+@click.option(
+    "--filter",
+    "name_filter",
+    default=None,
+    help="Filter variables by name substring",
+)
+def list_variables(file: str, output_format: str, name_filter: str | None) -> None:
+    """List all variables defined in the Secretfile."""
+    loader = ConfigLoader()
+    try:
+        config = loader.load_file(Path(file))
+    except Exception as e:
+        if output_format == "json":
+            click.echo(json.dumps({"error": str(e)}))
+        else:
+            console.print(f"[red]Error loading Secretfile:[/red] {e}")
+        sys.exit(EXIT_CONFIG_ERROR)
+
+    variables = dict(config.variables)
+    if name_filter:
+        variables = {k: v for k, v in variables.items() if name_filter.lower() in k.lower()}
+
+    if output_format == "json":
+        click.echo(json.dumps(
+            {"variables": variables, "total": len(variables)},
+            indent=2,
+        ))
+        return
+
+    if not variables:
+        console.print("[dim]No variables configured[/dim]")
+        return
+
+    table = Table(show_header=True, header_style="bold cyan")
+    table.add_column("Name", style="green")
+    table.add_column("Value")
+
+    for name, value in variables.items():
+        table.add_row(name, str(value))
+
+    console.print(table)
+    console.print(f"\n[dim]Total: {len(variables)} variable(s)[/dim]")
+
+
+@main.command()
+@click.argument("directory", default=".", type=click.Path(exists=True))
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    help="Output format (text or json)",
+)
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(),
+    default=None,
+    help="Write suggested Secretfile fragment to file instead of stdout",
+)
+def detect(directory: str, output_format: str, output: str | None) -> None:
+    """Scan a directory for potential secrets and suggest Secretfile definitions.
+
+    Looks for common secret patterns in files: .env files, config files,
+    and environment variable references. Outputs a suggested Secretfile
+    fragment that can be added to your Secretfile.yml.
+
+    Examples:
+
+        # Scan current directory
+        secretzero detect
+
+        # Scan specific directory
+        secretzero detect ./src
+
+        # Output suggested config as JSON
+        secretzero detect --format json
+
+        # Save suggestion to file
+        secretzero detect -o suggested.yml
+    """
+    import re
+
+    dir_path = Path(directory)
+
+    # Patterns that suggest a potential secret value assignment in dotenv/shell files.
+    # Group 1 captures the variable name (uppercase, with keyword suffix/prefix).
+    _SECRET_SUFFIXES = r"(PASSWORD|SECRET|KEY|TOKEN|CREDENTIAL|CERT|PRIVATE)"
+    _SECRET_PREFIXES = r"(PWD|PASS|AUTH|API)"
+    secret_patterns = [
+        # VAR_NAME with a secret-related keyword anywhere in the suffix, e.g. DATABASE_PASSWORD=
+        (re.compile(rf"^([A-Z_][A-Z0-9_]*{_SECRET_SUFFIXES}[A-Z0-9_]*)=", re.M), "dotenv"),
+        # VAR_NAME ending with a short secret keyword, e.g. DB_PASS= or MY_API=
+        (re.compile(rf"^([A-Z_][A-Z0-9_]*_{_SECRET_PREFIXES})\s*=", re.M), "dotenv"),
+    ]
+
+    env_file_patterns = ["**/.env*", "**/secrets*", "**/credentials*", "**/*.env"]
+
+    found: dict[str, dict] = {}
+
+    # Scan env-style files
+    for glob_pattern in env_file_patterns:
+        for path in dir_path.glob(glob_pattern):
+            if path.is_file() and not any(p in str(path) for p in [".git", "__pycache__", ".venv", "node_modules"]):
+                try:
+                    content = path.read_text(errors="ignore")
+                    for pattern, file_type in secret_patterns:
+                        for m in pattern.finditer(content):
+                            var_name = m.group(1).lower()
+                            if var_name not in found:
+                                found[var_name] = {
+                                    "name": var_name,
+                                    "env_var": m.group(1),
+                                    "file": str(path.relative_to(dir_path)),
+                                    "file_type": file_type,
+                                }
+                except (OSError, UnicodeDecodeError):
+                    pass
+
+    # Build suggestions
+    suggestions = []
+    for var_name, info in sorted(found.items()):
+        suggestions.append({
+            "name": var_name,
+            "env_var": info["env_var"],
+            "source_file": info["file"],
+            "suggested_config": {
+                "name": var_name,
+                "kind": "static",
+                "config": {"default": f"${{{info['env_var']}}}"},
+                "targets": [{"provider": "local", "kind": "file", "config": {"path": ".env", "format": "dotenv"}}],
+            },
+        })
+
+    if output_format == "json":
+        click.echo(json.dumps({"detected": suggestions, "total": len(suggestions)}, indent=2))
+        return
+
+    if not suggestions:
+        console.print("[green]✓ No potential secrets detected in directory.[/green]")
+        console.print("\n[dim]Tip: Ensure your .env files and config files are in the scanned directory.[/dim]")
+        return
+
+    console.print(f"[bold]Detected {len(suggestions)} potential secret(s):[/bold]\n")
+
+    table = Table(show_header=True, header_style="bold cyan")
+    table.add_column("Name", style="green")
+    table.add_column("Env Variable")
+    table.add_column("Source File")
+
+    for s in suggestions:
+        table.add_row(s["name"], s["env_var"], s["source_file"])
+
+    console.print(table)
+
+    # Generate suggested Secretfile fragment
+    fragment_lines = ["# Suggested secret definitions (add to your Secretfile.yml)\nsecrets:"]
+    for s in suggestions:
+        cfg = s["suggested_config"]
+        fragment_lines.append(f"  - name: {cfg['name']}")
+        fragment_lines.append(f"    kind: {cfg['kind']}")
+        fragment_lines.append(f"    config:")
+        fragment_lines.append(f"      default: \"{cfg['config']['default']}\"")
+        fragment_lines.append(f"    targets:")
+        fragment_lines.append(f"      - provider: local")
+        fragment_lines.append(f"        kind: file")
+        fragment_lines.append(f"        config:")
+        fragment_lines.append(f"          path: .env")
+        fragment_lines.append(f"          format: dotenv")
+
+    fragment = "\n".join(fragment_lines)
+
+    if output:
+        Path(output).write_text(fragment)
+        console.print(f"\n[green]✓[/green] Suggested configuration written to: {output}")
+    else:
+        console.print("\n[bold]Suggested Secretfile fragment:[/bold]\n")
+        console.print(f"[dim]{fragment}[/dim]")
 
 
 # Register provider CLI group
