@@ -17,11 +17,60 @@ class ConfigLoader:
         """Initialize the config loader."""
         self.jinja_env = Environment(undefined=StrictUndefined)
 
-    def load_file(self, path: Path) -> Secretfile:
-        """Load and parse a Secretfile.yml.
+    def load_var_file(self, path: Path) -> dict[str, Any]:
+        """Load a .szvar variable file.
+
+        Args:
+            path: Path to the .szvar file
+
+        Returns:
+            Dictionary of variables loaded from the file
+
+        Raises:
+            FileNotFoundError: If the file doesn't exist
+            ValueError: If the file is invalid YAML
+        """
+        if not path.exists():
+            raise FileNotFoundError(f"Variable file not found: {path}")
+
+        with open(path) as f:
+            var_data = yaml.safe_load(f)
+
+        if not isinstance(var_data, dict):
+            raise ValueError(f"Variable file must contain a dictionary: {path}")
+
+        return var_data
+
+    def merge_variables(
+        self, base_vars: dict[str, Any], override_vars: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Deep merge variables with override taking precedence.
+
+        Args:
+            base_vars: Base variables dictionary
+            override_vars: Override variables dictionary (takes precedence)
+
+        Returns:
+            Merged variables dictionary
+        """
+        result = base_vars.copy()
+
+        for key, value in override_vars.items():
+            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+                # Recursively merge nested dictionaries
+                result[key] = self.merge_variables(result[key], value)
+            else:
+                # Override value
+                result[key] = value
+
+        return result
+
+    def load_file(self, path: Path, var_files: list[Path] | None = None) -> Secretfile:
+        """Load and parse a Secretfile.yml with optional variable files.
 
         Args:
             path: Path to the Secretfile.yml
+            var_files: Optional list of .szvar files to merge with variables
 
         Returns:
             Parsed and validated Secretfile model
@@ -39,9 +88,20 @@ class ConfigLoader:
         if not raw_data:
             raise ValueError("Empty Secretfile")
 
-        # Apply variable interpolation
+        # Start with base variables from Secretfile
         variables = raw_data.get("variables", {})
+
+        # Merge in variables from .szvar files (later files take precedence)
+        if var_files:
+            for var_file in var_files:
+                override_vars = self.load_var_file(var_file)
+                variables = self.merge_variables(variables, override_vars)
+
+        # Apply variable interpolation
         interpolated_data = self._interpolate_variables(raw_data, variables)
+
+        # Update the variables in the data to reflect merged values
+        interpolated_data["variables"] = variables
 
         # Validate with Pydantic model
         return Secretfile(**interpolated_data)
@@ -116,17 +176,18 @@ class ConfigLoader:
             # This allows for graceful degradation
             return text
 
-    def validate_file(self, path: Path) -> tuple[bool, str]:
+    def validate_file(self, path: Path, var_files: list[Path] | None = None) -> tuple[bool, str]:
         """Validate a Secretfile without loading it fully.
 
         Args:
             path: Path to the Secretfile.yml
+            var_files: Optional list of .szvar files to validate with
 
         Returns:
             Tuple of (is_valid, error_message)
         """
         try:
-            self.load_file(path)
+            self.load_file(path, var_files=var_files)
             return True, "Valid Secretfile"
         except FileNotFoundError as e:
             return False, str(e)

@@ -1,0 +1,23 @@
+# Example .szvar file for production environment
+# This file contains variables that override the base Secretfile.yml variables
+
+environment: prod
+region: us-west-2
+namespace: production
+
+# Database configuration
+database:
+  host: prod-db.example.com
+  port: 5432
+  name: prod_database
+
+# Feature flags
+features:
+  enable_debug: false
+  enable_logging: true
+  log_level: info
+
+# Cloud provider settings
+cloud:
+  provider: aws
+  account_id: "987654321098"

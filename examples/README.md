@@ -2,6 +2,44 @@
 
 This directory contains example Secretfile configurations demonstrating various use cases and features of SecretZero.
 
+## Variable Override with .szvar Files
+
+SecretZero supports `.szvar` files (similar to Terraform's `.tfvars`) for environment-specific variable overrides. This allows you to maintain a base Secretfile and override variables for different environments without modifying the main configuration.
+
+### Example Files
+
+- `variable-override.yml` - Base Secretfile with default variables
+- `dev.szvar` - Development environment variables
+- `prod.szvar` - Production environment variables
+
+### Usage
+
+```bash
+# Use default variables from Secretfile
+secretzero sync -f examples/variable-override.yml
+
+# Override with dev environment variables
+secretzero sync -f examples/variable-override.yml --var-file examples/dev.szvar
+
+# Override with prod environment variables
+secretzero sync -f examples/variable-override.yml --var-file examples/prod.szvar
+
+# Use multiple variable files (later files take precedence)
+secretzero sync -f examples/variable-override.yml \
+  --var-file examples/base.szvar \
+  --var-file examples/dev.szvar
+
+# Render the final configuration to see merged variables
+secretzero render -f examples/variable-override.yml --var-file examples/dev.szvar
+```
+
+### Benefits
+
+- **Environment separation**: Keep environment-specific values in separate files
+- **Version control**: Commit `.szvar` files for different environments
+- **CI/CD integration**: Use different variable files in different pipelines
+- **Debugging**: Use `secretzero render` to see the final merged configuration
+
 ## Examples
 
 ### 1. Local Development Only (`local-only.yml`)

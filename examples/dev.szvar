@@ -1,0 +1,23 @@
+# Example .szvar file for development environment
+# This file contains variables that override the base Secretfile.yml variables
+
+environment: dev
+region: us-east-1
+namespace: dev-namespace
+
+# Database configuration
+database:
+  host: dev-db.example.com
+  port: 5432
+  name: dev_database
+
+# Feature flags
+features:
+  enable_debug: true
+  enable_logging: true
+  log_level: debug
+
+# Cloud provider settings
+cloud:
+  provider: aws
+  account_id: "123456789012"

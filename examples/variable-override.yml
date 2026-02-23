@@ -1,0 +1,67 @@
+# Example Secretfile demonstrating variable override with .szvar files
+# This file shows how to use variables that can be overridden by .szvar files
+
+version: '1.0'
+
+# Base variables (can be overridden by .szvar files)
+variables:
+  environment: local
+  region: us-east-1
+  namespace: default
+  
+  database:
+    host: localhost
+    port: 5432
+    name: myapp_db
+  
+  features:
+    enable_debug: false
+    enable_logging: true
+    log_level: info
+
+metadata:
+  project: variable-override-example
+  owner: platform-team
+
+providers:
+  local:
+    kind: local
+    config: {}
+
+# Secrets using variable interpolation
+secrets:
+  - name: db_connection_string
+    kind: static
+    config:
+      value: "postgresql://user:pass@{{var.database.host}}:{{var.database.port}}/{{var.database.name}}"
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: ".env.{{var.environment}}"
+          format: dotenv
+          key: DATABASE_URL
+
+  - name: environment_config
+    kind: static
+    config:
+      value: "env={{var.environment}} region={{var.region}} namespace={{var.namespace}}"
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: ".env.{{var.environment}}"
+          format: dotenv
+          key: ENV_CONFIG
+
+  - name: debug_flag
+    kind: static
+    config:
+      value: "{{var.features.enable_debug}}"
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: ".env.{{var.environment}}"
+          format: dotenv
+          key: DEBUG_MODE

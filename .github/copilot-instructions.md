@@ -58,7 +58,7 @@ src/secretzero/
 
 ```bash
 # Install in development mode with all dependencies
-pip install -e ".[all,dev]"
+uv sync --all-extras
 
 # Run tests
 pytest
@@ -546,6 +546,18 @@ profiles:
       - kind: azure_keyvault
         config: {vault_name: prod-secrets}
 ```
+
+### Code Readiness
+- Ensure all new code is covered by tests
+- Always run the following tasks before completing a PR:
+  ```bash
+    # Repeat unit tests until all pass
+    task test
+    # Automatically format and fix lint issues
+    task format lint:fix
+    # Check for remaining lint issues, resolve manually if needed
+    task lint
+  ```
 
 ## Resources
 

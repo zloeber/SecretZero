@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import click
+import yaml
 from rich import box
 from rich.console import Console
 from rich.table import Table
@@ -22,7 +23,7 @@ from secretzero.sync import SyncEngine
 console = Console()
 
 
-@click.group()
+@click.group(context_settings={"help_option_names": ["-h", "--help"]})
 @click.version_option(version=__version__)
 def main() -> None:
     """SecretZero: Secrets orchestration, lifecycle, and bootstrap engine.
@@ -266,24 +267,38 @@ def init(file: str, install: bool, dry_run: bool) -> None:
     default="Secretfile.yml",
     help="Path to Secretfile",
 )
-def validate(file: str) -> None:
+@click.option(
+    "--var-file",
+    "-v",
+    "var_files",
+    type=click.Path(exists=True),
+    multiple=True,
+    help="Path to .szvar variable file(s) to validate with (can be specified multiple times)",
+)
+def validate(file: str, var_files: tuple[str, ...]) -> None:
     """Validate Secretfile configuration.
 
     This command checks the syntax and structure of your Secretfile.yml,
     ensuring all required fields are present and properly formatted.
+
+    Variable files (.szvar) can be specified for validation to ensure the
+    final merged configuration is valid.
     """
     file_path = Path(file)
+    var_file_paths = [Path(vf) for vf in var_files] if var_files else None
     loader = ConfigLoader()
 
     console.print(f"Validating: {file_path}")
+    if var_file_paths:
+        console.print(f"With variable file(s): {', '.join(str(vf) for vf in var_file_paths)}")
 
-    is_valid, message = loader.validate_file(file_path)
+    is_valid, message = loader.validate_file(file_path, var_files=var_file_paths)
 
     if is_valid:
         console.print(f"[green]✓[/green] {message}")
 
         # Show summary of configuration
-        config = loader.load_file(file_path)
+        config = loader.load_file(file_path, var_files=var_file_paths)
         console.print("\n[bold]Configuration Summary:[/bold]")
         console.print(f"  Version: {config.version}")
         console.print(f"  Variables: {len(config.variables)}")
@@ -293,6 +308,86 @@ def validate(file: str) -> None:
     else:
         console.print(f"[red]✗[/red] {message}")
         raise click.Abort()
+
+
+@main.command()
+@click.option(
+    "--file",
+    "-f",
+    type=click.Path(exists=True),
+    default="Secretfile.yml",
+    help="Path to Secretfile",
+)
+@click.option(
+    "--var-file",
+    "-v",
+    "var_files",
+    type=click.Path(exists=True),
+    multiple=True,
+    help="Path to .szvar variable file(s) to merge (can be specified multiple times)",
+)
+@click.option(
+    "--format",
+    type=click.Choice(["yaml", "json"]),
+    default="yaml",
+    help="Output format (yaml or json)",
+)
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(),
+    help="Write output to file instead of stdout",
+)
+def render(file: str, var_files: tuple[str, ...], format: str, output: str | None) -> None:
+    """Render the final Secretfile configuration with variables interpolated.
+
+    This command displays or saves the complete Secretfile configuration after
+    merging variable files and applying variable interpolation. This is useful
+    for debugging variable issues or understanding the final configuration.
+
+    Variable files (.szvar) are merged in order with later files taking precedence.
+
+    Examples:
+
+        # Render to stdout
+        secretzero render
+
+        # Render with variable file
+        secretzero render --var-file dev.szvar
+
+        # Render with multiple variable files
+        secretzero render --var-file base.szvar --var-file dev.szvar
+
+        # Render to file in JSON format
+        secretzero render --var-file dev.szvar --format json --output rendered.json
+    """
+    file_path = Path(file)
+    var_file_paths = [Path(vf) for vf in var_files] if var_files else None
+    loader = ConfigLoader()
+
+    # Load configuration with optional variable files
+    try:
+        config = loader.load_file(file_path, var_files=var_file_paths)
+    except Exception as e:
+        console.print(f"[red]Error loading Secretfile:[/red] {e}")
+        raise click.Abort()
+
+    # Convert to dictionary for output
+    config_dict = config.model_dump(mode="python", exclude_none=True)
+
+    # Format output
+    if format == "json":
+        output_content = json.dumps(config_dict, indent=2)
+    else:  # yaml
+        output_content = yaml.dump(config_dict, default_flow_style=False, sort_keys=False)
+
+    # Write to file or stdout
+    if output:
+        output_path = Path(output)
+        output_path.write_text(output_content)
+        console.print(f"[green]✓[/green] Rendered configuration written to: {output}")
+    else:
+        console.print(output_content)
 
 
 @main.command()
@@ -1629,6 +1724,14 @@ def _show_provider_details(provider_name: str, target_name: str | None, verbose:
     help="Path to lockfile",
 )
 @click.option(
+    "--var-file",
+    "-v",
+    "var_files",
+    type=click.Path(exists=True),
+    multiple=True,
+    help="Path to .szvar variable file(s) to merge (can be specified multiple times)",
+)
+@click.option(
     "--dry-run",
     is_flag=True,
     help="Show what would be done without making changes",
@@ -1653,6 +1756,7 @@ def _show_provider_details(provider_name: str, target_name: str | None, verbose:
 def sync(
     file: str,
     lockfile: str,
+    var_files: tuple[str, ...],
     dry_run: bool,
     show_input: bool,
     no_prompt: bool,
@@ -1666,10 +1770,20 @@ def sync(
 
     By default, syncs all secrets. Use --secret to sync specific secrets only.
 
+    Variable files (.szvar) can be used to override variables defined in the
+    Secretfile. Multiple variable files can be specified, and they are merged
+    in order with later files taking precedence.
+
     Examples:
 
         # Sync all secrets
         secretzero sync
+
+        # Sync with variable file override
+        secretzero sync --var-file dev.szvar
+
+        # Sync with multiple variable files
+        secretzero sync --var-file base.szvar --var-file dev.szvar
 
         # Sync only specific secrets
         secretzero sync --secret db_password --secret api_key
@@ -1688,11 +1802,15 @@ def sync(
             lockfile = lockfile_name
 
     lockfile_path = Path(lockfile)
+
+    # Convert var_files to Path objects
+    var_file_paths = [Path(vf) for vf in var_files] if var_files else None
+
     loader = ConfigLoader()
 
-    # Load configuration
+    # Load configuration with optional variable files
     try:
-        config = loader.load_file(file_path)
+        config = loader.load_file(file_path, var_files=var_file_paths)
     except Exception as e:
         console.print(f"[red]Error loading Secretfile:[/red] {e}")
         raise click.Abort()

@@ -1,0 +1,333 @@
+# Variable Files (.szvar)
+
+SecretZero supports variable files (`.szvar`) for managing environment-specific configuration without modifying your base Secretfile. This is similar to Terraform's `.tfvars` files.
+
+## Overview
+
+Variable files allow you to:
+
+- **Separate configuration from values**: Keep your Secretfile structure generic and environment-agnostic
+- **Environment-specific overrides**: Use different variable files for dev, staging, production, etc.
+- **CI/CD integration**: Select appropriate variable files in your deployment pipelines
+- **Version control**: Track environment-specific values alongside your code
+- **Debugging**: Use the `render` command to see the final merged configuration
+
+## File Format
+
+Variable files use YAML format and contain a flat or nested dictionary of variables:
+
+```yaml
+# dev.szvar
+environment: dev
+region: us-east-1
+namespace: dev-namespace
+
+database:
+  host: dev-db.example.com
+  port: 5432
+  name: dev_database
+
+features:
+  enable_debug: true
+  log_level: debug
+```
+
+## Usage
+
+### With sync Command
+
+Use the `--var-file` option to specify one or more variable files:
+
+```bash
+# Single variable file
+secretzero sync --var-file dev.szvar
+
+# Multiple variable files (later files override earlier ones)
+secretzero sync --var-file base.szvar --var-file dev.szvar
+
+# Short form
+secretzero sync -v dev.szvar
+```
+
+### With validate Command
+
+Validate your Secretfile with variable overrides:
+
+```bash
+# Validate with variable file
+secretzero validate --var-file dev.szvar
+
+# Validate with multiple variable files
+secretzero validate --var-file base.szvar --var-file prod.szvar
+```
+
+### With render Command
+
+The `render` command shows the final configuration after variable merging:
+
+```bash
+# Render with variable file to stdout (YAML)
+secretzero render --var-file dev.szvar
+
+# Render to JSON format
+secretzero render --var-file dev.szvar --format json
+
+# Render to file
+secretzero render --var-file dev.szvar --output rendered.yml
+
+# Render with multiple variable files
+secretzero render --var-file base.szvar --var-file dev.szvar
+```
+
+## Variable Merging
+
+When multiple variable files are specified, they are merged in order with **later files taking precedence**:
+
+1. Base variables from Secretfile.yml
+2. First .szvar file
+3. Second .szvar file
+4. ... (and so on)
+
+### Deep Merging
+
+Variable merging performs deep merging for nested dictionaries:
+
+**Secretfile.yml:**
+```yaml
+variables:
+  database:
+    host: localhost
+    port: 5432
+    name: myapp
+  features:
+    debug: false
+```
+
+**dev.szvar:**
+```yaml
+database:
+  host: dev-db.example.com
+features:
+  debug: true
+  log_level: debug
+```
+
+**Merged result:**
+```yaml
+variables:
+  database:
+    host: dev-db.example.com  # overridden
+    port: 5432                # preserved
+    name: myapp               # preserved
+  features:
+    debug: true               # overridden
+    log_level: debug          # added
+```
+
+## Variable Interpolation
+
+Variables from .szvar files are used for Jinja2-style interpolation in your Secretfile:
+
+**Secretfile.yml:**
+```yaml
+version: '1.0'
+variables:
+  environment: local
+  database:
+    host: localhost
+
+secrets:
+  - name: connection_string
+    kind: static
+    config:
+      value: "postgresql://user:pass@{{database.host}}/db"
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: ".env.{{environment}}"
+```
+
+**dev.szvar:**
+```yaml
+environment: dev
+database:
+  host: dev-db.example.com
+```
+
+**Result after rendering:**
+```yaml
+secrets:
+  - name: connection_string
+    kind: static
+    config:
+      value: "postgresql://user:pass@dev-db.example.com/db"
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: ".env.dev"
+```
+
+## Best Practices
+
+### 1. Use .szvar for Environment-Specific Values
+
+Keep all environment-specific configuration in .szvar files:
+
+```yaml
+# prod.szvar
+environment: production
+region: us-west-2
+cloud_account_id: "987654321098"
+enable_monitoring: true
+```
+
+### 2. Maintain a Base .szvar for Common Overrides
+
+Create a base variable file for values shared across multiple environments:
+
+```yaml
+# base.szvar
+company_name: MyCompany
+owner: platform-team
+compliance:
+  - soc2
+  - hipaa
+```
+
+Then combine with environment-specific files:
+
+```bash
+secretzero sync --var-file base.szvar --var-file prod.szvar
+```
+
+### 3. Use Descriptive File Names
+
+Name your .szvar files clearly:
+
+- `dev.szvar`, `staging.szvar`, `prod.szvar` - for environments
+- `us-east-1.szvar`, `eu-west-1.szvar` - for regions
+- `customer-a.szvar`, `customer-b.szvar` - for multi-tenant setups
+
+### 4. Version Control Your .szvar Files
+
+Commit .szvar files to version control to track configuration changes:
+
+```bash
+git add *.szvar Secretfile.yml
+git commit -m "Add production configuration"
+```
+
+**Security Note**: Never commit sensitive values like passwords or tokens to .szvar files. Use these files only for non-sensitive configuration values. Sensitive secrets should be generated by SecretZero or retrieved from secure sources.
+
+### 5. Use render to Debug Configuration
+
+When troubleshooting variable issues, use the render command:
+
+```bash
+# See exactly what will be used
+secretzero render --var-file dev.szvar
+
+# Compare different environments
+diff <(secretzero render --var-file dev.szvar) \
+     <(secretzero render --var-file prod.szvar)
+```
+
+## CI/CD Integration
+
+### GitHub Actions
+
+```yaml
+- name: Sync secrets for production
+  run: |
+    secretzero sync --var-file prod.szvar --no-prompt
+  env:
+    AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+    AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+```
+
+### GitLab CI
+
+```yaml
+sync-secrets:
+  script:
+    - secretzero sync --var-file ${CI_ENVIRONMENT_NAME}.szvar --no-prompt
+  only:
+    - main
+```
+
+### Jenkins
+
+```groovy
+stage('Sync Secrets') {
+    steps {
+        sh "secretzero sync --var-file ${env.ENVIRONMENT}.szvar --no-prompt"
+    }
+}
+```
+
+## Examples
+
+See the [examples/](../examples/index.md) directory for complete working examples:
+
+- `variable-override.yml` - Base Secretfile demonstrating variable usage
+- `dev.szvar` - Development environment variables
+- `prod.szvar` - Production environment variables
+
+Try them out:
+
+```bash
+# See the base configuration
+secretzero render -f examples/variable-override.yml
+
+# See with dev overrides
+secretzero render -f examples/variable-override.yml --var-file examples/dev.szvar
+
+# See with prod overrides
+secretzero render -f examples/variable-override.yml --var-file examples/prod.szvar
+
+# Actually sync with dev settings
+secretzero sync -f examples/variable-override.yml --var-file examples/dev.szvar
+```
+
+## Troubleshooting
+
+### Variables Not Being Replaced
+
+If you see literal `{{variable.name}}` in your output:
+
+1. Check that the variable exists in your Secretfile or .szvar file
+2. Verify the variable path is correct (e.g., `{{database.host}}` not `{{host}}`)
+3. Use `secretzero render` to see the final merged variables
+
+### Variable File Not Found
+
+Ensure the path to your .szvar file is correct:
+
+```bash
+# Use absolute path if needed
+secretzero sync --var-file /path/to/dev.szvar
+
+# Or relative to current directory
+secretzero sync --var-file ./config/dev.szvar
+```
+
+### Unexpected Variable Values
+
+When using multiple .szvar files, remember that **later files override earlier ones**:
+
+```bash
+# base.szvar sets environment=staging
+# dev.szvar sets environment=dev
+# Result: environment=dev (dev.szvar wins)
+secretzero sync --var-file base.szvar --var-file dev.szvar
+```
+
+Use `secretzero render` to see the final merged result.
+
+## See Also
+
+- [Configuration Guide](configuration/index.md) - Full Secretfile configuration reference
+- [CLI Reference](../reference/cli.md) - Complete CLI command documentation
+- [Examples](../examples/index.md) - Working examples and templates

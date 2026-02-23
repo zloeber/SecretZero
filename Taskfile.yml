@@ -293,3 +293,8 @@ tasks:
       - task: demo:record
       - task: demo:clean
       - task: demo:shrink
+
+  schema:update:
+    desc: Update root Secretfile.schema.yaml
+    cmds:
+      - uv run secretzero schema export > ./Secretfile.schema.json
