@@ -254,8 +254,8 @@ class AzureProvider(BaseProvider):
 
         try:
             client = SecretClient(
-                vault_url=self.config.vault_url,
-                credential=self.auth.get_credential(),
+                vault_url=self.config.get("vault_url"),
+                credential=self.auth.get_client(),
             )
 
             if version:
@@ -292,8 +292,8 @@ class AzureProvider(BaseProvider):
 
         try:
             client = SecretClient(
-                vault_url=self.config.vault_url,
-                credential=self.auth.get_credential(),
+                vault_url=self.config.get("vault_url"),
+                credential=self.auth.get_client(),
             )
 
             # Create or update the secret
@@ -321,8 +321,8 @@ class AzureProvider(BaseProvider):
 
         try:
             client = SecretClient(
-                vault_url=self.config.vault_url,
-                credential=self.auth.get_credential(),
+                vault_url=self.config.get("vault_url"),
+                credential=self.auth.get_client(),
             )
 
             # Update the secret value
@@ -351,8 +351,8 @@ class AzureProvider(BaseProvider):
 
         try:
             client = SecretClient(
-                vault_url=self.config.vault_url,
-                credential=self.auth.get_credential(),
+                vault_url=self.config.get("vault_url"),
+                credential=self.auth.get_client(),
             )
 
             # Delete the secret (soft delete by default)

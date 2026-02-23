@@ -20,7 +20,11 @@ class StaticGenerator(BaseGenerator):
         """
         super().__init__(config)
         # Support both 'default' and 'value' keys for backwards compatibility
-        self.default_value = config.get("default") or config.get("value")
+        # Use 'default' if it exists (even if empty string), otherwise fall back to 'value'
+        if "default" in config:
+            self.default_value = config["default"]
+        else:
+            self.default_value = config.get("value")
         self.validation_pattern = config.get("validation")
         self.prompt_on_empty = config.get("prompt_on_empty", True)
 
@@ -38,11 +42,12 @@ class StaticGenerator(BaseGenerator):
         """
         value = self.default_value
 
-        # Check if value is empty, None, or looks like an unresolved env var
-        is_empty = value is None or value == ""
+        # Check if value is None or looks like an unresolved env var
+        # Note: Empty string "" is a valid value and should not be considered "not provided"
+        is_not_provided = value is None
         is_unresolved = isinstance(value, str) and re.match(r"^\$\{[^}]+\}$", value)
 
-        if is_empty or is_unresolved:
+        if is_not_provided or is_unresolved:
             if self.prompt_on_empty:
                 # Prompt user for value
                 try:

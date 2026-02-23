@@ -263,7 +263,7 @@ tasks:
       desc: "Install demo recording dependencies"
       cmds:
         - |
-          uv sync --extra demos
+          uv sync --all-extras
 
   demo:record:
     desc: "Record CLI demos and convert to SVG"

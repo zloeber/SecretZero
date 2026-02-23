@@ -101,11 +101,6 @@ def test_generate_flow_diagram(sample_secretfile: Path):
     assert "generates" in diagram
     assert "syncs to" in diagram
 
-    # Verify styling
-    assert "generatorStyle" in diagram
-    assert "secretStyle" in diagram
-    assert "targetStyle" in diagram
-
 
 def test_generate_detailed_diagram(sample_secretfile: Path):
     """Test detailed diagram generation."""

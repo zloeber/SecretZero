@@ -167,7 +167,7 @@ class TestStaticGenerator:
 
     def test_empty_default(self):
         """Test empty default value."""
-        gen = StaticGenerator({})
+        gen = StaticGenerator({"default": "", "prompt_on_empty": False})
         value = gen.generate()
 
         assert value == ""
