@@ -40,6 +40,7 @@ jobs:
         run: |
           pip install uv
           uv sync --all-extras
+          uv pip install -e ".[dev]"
 
   unit-tests:
     name: Unit Tests - ${{ matrix.os }} - ${{ matrix.python-version }} - ${{ github.ref_name }}
