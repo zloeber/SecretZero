@@ -15,7 +15,6 @@ from secretzero.cli import (
     main,
 )
 
-
 MINIMAL_SECRETFILE = """
 version: '1.0'
 variables: {}
@@ -117,8 +116,7 @@ def test_status_json_output_after_sync(runner: CliRunner) -> None:
     with TemporaryDirectory() as tmpdir:
         env_file = Path(tmpdir) / ".env.test"
         sf = Path(tmpdir) / "Secretfile.yml"
-        sf.write_text(
-            f"""
+        sf.write_text(f"""
 version: '1.0'
 variables: {{}}
 providers:
@@ -136,8 +134,7 @@ secrets:
           path: {env_file}
           format: dotenv
 templates: {{}}
-"""
-        )
+""")
         lock = Path(tmpdir) / ".lock"
 
         # First sync to create the secret
@@ -174,8 +171,7 @@ def test_sync_json_output_with_secret(runner: CliRunner) -> None:
     with TemporaryDirectory() as tmpdir:
         env_file = Path(tmpdir) / ".env.test"
         sf = Path(tmpdir) / "Secretfile.yml"
-        sf.write_text(
-            f"""
+        sf.write_text(f"""
 version: '1.0'
 variables: {{}}
 providers:
@@ -193,8 +189,7 @@ secrets:
           path: {env_file}
           format: dotenv
 templates: {{}}
-"""
-        )
+""")
         lock = Path(tmpdir) / ".lock"
 
         result = runner.invoke(
@@ -231,9 +226,7 @@ def test_policy_json_output_compliant(runner: CliRunner) -> None:
         sf = Path(tmpdir) / "Secretfile.yml"
         sf.write_text(MINIMAL_SECRETFILE)
 
-        result = runner.invoke(
-            main, ["policy", "--file", str(sf), "--format", "json"]
-        )
+        result = runner.invoke(main, ["policy", "--file", str(sf), "--format", "json"])
         assert result.exit_code == 0, result.output
         payload = json.loads(result.output)
         assert payload["compliant"] is True
@@ -300,8 +293,7 @@ def test_sync_plan_mode(runner: CliRunner) -> None:
     with TemporaryDirectory() as tmpdir:
         env_file = Path(tmpdir) / ".env.test"
         sf = Path(tmpdir) / "Secretfile.yml"
-        sf.write_text(
-            f"""
+        sf.write_text(f"""
 version: '1.0'
 variables: {{}}
 providers:
@@ -319,13 +311,10 @@ secrets:
           path: {env_file}
           format: dotenv
 templates: {{}}
-"""
-        )
+""")
         lock = Path(tmpdir) / ".lock"
 
-        result = runner.invoke(
-            main, ["sync", "--file", str(sf), "--lockfile", str(lock), "--plan"]
-        )
+        result = runner.invoke(main, ["sync", "--file", str(sf), "--lockfile", str(lock), "--plan"])
         assert result.exit_code == 0, result.output
         # Plan mode should show secret names and not create the .env file
         assert "db_password" in result.output
@@ -354,8 +343,7 @@ def test_sync_plan_implies_dry_run(runner: CliRunner) -> None:
     with TemporaryDirectory() as tmpdir:
         env_file = Path(tmpdir) / ".env.test"
         sf = Path(tmpdir) / "Secretfile.yml"
-        sf.write_text(
-            f"""
+        sf.write_text(f"""
 version: '1.0'
 variables: {{}}
 providers:
@@ -373,8 +361,7 @@ secrets:
           path: {env_file}
           format: dotenv
 templates: {{}}
-"""
-        )
+""")
         lock = Path(tmpdir) / ".lock"
 
         runner.invoke(main, ["sync", "--file", str(sf), "--lockfile", str(lock), "--plan"])

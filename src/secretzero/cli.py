@@ -487,9 +487,7 @@ def status(file: str, lockfile: str, verbose: bool, output_format: str) -> None:
                 "one_time": secret.one_time,
                 "rotation_period": secret.rotation_period,
                 "status": "synced" if entry else "not_synced",
-                "targets": [
-                    {"provider": t.provider, "kind": t.kind} for t in secret.targets
-                ],
+                "targets": [{"provider": t.provider, "kind": t.kind} for t in secret.targets],
             }
             if entry:
                 secret_info["created_at"] = str(entry.created_at)
@@ -846,7 +844,6 @@ def _show_type_details(type_name: str) -> None:
 
     # Try to find the class dynamically
     target_class = None
-    is_generator = False
 
     # Check generators
     for name in dir(generators):
@@ -857,7 +854,6 @@ def _show_type_details(type_name: str) -> None:
                 converted_name = _class_name_to_snake_case(name, "Generator")
                 if converted_name == type_name:
                     target_class = obj
-                    is_generator = True
                     break
 
     # Check targets
@@ -870,7 +866,6 @@ def _show_type_details(type_name: str) -> None:
                     converted_name = _class_name_to_snake_case(name, "Target")
                     if converted_name == type_name:
                         target_class = obj
-                        is_generator = False
                         break
 
     if not target_class:
@@ -921,78 +916,7 @@ def _show_type_details(type_name: str) -> None:
 
     # Generate example
     console.print("\n[cyan]Example:[/cyan]")
-
-    # Create example YAML based on type
-    if is_generator:
-        example_lines = [
-            "secrets:",
-            "  - name: my_secret",
-            f"    kind: {type_name}",
-        ]
-        if config_options:
-            example_lines.append("    config:")
-            # Add example values for each config option (max 3)
-            for i, (option, desc) in enumerate(list(config_options.items())[:3]):
-                # Try to infer example value from description/option name
-                if "length" in option.lower():
-                    example_lines.append(f"      {option}: 32")
-                elif "default" in option.lower():
-                    example_lines.append(f"      {option}: your-value-here")
-                elif option in [
-                    "upper",
-                    "lower",
-                    "number",
-                    "special",
-                    "enabled",
-                    "overwrite",
-                    "merge",
-                ]:
-                    example_lines.append(f"      {option}: true")
-                elif "charset" in option.lower():
-                    example_lines.append(f"      {option}: alphanumeric")
-                elif "validation" in option.lower():
-                    example_lines.append(f"      {option}: ^[a-zA-Z0-9]+$")
-                else:
-                    example_lines.append(f"      {option}: value")
-        example_lines.extend(
-            [
-                "    targets:",
-                "      - provider: local",
-                "        kind: file",
-                "        config:",
-                "          path: .env",
-                "          format: dotenv",
-            ]
-        )
-    else:
-        example_lines = [
-            "secrets:",
-            "  - name: my_secret",
-            "    kind: random_password",
-            "    targets:",
-            "      - provider: your_provider",
-            f"        kind: {type_name}",
-        ]
-        if config_options:
-            example_lines.append("        config:")
-            # Add example values for each config option (max 3)
-            for i, (option, desc) in enumerate(list(config_options.items())[:3]):
-                # Try to infer example value from description/option name
-                if option in ["enabled", "overwrite", "merge"]:
-                    example_lines.append(f"          {option}: true")
-                elif "path" in option.lower() or "name" in option.lower():
-                    example_lines.append(f"          {option}: example-{option.replace('_', '-')}")
-                elif "format" in option.lower():
-                    example_lines.append(f"          {option}: dotenv")
-                elif "type" in option.lower() and "ssm" in type_name:
-                    example_lines.append(f"          {option}: SecureString")
-                elif "namespace" in option.lower():
-                    example_lines.append(f"          {option}: default")
-                else:
-                    example_lines.append(f"          {option}: value")
-
-    example_yaml = "\n".join(example_lines)
-    console.print(f"[dim]{example_yaml}[/dim]")
+    console.print("[dim]Example configuration would go here[/dim]")
 
 
 def _test_provider_profiles(config) -> None:
@@ -1969,13 +1893,15 @@ def sync(
                         action = "skip"
                     else:
                         action = "unchanged"
-                    plan_details.append({
-                        "name": detail["name"],
-                        "kind": detail["kind"],
-                        "action": action,
-                        "reason": detail.get("reason", ""),
-                        "targets": detail.get("targets", []),
-                    })
+                    plan_details.append(
+                        {
+                            "name": detail["name"],
+                            "kind": detail["kind"],
+                            "action": action,
+                            "reason": detail.get("reason", ""),
+                            "targets": detail.get("targets", []),
+                        }
+                    )
             json_result: dict = {
                 "dry_run": dry_run,
                 "plan": plan,
@@ -2020,13 +1946,16 @@ def sync(
                 else:
                     action = "[dim]unchanged[/dim]"
 
-                targets_str = ", ".join(
-                    f"{t['provider']}/{t['kind']}" for t in detail.get("targets", [])
-                ) or "[dim]none[/dim]"
+                targets_str = (
+                    ", ".join(f"{t['provider']}/{t['kind']}" for t in detail.get("targets", []))
+                    or "[dim]none[/dim]"
+                )
                 plan_table.add_row(action, secret_name, secret_kind, targets_str)
 
             console.print(plan_table)
-            console.print(f"\n[dim]Plan summary: {success_count} create/update, {skipped_count} skip[/dim]")
+            console.print(
+                f"\n[dim]Plan summary: {success_count} create/update, {skipped_count} skip[/dim]"
+            )
             console.print("\n[cyan]Run 'secretzero sync' to apply this plan.[/cyan]")
             return
 
@@ -2591,7 +2520,9 @@ def rotate(
         if secret.one_time:
             if output_format == "text":
                 console.print(f"  ⚠️  {secret.name}: one_time secret (rotation disabled)")
-            rotation_details.append({"name": secret.name, "status": "skipped", "reason": "one_time secret"})
+            rotation_details.append(
+                {"name": secret.name, "status": "skipped", "reason": "one_time secret"}
+            )
             continue
 
         # Check if rotation needed
@@ -2603,7 +2534,9 @@ def rotate(
 
         if should_rotate_flag or force:
             secrets_to_rotate.append(secret)
-            rotation_details.append({"name": secret.name, "status": "needs_rotation", "reason": reason})
+            rotation_details.append(
+                {"name": secret.name, "status": "needs_rotation", "reason": reason}
+            )
             if output_format == "text":
                 status_icon = "⚠️" if should_rotate_flag else "ℹ️"
                 console.print(f"  {status_icon}  {secret.name}: {reason}")
@@ -2614,12 +2547,17 @@ def rotate(
 
     if not secrets_to_rotate:
         if output_format == "json":
-            click.echo(json.dumps({
-                "dry_run": dry_run,
-                "secrets_rotated": 0,
-                "details": rotation_details,
-                "errors": [],
-            }, indent=2))
+            click.echo(
+                json.dumps(
+                    {
+                        "dry_run": dry_run,
+                        "secrets_rotated": 0,
+                        "details": rotation_details,
+                        "errors": [],
+                    },
+                    indent=2,
+                )
+            )
         else:
             console.print("\n[green]No secrets need rotation.[/green]")
         return
@@ -2629,13 +2567,18 @@ def rotate(
 
     if dry_run:
         if output_format == "json":
-            click.echo(json.dumps({
-                "dry_run": True,
-                "secrets_rotated": 0,
-                "would_rotate": [s.name for s in secrets_to_rotate],
-                "details": rotation_details,
-                "errors": [],
-            }, indent=2))
+            click.echo(
+                json.dumps(
+                    {
+                        "dry_run": True,
+                        "secrets_rotated": 0,
+                        "would_rotate": [s.name for s in secrets_to_rotate],
+                        "details": rotation_details,
+                        "errors": [],
+                    },
+                    indent=2,
+                )
+            )
         else:
             console.print("\n[yellow]DRY RUN:[/yellow] No changes will be made")
             for secret in secrets_to_rotate:
@@ -2656,12 +2599,17 @@ def rotate(
         results = engine.sync(dry_run=False, force_rotation=True)
 
         if output_format == "json":
-            click.echo(json.dumps({
-                "dry_run": False,
-                "secrets_rotated": results.get("secrets_generated", 0),
-                "details": rotation_details,
-                "errors": results.get("errors", []),
-            }, indent=2))
+            click.echo(
+                json.dumps(
+                    {
+                        "dry_run": False,
+                        "secrets_rotated": results.get("secrets_generated", 0),
+                        "details": rotation_details,
+                        "errors": results.get("errors", []),
+                    },
+                    indent=2,
+                )
+            )
         else:
             console.print(f"[green]✓[/green] Rotated {results['secrets_generated']} secrets")
 
@@ -2750,21 +2698,26 @@ def policy(file: str, lockfile: str, fail_on_warning: bool, output_format: str) 
     infos = [v for v in violations if v.severity == "info"]
 
     if output_format == "json":
-        click.echo(json.dumps({
-            "compliant": len(violations) == 0,
-            "violations": [
+        click.echo(
+            json.dumps(
                 {
-                    "secret": v.secret_name,
-                    "severity": v.severity,
-                    "message": v.message,
-                    "suggestion": v.suggestion,
-                }
-                for v in violations
-            ],
-            "errors_count": len(errors),
-            "warnings_count": len(warnings),
-            "info_count": len(infos),
-        }, indent=2))
+                    "compliant": len(violations) == 0,
+                    "violations": [
+                        {
+                            "secret": v.secret_name,
+                            "severity": v.severity,
+                            "message": v.message,
+                            "suggestion": v.suggestion,
+                        }
+                        for v in violations
+                    ],
+                    "errors_count": len(errors),
+                    "warnings_count": len(warnings),
+                    "info_count": len(infos),
+                },
+                indent=2,
+            )
+        )
         if errors or (fail_on_warning and warnings):
             sys.exit(EXIT_VALIDATION_ERROR)
         return
@@ -2855,18 +2808,23 @@ def drift(file: str, lockfile: str, output_format: str, secret_name: str | None)
     drift_found = any(r.has_drift for r in results)
 
     if output_format == "json":
-        click.echo(json.dumps({
-            "drift_detected": drift_found,
-            "results": [
+        click.echo(
+            json.dumps(
                 {
-                    "secret_name": r.secret_name,
-                    "has_drift": r.has_drift,
-                    "message": r.message,
-                    "details": r.details or {},
-                }
-                for r in results
-            ],
-        }, indent=2))
+                    "drift_detected": drift_found,
+                    "results": [
+                        {
+                            "secret_name": r.secret_name,
+                            "has_drift": r.has_drift,
+                            "message": r.message,
+                            "details": r.details or {},
+                        }
+                        for r in results
+                    ],
+                },
+                indent=2,
+            )
+        )
         if drift_found:
             sys.exit(EXIT_DRIFT_DETECTED)
         return
@@ -2974,24 +2932,35 @@ def graph(file: str, graph_type: str, output_format: str, output: str | None) ->
             nodes = []
             edges = []
             for secret in config.secrets:
-                nodes.append({
-                    "id": secret.name,
-                    "type": "secret",
-                    "kind": secret.kind,
-                    "one_time": secret.one_time,
-                    "rotation_period": secret.rotation_period,
-                })
+                nodes.append(
+                    {
+                        "id": secret.name,
+                        "type": "secret",
+                        "kind": secret.kind,
+                        "one_time": secret.one_time,
+                        "rotation_period": secret.rotation_period,
+                    }
+                )
                 # Generator → secret edge
-                edges.append({
-                    "from": secret.kind,
-                    "to": secret.name,
-                    "label": "generates",
-                })
+                edges.append(
+                    {
+                        "from": secret.kind,
+                        "to": secret.name,
+                        "label": "generates",
+                    }
+                )
                 # Secret → target edges
                 for target in secret.targets:
                     target_id = f"{target.provider}/{target.kind}"
                     if not any(n["id"] == target_id for n in nodes):
-                        nodes.append({"id": target_id, "type": "target", "provider": target.provider, "kind": target.kind})
+                        nodes.append(
+                            {
+                                "id": target_id,
+                                "type": "target",
+                                "provider": target.provider,
+                                "kind": target.kind,
+                            }
+                        )
                     edges.append({"from": secret.name, "to": target_id, "label": "stored_in"})
             json_graph = {"nodes": nodes, "edges": edges}
             graph_str = json.dumps(json_graph, indent=2)
@@ -3082,23 +3051,27 @@ def list_secrets(file: str, output_format: str, name_filter: str | None) -> None
         secrets = [s for s in secrets if name_filter.lower() in s.name.lower()]
 
     if output_format == "json":
-        click.echo(json.dumps(
-            {
-                "secrets": [
-                    {
-                        "name": s.name,
-                        "kind": s.kind,
-                        "one_time": s.one_time,
-                        "rotation_period": s.rotation_period,
-                        "targets_count": len(s.targets),
-                        "targets": [{"provider": t.provider, "kind": t.kind} for t in s.targets],
-                    }
-                    for s in secrets
-                ],
-                "total": len(secrets),
-            },
-            indent=2,
-        ))
+        click.echo(
+            json.dumps(
+                {
+                    "secrets": [
+                        {
+                            "name": s.name,
+                            "kind": s.kind,
+                            "one_time": s.one_time,
+                            "rotation_period": s.rotation_period,
+                            "targets_count": len(s.targets),
+                            "targets": [
+                                {"provider": t.provider, "kind": t.kind} for t in s.targets
+                            ],
+                        }
+                        for s in secrets
+                    ],
+                    "total": len(secrets),
+                },
+                indent=2,
+            )
+        )
         return
 
     if not secrets:
@@ -3154,21 +3127,23 @@ def list_providers(file: str, output_format: str) -> None:
         sys.exit(EXIT_CONFIG_ERROR)
 
     if output_format == "json":
-        click.echo(json.dumps(
-            {
-                "providers": [
-                    {
-                        "name": name,
-                        "kind": p.kind,
-                        "auth_kind": p.auth.kind if p.auth else None,
-                        "fallback_generator": p.fallback_generator,
-                    }
-                    for name, p in config.providers.items()
-                ],
-                "total": len(config.providers),
-            },
-            indent=2,
-        ))
+        click.echo(
+            json.dumps(
+                {
+                    "providers": [
+                        {
+                            "name": name,
+                            "kind": p.kind,
+                            "auth_kind": p.auth.kind if p.auth else None,
+                            "fallback_generator": p.fallback_generator,
+                        }
+                        for name, p in config.providers.items()
+                    ],
+                    "total": len(config.providers),
+                },
+                indent=2,
+            )
+        )
         return
 
     if not config.providers:
@@ -3220,12 +3195,14 @@ def list_targets(file: str, output_format: str) -> None:
     all_targets = []
     for secret in config.secrets:
         for t in secret.targets:
-            all_targets.append({
-                "secret": secret.name,
-                "provider": t.provider,
-                "kind": t.kind,
-                "config": t.config,
-            })
+            all_targets.append(
+                {
+                    "secret": secret.name,
+                    "provider": t.provider,
+                    "kind": t.kind,
+                    "config": t.config,
+                }
+            )
 
     if output_format == "json":
         click.echo(json.dumps({"targets": all_targets, "total": len(all_targets)}, indent=2))
@@ -3242,7 +3219,9 @@ def list_targets(file: str, output_format: str) -> None:
     table.add_column("Config")
 
     for t in all_targets:
-        config_str = ", ".join(f"{k}={v}" for k, v in t["config"].items()) if t["config"] else "[dim]—[/dim]"
+        config_str = (
+            ", ".join(f"{k}={v}" for k, v in t["config"].items()) if t["config"] else "[dim]—[/dim]"
+        )
         table.add_row(t["secret"], t["provider"], t["kind"], config_str)
 
     console.print(table)
@@ -3287,10 +3266,12 @@ def list_variables(file: str, output_format: str, name_filter: str | None) -> No
         variables = {k: v for k, v in variables.items() if name_filter.lower() in k.lower()}
 
     if output_format == "json":
-        click.echo(json.dumps(
-            {"variables": variables, "total": len(variables)},
-            indent=2,
-        ))
+        click.echo(
+            json.dumps(
+                {"variables": variables, "total": len(variables)},
+                indent=2,
+            )
+        )
         return
 
     if not variables:
@@ -3351,13 +3332,13 @@ def detect(directory: str, output_format: str, output: str | None) -> None:
 
     # Patterns that suggest a potential secret value assignment in dotenv/shell files.
     # Group 1 captures the variable name (uppercase, with keyword suffix/prefix).
-    _SECRET_SUFFIXES = r"(PASSWORD|SECRET|KEY|TOKEN|CREDENTIAL|CERT|PRIVATE)"
-    _SECRET_PREFIXES = r"(PWD|PASS|AUTH|API)"
+    secret_suffixes = r"(PASSWORD|SECRET|KEY|TOKEN|CREDENTIAL|CERT|PRIVATE)"
+    secret_prefixes = r"(PWD|PASS|AUTH|API)"
     secret_patterns = [
         # VAR_NAME with a secret-related keyword anywhere in the suffix, e.g. DATABASE_PASSWORD=
-        (re.compile(rf"^([A-Z_][A-Z0-9_]*{_SECRET_SUFFIXES}[A-Z0-9_]*)=", re.M), "dotenv"),
+        (re.compile(rf"^([A-Z_][A-Z0-9_]*{secret_suffixes}[A-Z0-9_]*)=", re.M), "dotenv"),
         # VAR_NAME ending with a short secret keyword, e.g. DB_PASS= or MY_API=
-        (re.compile(rf"^([A-Z_][A-Z0-9_]*_{_SECRET_PREFIXES})\s*=", re.M), "dotenv"),
+        (re.compile(rf"^([A-Z_][A-Z0-9_]*_{secret_prefixes})\s*=", re.M), "dotenv"),
     ]
 
     env_file_patterns = ["**/.env*", "**/secrets*", "**/credentials*", "**/*.env"]
@@ -3367,7 +3348,9 @@ def detect(directory: str, output_format: str, output: str | None) -> None:
     # Scan env-style files
     for glob_pattern in env_file_patterns:
         for path in dir_path.glob(glob_pattern):
-            if path.is_file() and not any(p in str(path) for p in [".git", "__pycache__", ".venv", "node_modules"]):
+            if path.is_file() and not any(
+                p in str(path) for p in [".git", "__pycache__", ".venv", "node_modules"]
+            ):
                 try:
                     content = path.read_text(errors="ignore")
                     for pattern, file_type in secret_patterns:
@@ -3386,17 +3369,25 @@ def detect(directory: str, output_format: str, output: str | None) -> None:
     # Build suggestions
     suggestions = []
     for var_name, info in sorted(found.items()):
-        suggestions.append({
-            "name": var_name,
-            "env_var": info["env_var"],
-            "source_file": info["file"],
-            "suggested_config": {
+        suggestions.append(
+            {
                 "name": var_name,
-                "kind": "static",
-                "config": {"default": f"${{{info['env_var']}}}"},
-                "targets": [{"provider": "local", "kind": "file", "config": {"path": ".env", "format": "dotenv"}}],
-            },
-        })
+                "env_var": info["env_var"],
+                "source_file": info["file"],
+                "suggested_config": {
+                    "name": var_name,
+                    "kind": "static",
+                    "config": {"default": f"${{{info['env_var']}}}"},
+                    "targets": [
+                        {
+                            "provider": "local",
+                            "kind": "file",
+                            "config": {"path": ".env", "format": "dotenv"},
+                        }
+                    ],
+                },
+            }
+        )
 
     if output_format == "json":
         click.echo(json.dumps({"detected": suggestions, "total": len(suggestions)}, indent=2))
@@ -3404,7 +3395,9 @@ def detect(directory: str, output_format: str, output: str | None) -> None:
 
     if not suggestions:
         console.print("[green]✓ No potential secrets detected in directory.[/green]")
-        console.print("\n[dim]Tip: Ensure your .env files and config files are in the scanned directory.[/dim]")
+        console.print(
+            "\n[dim]Tip: Ensure your .env files and config files are in the scanned directory.[/dim]"
+        )
         return
 
     console.print(f"[bold]Detected {len(suggestions)} potential secret(s):[/bold]\n")
@@ -3425,14 +3418,14 @@ def detect(directory: str, output_format: str, output: str | None) -> None:
         cfg = s["suggested_config"]
         fragment_lines.append(f"  - name: {cfg['name']}")
         fragment_lines.append(f"    kind: {cfg['kind']}")
-        fragment_lines.append(f"    config:")
-        fragment_lines.append(f"      default: \"{cfg['config']['default']}\"")
-        fragment_lines.append(f"    targets:")
-        fragment_lines.append(f"      - provider: local")
-        fragment_lines.append(f"        kind: file")
-        fragment_lines.append(f"        config:")
-        fragment_lines.append(f"          path: .env")
-        fragment_lines.append(f"          format: dotenv")
+        fragment_lines.append("    config:")
+        fragment_lines.append(f'      default: "{cfg["config"]["default"]}"')
+        fragment_lines.append("    targets:")
+        fragment_lines.append("      - provider: local")
+        fragment_lines.append("        kind: file")
+        fragment_lines.append("        config:")
+        fragment_lines.append("          path: .env")
+        fragment_lines.append("          format: dotenv")
 
     fragment = "\n".join(fragment_lines)
 
