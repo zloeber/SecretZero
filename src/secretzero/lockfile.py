@@ -132,6 +132,20 @@ class Lockfile(BaseModel):
         """
         return self.secrets.get(secret_name)
 
+    def remove_secret(self, secret_name: str) -> bool:
+        """Remove a secret from the lockfile.
+
+        Args:
+            secret_name: Name of the secret to remove
+
+        Returns:
+            True if secret was removed, False if it didn't exist
+        """
+        if secret_name in self.secrets:
+            del self.secrets[secret_name]
+            return True
+        return False
+
     def track_secretfile(self, secretfile_path: Path, secretfile_content: str) -> None:
         """Track the Secretfile definition for change detection.
 

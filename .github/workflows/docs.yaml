@@ -32,7 +32,7 @@ jobs:
       - name: Install dependencies
         run: |
           uv venv
-          uv sync --extra docs
+          uv sync --all-extras
 
       - name: Build docs
         run: |

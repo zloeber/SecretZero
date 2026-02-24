@@ -279,6 +279,142 @@ templates: {}
         )
 
 
+def test_sync_clean_orphaned_entries(runner: CliRunner) -> None:
+    """Test sync --clean removes orphaned lockfile entries."""
+    with TemporaryDirectory() as tmpdir:
+        secretfile = Path(tmpdir) / "Secretfile.yml"
+        lockfile_path = Path(tmpdir) / "test.lock"
+        output_file = Path(tmpdir) / "secret.txt"
+
+        # Create secretfile with one secret
+        secretfile.write_text(f"""
+version: "1.0"
+secrets:
+  - name: current_secret
+    kind: random_password
+    config:
+      length: 16
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: {output_file}
+""")
+
+        # Create lockfile with current_secret and orphaned entries
+        from secretzero.lockfile import Lockfile, SecretLockEntry
+        from datetime import datetime, UTC
+
+        lock = Lockfile()
+        now = datetime.now(UTC).isoformat()
+
+        # Add current secret
+        lock.secrets["current_secret"] = SecretLockEntry(
+            hash="abc123", created_at=now, updated_at=now
+        )
+
+        # Add orphaned entries (secrets that don't exist in Secretfile)
+        lock.secrets["old_secret_1"] = SecretLockEntry(
+            hash="def456", created_at=now, updated_at=now
+        )
+        lock.secrets["old_secret_2"] = SecretLockEntry(
+            hash="ghi789", created_at=now, updated_at=now
+        )
+
+        lock.save(lockfile_path)
+
+        # Verify lockfile has 3 entries
+        loaded_lock = Lockfile.load(lockfile_path)
+        assert len(loaded_lock.secrets) == 3
+
+        # Run sync with --clean flag
+        result = runner.invoke(
+            main, ["sync", "--file", str(secretfile), "--lockfile", str(lockfile_path), "--clean"]
+        )
+        if result.exit_code != 0:
+            print(f"Exit code: {result.exit_code}")
+            print(f"Output: {result.output}")
+            if result.exception:
+                import traceback
+
+                traceback.print_exception(
+                    type(result.exception), result.exception, result.exception.__traceback__
+                )
+        assert result.exit_code == 0
+
+        # Verify orphaned entries were removed
+        cleaned_lock = Lockfile.load(lockfile_path)
+        assert len(cleaned_lock.secrets) == 1
+        assert "current_secret" in cleaned_lock.secrets
+        assert "old_secret_1" not in cleaned_lock.secrets
+        assert "old_secret_2" not in cleaned_lock.secrets
+
+        # Check output mentions cleaning
+        assert "Cleaned" in result.output or "cleaned" in result.output
+
+
+def test_sync_clean_dry_run(runner: CliRunner) -> None:
+    """Test sync --clean --dry-run doesn't actually remove entries."""
+    with TemporaryDirectory() as tmpdir:
+        secretfile = Path(tmpdir) / "Secretfile.yml"
+        lockfile_path = Path(tmpdir) / "test.lock"
+        output_file = Path(tmpdir) / "secret.txt"
+
+        # Create secretfile with one secret
+        secretfile.write_text(f"""
+version: "1.0"
+secrets:
+  - name: current_secret
+    kind: random_password
+    config:
+      length: 16
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: {output_file}
+""")
+
+        # Create lockfile with orphaned entries
+        from secretzero.lockfile import Lockfile, SecretLockEntry
+        from datetime import datetime, UTC
+
+        lock = Lockfile()
+        now = datetime.now(UTC).isoformat()
+
+        lock.secrets["current_secret"] = SecretLockEntry(
+            hash="abc123", created_at=now, updated_at=now
+        )
+        lock.secrets["orphaned_secret"] = SecretLockEntry(
+            hash="def456", created_at=now, updated_at=now
+        )
+
+        lock.save(lockfile_path)
+
+        # Run sync with --clean and --dry-run
+        result = runner.invoke(
+            main,
+            [
+                "sync",
+                "--file",
+                str(secretfile),
+                "--lockfile",
+                str(lockfile_path),
+                "--clean",
+                "--dry-run",
+            ],
+        )
+        assert result.exit_code == 0
+
+        # Verify orphaned entry is still present (dry run)
+        cleaned_lock = Lockfile.load(lockfile_path)
+        assert len(cleaned_lock.secrets) == 2
+        assert "orphaned_secret" in cleaned_lock.secrets
+
+        # Check output mentions what would be cleaned
+        assert "Would remove" in result.output or "dry run" in result.output.lower()
+
+
 def test_show_command(runner: CliRunner) -> None:
     """Test show command."""
     with TemporaryDirectory() as tmpdir:

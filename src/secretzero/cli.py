@@ -739,28 +739,219 @@ def _show_target_status(
     else:
         target_icon = "[yellow]○[/yellow]"
 
-    # Format target display
-    target_display = f"{target.provider}/{target.kind}"
-
-    # Add target-specific info
-    if target.kind == "ssm_parameter":
-        param_name = target.config.get("name", "")
-        target_display += f" ({param_name})"
-    elif target.kind == "secrets_manager":
-        secret_id = target.config.get("name", "")
-        target_display += f" ({secret_id})"
-    elif target.kind == "file":
-        file_path = target.config.get("path", "")
-        target_display += f" ({file_path})"
-    elif target.kind == "key_vault":
-        vault_name = target.config.get("vault_name", "")
-        secret_key = target.config.get("name", "")
-        target_display += f" ({vault_name}/{secret_key})"
+    # Format target display with provider and kind
+    target_display = f"[bold]{target.provider}[/bold] → {target.kind}"
 
     console.print(f"{indent}{target_icon} {target_display}")
 
+    # Show target configuration details
+    _show_target_config_details(target, indent, verbose, target_hash)
+
+
+def _show_target_config_details(
+    target, indent: str, verbose: bool, target_hash: str | None
+) -> None:
+    """Show detailed configuration for a target.
+
+    Args:
+        target: Target configuration
+        indent: Base indentation for display
+        verbose: Whether to show detailed information
+        target_hash: Target hash if synced
+    """
+    config = target.config
+    config_indent = indent + "   "
+
+    # Show primary storage location based on target kind
+    if target.kind == "file":
+        path = config.get("path", "")
+        fmt = config.get("format", "raw")
+        path_display = f"[cyan]{path}[/cyan]" if path else "[yellow]Not configured[/yellow]"
+        console.print(f"{config_indent}📄 Path: {path_display}")
+        if fmt and fmt != "raw":
+            console.print(f"{config_indent}   Format: {fmt}")
+        if config.get("merge"):
+            console.print(f"{config_indent}   Merge mode: enabled")
+        _show_config_variables(config, config_indent, verbose)
+        if verbose:
+            _show_all_config_raw(config, config_indent)
+
+    elif target.kind == "ssm_parameter":
+        name = config.get("name", "")
+        param_type = config.get("type", "String")
+        name_display = f"[cyan]{name}[/cyan]" if name else "[yellow]Not configured[/yellow]"
+        console.print(f"{config_indent}🔐 Parameter: {name_display}")
+        console.print(f"{config_indent}   Type: {param_type}")
+        if config.get("overwrite"):
+            console.print(f"{config_indent}   Overwrite: enabled")
+        if config.get("description"):
+            console.print(f"{config_indent}   Description: {config.get('description')}")
+        if config.get("tier"):
+            console.print(f"{config_indent}   Tier: {config.get('tier')}")
+        _show_config_variables(config, config_indent, verbose)
+        if verbose:
+            _show_all_config_raw(config, config_indent)
+
+    elif target.kind == "secrets_manager":
+        name = config.get("name", "")
+        name_display = f"[cyan]{name}[/cyan]" if name else "[yellow]Not configured[/yellow]"
+        console.print(f"{config_indent}🔐 Secret: {name_display}")
+        if config.get("region"):
+            console.print(f"{config_indent}   Region: {config.get('region')}")
+        if config.get("description"):
+            console.print(f"{config_indent}   Description: {config.get('description')}")
+        if config.get("kms_key_id"):
+            console.print(f"{config_indent}   KMS Key: {config.get('kms_key_id')}")
+        _show_config_variables(config, config_indent, verbose)
+        if verbose:
+            _show_all_config_raw(config, config_indent)
+
+    elif target.kind == "key_vault":
+        vault_name = config.get("vault_name", "")
+        secret_name = config.get("name", "")
+        vault_display = (
+            f"[cyan]{vault_name}[/cyan]" if vault_name else "[yellow]Not configured[/yellow]"
+        )
+        secret_display = (
+            f"[cyan]{secret_name}[/cyan]" if secret_name else "[yellow]Not configured[/yellow]"
+        )
+        console.print(f"{config_indent}🔒 Vault: {vault_display}")
+        console.print(f"{config_indent}   Secret Name: {secret_display}")
+        _show_config_variables(config, config_indent, verbose)
+        if verbose:
+            _show_all_config_raw(config, config_indent)
+
+    elif target.kind == "kubernetes":
+        namespace = config.get("namespace", "default")
+        secret_name = config.get("name", "")
+        secret_display = (
+            f"[cyan]{secret_name}[/cyan]" if secret_name else "[yellow]Not configured[/yellow]"
+        )
+        console.print(f"{config_indent}☸️  Namespace: [cyan]{namespace}[/cyan]")
+        console.print(f"{config_indent}   Secret Name: {secret_display}")
+        if config.get("secret_type"):
+            console.print(f"{config_indent}   Type: {config.get('secret_type')}")
+        if config.get("create_if_missing"):
+            console.print(f"{config_indent}   Auto-create: enabled")
+        _show_config_variables(config, config_indent, verbose)
+        if verbose:
+            _show_all_config_raw(config, config_indent)
+
+    elif target.kind == "vault":
+        path = config.get("path", "")
+        engine = config.get("engine", "secret")
+        path_display = f"[cyan]{path}[/cyan]" if path else "[yellow]Not configured[/yellow]"
+        console.print(f"{config_indent}🏦 Engine: [cyan]{engine}[/cyan]")
+        console.print(f"{config_indent}   Path: {path_display}")
+        if config.get("mount_point"):
+            console.print(f"{config_indent}   Mount Point: {config.get('mount_point')}")
+        _show_config_variables(config, config_indent, verbose)
+        if verbose:
+            _show_all_config_raw(config, config_indent)
+
+    elif target.kind == "github_secret":
+        repo = config.get("repository", "")
+        visibility = config.get("visibility", "private")
+        repo_display = f"[cyan]{repo}[/cyan]" if repo else "[yellow]Not configured[/yellow]"
+        console.print(f"{config_indent}🐙 Repository: {repo_display}")
+        console.print(f"{config_indent}   Visibility: {visibility}")
+        if config.get("secret_name"):
+            console.print(f"{config_indent}   Secret Name: {config.get('secret_name')}")
+        _show_config_variables(config, config_indent, verbose)
+        if verbose:
+            _show_all_config_raw(config, config_indent)
+
+    elif target.kind == "gitlab_secret":
+        project = config.get("project_id", "")
+        project_display = (
+            f"[cyan]{project}[/cyan]" if project else "[yellow]Not configured[/yellow]"
+        )
+        console.print(f"{config_indent}🦊 Project: {project_display}")
+        if config.get("variable_name"):
+            console.print(f"{config_indent}   Variable Name: {config.get('variable_name')}")
+        if config.get("protected"):
+            console.print(f"{config_indent}   Protected: {config.get('protected')}")
+        if config.get("masked"):
+            console.print(f"{config_indent}   Masked: {config.get('masked')}")
+        _show_config_variables(config, config_indent, verbose)
+        if verbose:
+            _show_all_config_raw(config, config_indent)
+
+    elif target.kind == "jenkins_credential":
+        credential_id = config.get("credential_id", "")
+        credential_type = config.get("credential_type", "secret_text")
+        cred_display = (
+            f"[cyan]{credential_id}[/cyan]" if credential_id else "[yellow]Not configured[/yellow]"
+        )
+        console.print(f"{config_indent}🔨 Credential ID: {cred_display}")
+        console.print(f"{config_indent}   Type: {credential_type}")
+        if config.get("folder"):
+            console.print(f"{config_indent}   Folder: {config.get('folder')}")
+        _show_config_variables(config, config_indent, verbose)
+        if verbose:
+            _show_all_config_raw(config, config_indent)
+
+    else:
+        # Generic target - show all config
+        console.print(f"{config_indent}Configuration:")
+        for key, value in config.items():
+            if isinstance(value, dict):
+                console.print(f"{config_indent}   {key}:")
+                for k, v in value.items():
+                    console.print(f"{config_indent}      {k}: {v}")
+            else:
+                console.print(f"{config_indent}   {key}: {value}")
+
+    # Show hash if verbose
     if verbose and target_hash:
-        console.print(f"{indent}   [dim]Hash: {target_hash[:16]}...[/dim]")
+        console.print(f"{config_indent}[dim]Hash: {target_hash[:16]}...[/dim]")
+
+
+def _show_config_variables(config: dict, indent: str, verbose: bool) -> None:
+    """Show any variable references in configuration.
+
+    Args:
+        config: Configuration dictionary
+        indent: Indentation for display
+        verbose: Whether to show detailed information
+    """
+    import re
+
+    # Find all variable references like {{var.name}} or ${VAR_NAME}
+    variable_pattern = re.compile(r"\{\{var\.(\w+)\}\}|\$\{(\w+)\}")
+    found_vars = set()
+
+    for value in config.values():
+        if isinstance(value, str):
+            matches = variable_pattern.findall(value)
+            for match in matches:
+                var_name = match[0] or match[1]
+                found_vars.add(var_name)
+
+    if found_vars and verbose:
+        console.print(f"{indent}Variables used:")
+        for var_name in sorted(found_vars):
+            console.print(f"{indent}   • [yellow]{var_name}[/yellow]")
+
+
+def _show_all_config_raw(config: dict, indent: str) -> None:
+    """Show all raw configuration values for debugging.
+
+    Args:
+        config: Configuration dictionary
+        indent: Indentation for display
+    """
+    console.print(f"{indent}[dim]Raw Configuration:[/dim]")
+    for key, value in config.items():
+        if value == "":
+            value_display = "[yellow]<empty>[/yellow]"
+        elif isinstance(value, bool):
+            value_display = "[green]true[/green]" if value else "[red]false[/red]"
+        elif isinstance(value, dict):
+            value_display = "{...}"
+        else:
+            value_display = str(value)
+        console.print(f"{indent}   {key}: {value_display}")
 
 
 @main.group()
@@ -1832,6 +2023,11 @@ def _show_provider_details(provider_name: str, target_name: str | None, verbose:
     default="text",
     help="Output format (text or json)",
 )
+@click.option(
+    "--clean",
+    is_flag=True,
+    help="Remove lockfile entries that have no corresponding secret in the Secretfile",
+)
 def sync(
     file: str,
     lockfile: str,
@@ -1842,6 +2038,7 @@ def sync(
     no_prompt: bool,
     secrets: tuple[str, ...],
     output_format: str,
+    clean: bool,
 ) -> None:
     """Generate and synchronize secrets to targets.
 
@@ -1914,6 +2111,26 @@ def sync(
     # Load lockfile
     lock = Lockfile.load(lockfile_path)
 
+    # Check for orphaned lockfile entries and warn if found
+    orphaned_entries = _find_lockfile_orphans(config, lock)
+    if orphaned_entries and output_format == "text":
+        console.print(
+            f"[yellow]⚠ Warning:[/yellow] {len(orphaned_entries)} orphaned entr{'y' if len(orphaned_entries) == 1 else 'ies'} in lockfile (not in Secretfile)"
+        )
+        if len(orphaned_entries) <= 10:
+            for entry in orphaned_entries:
+                console.print(f"  - {entry}")
+        else:
+            for entry in orphaned_entries[:10]:
+                console.print(f"  - {entry}")
+            console.print(f"  ... and {len(orphaned_entries) - 10} more")
+        console.print("  Use [cyan]secretzero sync --clean[/cyan] to remove orphaned entries\n")
+
+    # Clean orphaned lockfile entries if requested
+    cleaned_entries = []
+    if clean:
+        cleaned_entries = _clean_lockfile_orphans(config, lock, dry_run)
+
     # Create sync engine and run with secretfile tracking
     engine = SyncEngine(
         config,
@@ -1978,6 +2195,8 @@ def sync(
             }
             if plan_details is not None:
                 json_result["plan_details"] = plan_details
+            if clean:
+                json_result["cleaned"] = cleaned_entries
             click.echo(json.dumps(json_result, indent=2, default=str))
             if results.get("errors"):
                 sys.exit(EXIT_UNKNOWN_ERROR)
@@ -2031,10 +2250,33 @@ def sync(
             console.print(f"[red]✗ Failed:[/red] {failed_count} secret(s) had errors")
         if skipped_count > 0:
             console.print(f"[yellow]⊙ Skipped:[/yellow] {skipped_count} secret(s) skipped")
+        if cleaned_entries:
+            console.print(
+                f"[cyan]🗑 Cleaned:[/cyan] {len(cleaned_entries)} orphaned lockfile entr{'y' if len(cleaned_entries) == 1 else 'ies'}"
+            )
 
         # Show if secretfile changed
         if results.get("secretfile_changed"):
             console.print("\n[yellow]⚠ Secretfile has changed since last sync[/yellow]")
+
+        # Show cleaned entries
+        if cleaned_entries:
+            console.print(
+                f"\n[bold cyan]Cleaned Lockfile Entries[/bold cyan] ({len(cleaned_entries)} orphaned)"
+            )
+            cleaned_table = Table(show_header=True, header_style="bold cyan", box=box.ROUNDED)
+            cleaned_table.add_column("Status", justify="center", width=8)
+            cleaned_table.add_column("Secret Name", style="yellow")
+            cleaned_table.add_column("Result", style="dim")
+
+            for entry_name in cleaned_entries:
+                status_icon = "[cyan]🗑[/cyan]" if not dry_run else "[dim]•[/dim]"
+                result_text = (
+                    "[cyan]Removed[/cyan]" if not dry_run else "[dim]Would remove (dry run)[/dim]"
+                )
+                cleaned_table.add_row(status_icon, entry_name, result_text)
+
+            console.print(cleaned_table)
 
         # Create detailed results table
         if results["details"]:
@@ -2146,7 +2388,7 @@ def sync(
 
         # Save lockfile if not dry run and secrets were stored
         if not dry_run:
-            if results["secrets_stored"] > 0:
+            if results["secrets_stored"] > 0 or cleaned_entries:
                 lock.save(lockfile_path)
                 console.print(f"\n[green]✓[/green] Lockfile saved: {lockfile_path}")
             else:
@@ -2180,6 +2422,64 @@ def sync(
         else:
             console.print(f"\n[red]Error during sync:[/red] {e}")
         sys.exit(EXIT_UNKNOWN_ERROR)
+
+
+def _find_lockfile_orphans(config, lock: Lockfile) -> list[str]:
+    """Find lockfile entries with no corresponding Secretfile definition.
+
+    Args:
+        config: Loaded Secretfile configuration
+        lock: Lockfile instance
+
+    Returns:
+        List of secret names that are orphaned in the lockfile
+    """
+    # Collect all valid secret names from Secretfile
+    valid_secret_names = set()
+
+    # Add regular secrets
+    for secret in config.secrets:
+        valid_secret_names.add(secret.name)
+
+        # If it's a template secret, also add all field names
+        if secret.kind.startswith("templates."):
+            template_name = secret.kind.replace("templates.", "")
+            template = config.templates.get(template_name)
+            if template and template.fields:
+                for field_name in template.fields.keys():
+                    field_secret_name = f"{secret.name}.{field_name}"
+                    valid_secret_names.add(field_secret_name)
+
+    # Find orphaned entries in lockfile
+    orphaned_entries = []
+    lockfile_secrets_dict = lock.secrets  # Get the dict directly
+    for secret_name in lockfile_secrets_dict:  # Iterate without converting to list first
+        if secret_name not in valid_secret_names:
+            orphaned_entries.append(secret_name)
+
+    return orphaned_entries
+
+
+def _clean_lockfile_orphans(config, lock: Lockfile, dry_run: bool) -> list[str]:
+    """Find and remove lockfile entries with no corresponding Secretfile definition.
+
+    Args:
+        config: Loaded Secretfile configuration
+        lock: Lockfile instance
+        dry_run: If True, only report what would be removed
+
+    Returns:
+        List of secret names that were (or would be) removed
+    """
+    # Find orphaned entries using the shared detection function
+    orphaned_entries = _find_lockfile_orphans(config, lock)
+
+    # Remove orphaned entries (unless dry run)
+    if not dry_run and orphaned_entries:
+        for secret_name in orphaned_entries:
+            lock.remove_secret(secret_name)
+
+    return orphaned_entries
 
 
 def _show_all_secrets(engine: SyncEngine, config) -> None:

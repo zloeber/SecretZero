@@ -104,11 +104,13 @@ markdown_extensions:
   - pymdownx.tasklist:
       custom_checkbox: true
   - pymdownx.tilde
+  - mkdocs_click
 
 plugins:
   - search:
       lang: en
   - include-markdown
+  - swagger-ui-tag
   - mkdocstrings:
       handlers:
         python:
@@ -221,9 +223,13 @@ nav:
       - Complete Examples: examples/complete.md
       - GitHub Repository: examples/repository.md
   - Reference:
-      - reference/index.md
       - Architecture: reference/architecture.md
       - Data Models: reference/models.md
+      - reference/index.md
+      - CLI Basics: reference/cli.md
+      - CLI Auto-Reference: reference/cli-auto.md
+      - API Interactive: reference/api-interactive.md
+      - API Python Reference: reference/api-python.md
       - FAQ: reference/faq.md
       - Troubleshooting: reference/troubleshooting.md
       - Changelog: reference/changelog.md

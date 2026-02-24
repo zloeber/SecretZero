@@ -15,18 +15,23 @@ task format lint:fix
 task lint
 ```
 
-Run this command to check for documentation issues and resolve them:
-```bash
-# Check for documentation issues
-task docs:build
-```
-
 Run this command to ensure all code builds successfully:
 ```bash
 task build
+```
+Run this command to check for and resolve any security issues:
+
+```bash
+task security:check
 ```
 
 Run this command to update the root Secretfile.schema.json file:
 ```bash
 task schema:update
+```
+
+Build the documentation to ensure there are no issues. Ensure you have resolved any issues or missing links:
+```bash
+# Check for documentation issues
+task docs:build
 ```

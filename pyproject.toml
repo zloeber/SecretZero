@@ -83,6 +83,8 @@ docs = [
     "mkdocs-include-markdown-plugin>=6.0.0",
     "mkdocstrings[python]>=0.24.0",
     "pymdown-extensions>=10.0.0",
+    "mkdocs-click>=0.8.0",
+    "mkdocs-swagger-ui-tag>=0.6.0",
 ]
 security = [
     "bandit",
@@ -112,6 +114,8 @@ all = [
     "mkdocs-include-markdown-plugin>=6.0.0",
     "mkdocstrings[python]>=0.24.0",
     "pymdown-extensions>=10.0.0",
+    "mkdocs-click>=0.8.0",
+    "mkdocs-swagger-ui-tag>=0.6.0",
 ]
 
 [project.scripts]

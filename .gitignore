@@ -33,9 +33,9 @@ secret_results.json
 !.env.EXAMPLE
 
 # Documentation build output
-site/
+site
 localstack-data/
-data/
+data
 src/secretzero/_version.py
 node_modules
 .wrangler

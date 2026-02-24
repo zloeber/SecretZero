@@ -1,22 +1,37 @@
 # Welcome to SecretZero
 
-<img 
-    style="display: block; 
-           margin-left: auto;
-           margin-right: auto;
-           width: 100%;"
-    src="./inc/secret0_angel_small.png" 
-    alt="Secret0 Logo">
-
-
 <div align="center">
-  <img src="https://img.shields.io/badge/status-stable-green.svg" alt="Status: Stable">
-  <img src="https://img.shields.io/badge/python-3.9+-blue.svg" alt="Python 3.9+">
-  <img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License: Apache 2.0">
-  <img src="https://github.com/zloeber/SecretZero/workflows/tests/badge.svg" alt="Tests">
-  <img src="https://github.com/zloeber/SecretZero/workflows/build/badge.svg" alt="Build">
-  <img src="https://codecov.io/gh/zloeber/SecretZero/branch/main/graph/badge.svg" alt="Coverage">
+<a href="https://secret0.com/">
+<img src="inc/secret0_angel_small.png" width="520" alt="Secret0 logo">
+</a>
 </div>
+
+<p align="center">
+    <a href="https://github.com/zloeber/SecretZero/releases/latest">
+        <img src="https://img.shields.io/github/v/release/zloeber/SecretZero?color=blue&label=Latest%20Release" alt="Latest Release">
+    </a>
+    <a href="https://github.com/zloeber/SecretZero/blob/main/LICENSE">
+        <img src="https://img.shields.io/badge/License-Apache--2.0-ffffff?labelColor=d4eaf7&color=2e6cc4" alt="License: Apache 2.0">
+    </a>
+    <a href="https://deepwiki.com/zloeber/SecretZero">
+        <img alt="Ask DeepWiki" src="https://deepwiki.com/badge.svg">
+    </a>
+    <img src="https://img.shields.io/badge/status-stable-green.svg" alt="Status: Stable">
+    <img src="https://img.shields.io/badge/python-3.12+-blue.svg" alt="Python 3.12+">
+    <img src="https://github.com/zloeber/SecretZero/actions/workflows/test.yaml/badge.svg" alt="Tests">
+    <img src="https://github.com/zloeber/SecretZero/actions/workflows/docker.yaml/badge.svg" alt="Build">
+</p>
+
+## The Problem
+
+If you have ever asked any of these questions about a new or existing git project then SecretZero is for you!
+
+- Where are all the secrets in my project?
+- How do I generate new secrets, api keys, or certificates to deploy a whole new environment?
+- How do I handle secret-zero?
+- When were my critical project secrets last rotated?
+- If I needed to bootstrap this entire project from scratch would I be able to do so without manually handling any secrets?
+- How do I document my project's secrets surface area and requirements?
 
 ## Secrets Orchestration, Lifecycle, and Bootstrap Engine
 
@@ -29,7 +44,6 @@ SecretZero is a secrets management tool that automates the creation, seeding, an
 
 !!! warning "Active Development"
     SecretZero is actively being developed. Features and APIs may change between releases. Please refer to the [CHANGELOG](./reference/changelog.md) for breaking changes and version your dependencies accordingly.
-
 
 ## Why SecretZero?
 

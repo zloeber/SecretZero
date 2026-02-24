@@ -6,7 +6,10 @@ Authoritative reference material for SecretZero.
 
 - [Architecture](architecture.md)
 - [Data Models](models.md)
-- [CLI Reference](cli.md)
+- [API - Interactive](api-interactive.md)
+- [API - Python](api-python.md)
+- [CLI - Basics](cli.md)
+- [CLI - Auto-Reference](cli-auto.md)
 - [Security](security.md)
 - [FAQ](faq.md)
 - [Troubleshooting](troubleshooting.md)

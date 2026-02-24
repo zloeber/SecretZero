@@ -149,13 +149,13 @@ tasks:
   docs:build:
     desc: Build the MkDocs site into ./site
     cmds:
-      - uv sync --extra docs
+      - uv sync --all-extras
       - uv run mkdocs build --clean
 
   docs:serve:
     desc: Serve MkDocs locally with live reload
     cmds:
-      - uv sync --extra docs
+      - uv sync --all-extras
       - uv run mkdocs serve --dev-addr 127.0.0.1:8001
 
   docker:build:

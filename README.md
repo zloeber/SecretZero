@@ -1,14 +1,28 @@
 # SecretZero
+<div align="center">
+<a href="https://secret0.com/">
+<img src="docs/inc/secret0_angel_small.png" width="520" alt="Secret0 logo">
+</a>
+</div>
 
-SecretZero is a secrets orchestration, lifecycle, and bootstrap engine.
-
-<img 
-    style="display: block; 
-           margin-left: auto;
-           margin-right: auto;
-           width: 100%;"
-    src="./docs/inc/secret0_angel_small.png" 
-    alt="Secret0 Logo">
+<p align="center">
+    <!-- <a href="https://hub.docker.com/r/zloeber/SecretZero" target="_blank">
+        <img src="https://img.shields.io/docker/pulls/zloeber/SecretZero?label=Docker%20Pulls&color=0db7ed&logo=docker&logoColor=white&style=flat-square" alt="docker pull zloeber/SecretZero:v0.24.0">
+    </a> -->
+    <a href="https://github.com/zloeber/SecretZero/releases/latest">
+        <img src="https://img.shields.io/github/v/release/zloeber/SecretZero?color=blue&label=Latest%20Release" alt="Latest Release">
+    </a>
+    <a href="https://github.com/zloeber/SecretZero/blob/main/LICENSE">
+        <img height="21" src="https://img.shields.io/badge/License-Apache--2.0-ffffff?labelColor=d4eaf7&color=2e6cc4" alt="License: Apache 2.0">
+    </a>
+    <a href="https://deepwiki.com/zloeber/SecretZero">
+        <img alt="Ask DeepWiki" src="https://deepwiki.com/badge.svg">
+    </a>
+    <img src="https://img.shields.io/badge/status-stable-green.svg" alt="Status: Stable">
+    <img src="https://img.shields.io/badge/python-3.12+-blue.svg" alt="Python 3.12+">
+    <img src="https://github.com/zloeber/SecretZero/actions/workflows/test.yaml/badge.svg" alt="Tests">
+    <img src="https://github.com/zloeber/SecretZero/actions/workflows/docker.yaml/badge.svg" alt="Build">
+</p>
 
 SecretZero is a secrets as code management tool that automates the creation, seeding, and lifecycle management of project secrets through self-documenting declarative manifests. The very first secrets you seed for a new project or environment (known in the industry as 'secret-zero') are often the most difficult to track, maintain, seed, audit, and rotate. SecretZero aims to be an answer to this madness.
 
