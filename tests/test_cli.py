@@ -1,6 +1,7 @@
 """Tests for CLI commands."""
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -335,3 +336,89 @@ templates: {}
         )
         assert result.exit_code != 0
         assert "not found" in result.output
+
+
+def test_audit_command_no_log_file(runner: CliRunner) -> None:
+    """Test audit command when no log file exists."""
+    with TemporaryDirectory() as tmpdir:
+        log_path = Path(tmpdir) / "audit.log"
+        result = runner.invoke(main, ["audit", "--log-file", str(log_path)])
+        assert result.exit_code == 0
+        assert "No audit log entries" in result.output or "not found" in result.output
+
+
+def test_audit_command_with_log_file(runner: CliRunner) -> None:
+    """Test audit command reads from an existing log file."""
+    with TemporaryDirectory() as tmpdir:
+        log_path = Path(tmpdir) / "audit.log"
+        # Write a sample audit log entry
+        entry = {
+            "timestamp": datetime.now(UTC).isoformat(),
+            "action": "sync",
+            "resource": "secrets",
+            "user": "api",
+            "details": {"count": 2},
+            "success": True,
+        }
+        log_path.write_text(json.dumps(entry) + "\n")
+
+        result = runner.invoke(main, ["audit", "--log-file", str(log_path)])
+        assert result.exit_code == 0
+        assert "sync" in result.output
+        assert "secrets" in result.output
+
+
+def test_audit_command_json_format(runner: CliRunner) -> None:
+    """Test audit command with JSON output format."""
+    with TemporaryDirectory() as tmpdir:
+        log_path = Path(tmpdir) / "audit.log"
+        entry = {
+            "timestamp": datetime.now(UTC).isoformat(),
+            "action": "rotate",
+            "resource": "secret:api_key",
+            "user": "api",
+            "details": {},
+            "success": True,
+        }
+        log_path.write_text(json.dumps(entry) + "\n")
+
+        result = runner.invoke(main, ["audit", "--log-file", str(log_path), "--format", "json"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "entries" in data
+        assert "count" in data
+        assert data["count"] == 1
+        assert data["entries"][0]["action"] == "rotate"
+
+
+def test_audit_command_filter_by_action(runner: CliRunner) -> None:
+    """Test audit command filters by action."""
+    with TemporaryDirectory() as tmpdir:
+        log_path = Path(tmpdir) / "audit.log"
+        entries = [
+            {
+                "timestamp": datetime.now(UTC).isoformat(),
+                "action": "sync",
+                "resource": "secrets",
+                "user": "api",
+                "details": {},
+                "success": True,
+            },
+            {
+                "timestamp": datetime.now(UTC).isoformat(),
+                "action": "rotate",
+                "resource": "secrets",
+                "user": "api",
+                "details": {},
+                "success": True,
+            },
+        ]
+        log_path.write_text("\n".join(json.dumps(e) for e in entries) + "\n")
+
+        result = runner.invoke(
+            main, ["audit", "--log-file", str(log_path), "--action", "sync", "--format", "json"]
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["count"] == 1
+        assert data["entries"][0]["action"] == "sync"
