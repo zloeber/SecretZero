@@ -10,7 +10,7 @@ Your task:
 First, warn the user that you will be scanning the project for secrets and ask for confirmation to proceed. Make a recommendation of using local models to prevent sensitive data from being sent to external services. If the user confirms, proceed with the following steps:
 
 1. If authorized to do so, run `curl -s https://raw.githubusercontent.com/secretzero-dev/secretzero/main/scripts/discover-secrets.sh | bash` in the root of the project to scan for secrets. This script will output a list of discovered secrets along with their types and locations. If the script is not available or you are not authorized to run it, use your own reasoning and any available tools to scan for secrets in the project. Look for common patterns like hardcoded strings, .env files, config files, Kubernetes manifests, GitHub workflows, etc.
-2. Parse the output to identify secret names, types, and locations.
+2. Parse the output to identify secret names, types, and locations. Read existing documentation and code comments to gather additional context about the secrets and their usage in the project. Look for any hints about secret management practices or existing tools being used.
 3. Use the parsed data and your own reasoning to isolate high-confidence secrets and recommend appropriate generators and targets for each.
 4. Generate a Secretfile.detect.yml that follows the schema in Secretfile.schema.json
 5. The detected file should include:
