@@ -99,6 +99,7 @@ _global_registry = ProviderRegistry()
 
 # Import providers after registry creation to avoid circular imports
 try:
+    from secretzero.providers.ansible_vault import AnsibleVaultProvider
     from secretzero.providers.aws import AWSProvider
     from secretzero.providers.azure import AzureProvider
     from secretzero.providers.github import GitHubProvider
@@ -107,6 +108,7 @@ try:
     from secretzero.providers.kubernetes import KubernetesProvider
     from secretzero.providers.vault import VaultProvider
 
+    _global_registry.register_provider_class("ansible_vault", AnsibleVaultProvider)
     _global_registry.register_provider_class("aws", AWSProvider)
     _global_registry.register_provider_class("azure", AzureProvider)
     _global_registry.register_provider_class("github", GitHubProvider)
