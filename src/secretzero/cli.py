@@ -463,6 +463,7 @@ def status(file: str, lockfile: str, verbose: bool, output_format: str) -> None:
     """
     file_path = Path(file)
     lockfile_path = Path(lockfile)
+    secretfile_content = file_path.read_text()
 
     loader = ConfigLoader()
 
@@ -477,6 +478,15 @@ def status(file: str, lockfile: str, verbose: bool, output_format: str) -> None:
 
     # Load lockfile
     lock = Lockfile.load(lockfile_path)
+    tracked_secretfile = lock.get_secretfile_info()
+    current_secretfile_hash = Lockfile._hash_value(secretfile_content)
+    secretfile_changed = None
+    if tracked_secretfile:
+        tracked_hash = tracked_secretfile.get("hash")
+        tracked_filename = tracked_secretfile.get("filename")
+        secretfile_changed = (
+            tracked_filename != file_path.name or tracked_hash != current_secretfile_hash
+        )
 
     if output_format == "json":
         secrets_data = []
@@ -503,6 +513,18 @@ def status(file: str, lockfile: str, verbose: bool, output_format: str) -> None:
             "synced": sum(1 for s in secrets_data if s["status"] == "synced"),
             "lockfile": str(lockfile_path),
             "lockfile_exists": lockfile_path.exists(),
+            "secretfile": {
+                "path": str(file_path),
+                "current_hash": current_secretfile_hash,
+                "tracked_hash": tracked_secretfile.get("hash") if tracked_secretfile else None,
+                "tracked_filename": (
+                    tracked_secretfile.get("filename") if tracked_secretfile else None
+                ),
+                "tracked_synced_at": (
+                    tracked_secretfile.get("synced_at") if tracked_secretfile else None
+                ),
+                "changed": secretfile_changed,
+            },
         }
         click.echo(json.dumps(result, indent=2))
         return
@@ -521,6 +543,13 @@ def status(file: str, lockfile: str, verbose: bool, output_format: str) -> None:
     if lockfile_path.exists():
         console.print(f"\n[dim]Lockfile: {lockfile_path}[/dim]")
         console.print(f"[dim]Total tracked secrets: {len(lock.secrets)}[/dim]")
+        _show_secretfile_tracking_status(
+            file_path,
+            current_secretfile_hash,
+            tracked_secretfile,
+            secretfile_changed,
+            verbose,
+        )
     else:
         console.print(f"\n[yellow]⚠[/yellow] No lockfile found at {lockfile_path}")
         console.print("[dim]Run 'secretzero sync' to generate secrets and create lockfile[/dim]")
@@ -637,6 +666,42 @@ def _show_secret_status(secret, config, lock: Lockfile, verbose: bool) -> None:
         console.print("   [dim]No targets configured[/dim]")
 
     console.print()
+
+
+def _show_secretfile_tracking_status(
+    file_path: Path,
+    current_hash: str,
+    tracked_secretfile: dict[str, str | None],
+    secretfile_changed: bool | None,
+    verbose: bool,
+) -> None:
+    """Show Secretfile hash status vs the lockfile."""
+    if not tracked_secretfile:
+        console.print("[yellow]⚠[/yellow] Secretfile hash not tracked in lockfile")
+        console.print("[dim]Run 'secretzero sync' to record the Secretfile hash[/dim]")
+        return
+
+    if secretfile_changed:
+        console.print("[yellow]⚠[/yellow] Secretfile hash does not match lockfile")
+        console.print(
+            "[dim]Next: run 'secretzero sync' to refresh the lockfile, or "
+            "'secretzero sync --dry-run' to review changes[/dim]"
+        )
+    else:
+        console.print("[green]✓[/green] Secretfile hash matches lockfile")
+
+    if verbose:
+        tracked_hash = tracked_secretfile.get("hash")
+        tracked_filename = tracked_secretfile.get("filename")
+        synced_at = tracked_secretfile.get("synced_at")
+        console.print(f"[dim]Secretfile: {file_path.name}[/dim]")
+        if tracked_filename and tracked_filename != file_path.name:
+            console.print(f"[dim]Tracked Secretfile: {tracked_filename}[/dim]")
+        if tracked_hash:
+            console.print(f"[dim]Current hash: {current_hash[:16]}...[/dim]")
+            console.print(f"[dim]Tracked hash: {tracked_hash[:16]}...[/dim]")
+        if synced_at:
+            console.print(f"[dim]Last synced: {synced_at}[/dim]")
 
 
 def _show_target_status(
