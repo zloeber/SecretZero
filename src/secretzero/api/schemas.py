@@ -166,3 +166,59 @@ class AuditLogResponse(BaseModel):
     count: int
     page: int = 1
     per_page: int = 50
+
+
+class SecretDetailResponse(BaseModel):
+    """Detailed secret information (show command equivalent)."""
+
+    name: str
+    kind: str
+    one_time: bool = False
+    rotation_period: str | None = None
+    targets: list[dict[str, Any]] = Field(default_factory=list)
+    exists: bool = False
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    last_rotated: datetime | None = None
+    rotation_count: int = 0
+
+
+class ProviderListResponse(BaseModel):
+    """Response listing providers from Secretfile."""
+
+    providers: list[dict[str, Any]]
+    total: int
+
+
+class TargetListResponse(BaseModel):
+    """Response listing targets from Secretfile."""
+
+    targets: list[dict[str, Any]]
+    total: int
+
+
+class VariableListResponse(BaseModel):
+    """Response listing variables from Secretfile."""
+
+    variables: dict[str, Any]
+    total: int
+
+
+class ConfigRenderResponse(BaseModel):
+    """Response with rendered Secretfile configuration."""
+
+    config: dict[str, Any]
+
+
+class SecretTypesResponse(BaseModel):
+    """Response listing available secret generator and target types."""
+
+    generators: list[dict[str, str]]
+    targets: list[dict[str, str]]
+
+
+class GraphResponse(BaseModel):
+    """Response with graph representation of Secretfile relationships."""
+
+    nodes: list[dict[str, Any]]
+    edges: list[dict[str, Any]]

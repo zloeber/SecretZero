@@ -362,6 +362,197 @@ class TestAuditEndpoint:
         assert "entries" in data
 
 
+class TestListEndpoints:
+    """Tests for list endpoints (providers, targets, variables)."""
+
+    def test_list_providers(self, authenticated_client):
+        """Test listing providers from Secretfile."""
+        response = authenticated_client.get("/list/providers")
+        assert response.status_code == 200
+        data = response.json()
+        assert "providers" in data
+        assert "total" in data
+        assert data["total"] >= 0
+
+    def test_list_providers_has_local(self, authenticated_client):
+        """Test that the local provider is listed."""
+        response = authenticated_client.get("/list/providers")
+        assert response.status_code == 200
+        data = response.json()
+        provider_names = [p["name"] for p in data["providers"]]
+        assert "local" in provider_names
+
+    def test_list_targets(self, authenticated_client):
+        """Test listing targets from Secretfile."""
+        response = authenticated_client.get("/list/targets")
+        assert response.status_code == 200
+        data = response.json()
+        assert "targets" in data
+        assert "total" in data
+        assert data["total"] >= 0
+
+    def test_list_targets_has_entries(self, authenticated_client):
+        """Test that targets are returned for the test Secretfile."""
+        response = authenticated_client.get("/list/targets")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] > 0
+        target = data["targets"][0]
+        assert "secret" in target
+        assert "provider" in target
+        assert "kind" in target
+
+    def test_list_variables(self, authenticated_client):
+        """Test listing variables from Secretfile."""
+        response = authenticated_client.get("/list/variables")
+        assert response.status_code == 200
+        data = response.json()
+        assert "variables" in data
+        assert "total" in data
+
+    def test_list_variables_has_environment(self, authenticated_client):
+        """Test that the environment variable is listed."""
+        response = authenticated_client.get("/list/variables")
+        assert response.status_code == 200
+        data = response.json()
+        assert "environment" in data["variables"]
+        assert data["variables"]["environment"] == "test"
+
+
+class TestConfigRenderEndpoint:
+    """Tests for config render endpoint."""
+
+    def test_render_config(self, authenticated_client):
+        """Test rendering Secretfile configuration."""
+        response = authenticated_client.get("/config/render")
+        assert response.status_code == 200
+        data = response.json()
+        assert "config" in data
+        config = data["config"]
+        assert "secrets" in config
+        assert "version" in config
+
+    def test_render_config_includes_variables(self, authenticated_client):
+        """Test that rendered config includes variables."""
+        response = authenticated_client.get("/config/render")
+        assert response.status_code == 200
+        data = response.json()
+        config = data["config"]
+        assert "variables" in config
+
+
+class TestSchemaEndpoint:
+    """Tests for schema endpoint."""
+
+    def test_get_schema(self, client):
+        """Test getting JSON schema (no auth required)."""
+        response = client.get("/schema")
+        assert response.status_code == 200
+        schema = response.json()
+        assert "properties" in schema or "title" in schema
+
+    def test_schema_has_secrets_property(self, client):
+        """Test that the schema describes the Secretfile structure."""
+        response = client.get("/schema")
+        assert response.status_code == 200
+        schema = response.json()
+        # JSON schema should have some structure
+        assert isinstance(schema, dict)
+        assert len(schema) > 0
+
+
+class TestSecretTypesEndpoint:
+    """Tests for secret-types endpoint."""
+
+    def test_get_secret_types(self, client):
+        """Test getting available secret types (no auth required)."""
+        response = client.get("/secret-types")
+        assert response.status_code == 200
+        data = response.json()
+        assert "generators" in data
+        assert "targets" in data
+
+    def test_secret_types_has_generators(self, client):
+        """Test that generators are listed."""
+        response = client.get("/secret-types")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["generators"]) > 0
+        generator = data["generators"][0]
+        assert "type" in generator
+        assert "description" in generator
+
+    def test_secret_types_has_targets(self, client):
+        """Test that targets are listed."""
+        response = client.get("/secret-types")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["targets"]) > 0
+
+
+class TestGraphEndpoint:
+    """Tests for graph endpoint."""
+
+    def test_get_graph(self, authenticated_client):
+        """Test generating a graph of Secretfile relationships."""
+        response = authenticated_client.get("/graph")
+        assert response.status_code == 200
+        data = response.json()
+        assert "nodes" in data
+        assert "edges" in data
+
+    def test_graph_has_secret_nodes(self, authenticated_client):
+        """Test that the graph contains secret nodes."""
+        response = authenticated_client.get("/graph")
+        assert response.status_code == 200
+        data = response.json()
+        secret_nodes = [n for n in data["nodes"] if n.get("type") == "secret"]
+        assert len(secret_nodes) > 0
+
+    def test_graph_has_edges(self, authenticated_client):
+        """Test that the graph contains edges."""
+        response = authenticated_client.get("/graph")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["edges"]) > 0
+
+
+class TestSecretDetailEndpoint:
+    """Tests for secret detail endpoint."""
+
+    def test_get_secret_detail(self, authenticated_client):
+        """Test getting detailed info about a secret."""
+        response = authenticated_client.get("/secrets/test_password")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["name"] == "test_password"
+        assert data["kind"] == "random_password"
+        assert "targets" in data
+        assert "exists" in data
+
+    def test_get_secret_detail_includes_targets(self, authenticated_client):
+        """Test that secret detail includes target information."""
+        response = authenticated_client.get("/secrets/test_password")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["targets"]) > 0
+        target = data["targets"][0]
+        assert "provider" in target
+        assert "kind" in target
+
+    def test_get_secret_detail_not_found(self, authenticated_client):
+        """Test getting detail for non-existent secret returns 404."""
+        response = authenticated_client.get("/secrets/nonexistent_secret")
+        assert response.status_code == 404
+
+    def test_secret_detail_has_rotation_period(self, authenticated_client):
+        """Test that secret with rotation period shows it."""
+        response = authenticated_client.get("/secrets/test_password")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["rotation_period"] == "90d"
+
+
 class TestErrorHandling:
     """Tests for error handling."""
 

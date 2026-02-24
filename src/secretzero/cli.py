@@ -11,6 +11,7 @@ from rich.console import Console
 from rich.table import Table
 
 from secretzero import __version__
+from secretzero.api.audit import AuditLogger
 from secretzero.cli_providers import providers_group
 from secretzero.config import ConfigLoader
 from secretzero.drift import DriftDetector
@@ -3439,6 +3440,121 @@ def detect(directory: str, output_format: str, output: str | None) -> None:
 
 # Register provider CLI group
 main.add_command(providers_group)
+
+
+@main.command()
+@click.option(
+    "--limit",
+    "-n",
+    default=50,
+    help="Maximum number of log entries to return",
+)
+@click.option(
+    "--offset",
+    default=0,
+    help="Number of entries to skip",
+)
+@click.option(
+    "--action",
+    "-a",
+    default=None,
+    help="Filter logs by action name",
+)
+@click.option(
+    "--resource",
+    "-r",
+    default=None,
+    help="Filter logs by resource name",
+)
+@click.option(
+    "--log-file",
+    type=click.Path(),
+    default=".secretzero_audit.log",
+    help="Path to audit log file",
+)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    help="Output format (text or json)",
+)
+def audit(
+    limit: int,
+    offset: int,
+    action: str | None,
+    resource: str | None,
+    log_file: str,
+    output_format: str,
+) -> None:
+    """View API audit logs.
+
+    Displays audit log entries recorded by the SecretZero API. Logs are written
+    to a file when the API server is running.
+
+    Examples:
+
+        # Show recent audit logs
+        secretzero audit
+
+        # Filter by action
+        secretzero audit --action sync
+
+        # Filter by resource
+        secretzero audit --resource secrets
+
+        # Show in JSON format
+        secretzero audit --format json
+
+        # Show last 100 entries
+        secretzero audit --limit 100
+    """
+    log_path = Path(log_file)
+    logger = AuditLogger(log_file=log_path)
+
+    logs = logger.get_logs(limit=limit, offset=offset, action=action, resource=resource)
+
+    if output_format == "json":
+        click.echo(
+            json.dumps(
+                {
+                    "entries": [e.model_dump(mode="json") for e in logs],
+                    "count": len(logs),
+                },
+                indent=2,
+            )
+        )
+        return
+
+    if not logs:
+        console.print("[dim]No audit log entries found[/dim]")
+        if not log_path.exists():
+            console.print(
+                f"[dim]Log file not found: {log_path}. "
+                "The API server must be running to generate audit logs.[/dim]"
+            )
+        return
+
+    table = Table(show_header=True, header_style="bold cyan")
+    table.add_column("Timestamp", style="dim")
+    table.add_column("Action", style="green")
+    table.add_column("Resource")
+    table.add_column("User")
+    table.add_column("Success", justify="center")
+
+    for entry in logs:
+        success_str = "[green]✓[/green]" if entry.success else "[red]✗[/red]"
+        timestamp_str = entry.timestamp.strftime("%Y-%m-%d %H:%M:%S") if entry.timestamp else ""
+        table.add_row(
+            timestamp_str,
+            entry.action,
+            entry.resource,
+            entry.user or "[dim]—[/dim]",
+            success_str,
+        )
+
+    console.print(table)
+    console.print(f"\n[dim]Showing {len(logs)} of available entries[/dim]")
 
 
 if __name__ == "__main__":

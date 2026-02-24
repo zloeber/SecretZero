@@ -1,39 +1,71 @@
 """FastAPI application for SecretZero API."""
 
+import inspect
+import re
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from secretzero import __version__
+from secretzero import __version__, generators, targets
 from secretzero.api.audit import get_audit_logger
 from secretzero.api.auth import RequireAuth
 from secretzero.api.schemas import (
     AuditLogResponse,
+    ConfigRenderResponse,
     ConfigValidationRequest,
     ConfigValidationResponse,
     DriftCheckRequest,
     DriftCheckResponse,
     ErrorResponse,
+    GraphResponse,
     HealthResponse,
     PolicyCheckRequest,
     PolicyCheckResponse,
+    ProviderListResponse,
     RotationCheckRequest,
     RotationCheckResponse,
     RotationExecuteRequest,
     RotationExecuteResponse,
+    SecretDetailResponse,
     SecretListResponse,
     SecretStatusResponse,
+    SecretTypesResponse,
     SyncRequest,
     SyncResponse,
+    TargetListResponse,
+    VariableListResponse,
 )
 from secretzero.config import ConfigLoader
 from secretzero.drift import DriftDetector
 from secretzero.lockfile import Lockfile
+from secretzero.models import Secretfile
 from secretzero.policy import PolicyEngine
 from secretzero.rotation import should_rotate_secret
 from secretzero.sync import SyncEngine
+
+
+def _class_name_to_snake_case(name: str, suffix: str) -> str:
+    """Convert a class name to snake_case type name, removing a suffix.
+
+    Args:
+        name: Class name (e.g., SSMParameterTarget)
+        suffix: Suffix to remove (e.g., Target, Generator)
+
+    Returns:
+        snake_case type name (e.g., ssm_parameter)
+    """
+    # Remove the suffix
+    if name.endswith(suffix):
+        name = name[: -len(suffix)]
+
+    # Insert underscores before uppercase letters that follow lowercase letters or digits
+    s1 = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", name)
+    # Insert underscores before uppercase letters that are followed by lowercase letters
+    # when preceded by multiple uppercase letters (handles acronyms like SSM, KV)
+    s2 = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", s1)
+    return s2.lower()
 
 
 def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
@@ -649,6 +681,342 @@ def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to retrieve audit logs: {str(e)}",
+            )
+
+    @app.get("/list/providers", response_model=ProviderListResponse)
+    async def list_providers(_auth: str = RequireAuth):
+        """List all providers configured in the Secretfile."""
+        audit_logger = get_audit_logger()
+
+        try:
+            config_path = Path(app.state.secretfile_path)
+            if not config_path.exists():
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Secretfile not found: {config_path}",
+                )
+
+            loader = ConfigLoader()
+            config = loader.load_file(config_path)
+
+            providers = [
+                {
+                    "name": name,
+                    "kind": p.kind,
+                    "auth_kind": p.auth.kind if p.auth else None,
+                    "fallback_generator": p.fallback_generator,
+                }
+                for name, p in config.providers.items()
+            ]
+
+            audit_logger.log(
+                action="list_providers",
+                resource="providers",
+                details={"count": len(providers)},
+            )
+
+            return ProviderListResponse(providers=providers, total=len(providers))
+        except HTTPException:
+            raise
+        except Exception as e:
+            audit_logger.log(
+                action="list_providers",
+                resource="providers",
+                details={"error": str(e)},
+                success=False,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to list providers: {str(e)}",
+            )
+
+    @app.get("/list/targets", response_model=TargetListResponse)
+    async def list_targets(_auth: str = RequireAuth):
+        """List all target destinations across all secrets in the Secretfile."""
+        audit_logger = get_audit_logger()
+
+        try:
+            config_path = Path(app.state.secretfile_path)
+            if not config_path.exists():
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Secretfile not found: {config_path}",
+                )
+
+            loader = ConfigLoader()
+            config = loader.load_file(config_path)
+
+            all_targets = []
+            for secret in config.secrets:
+                for t in secret.targets:
+                    all_targets.append(
+                        {
+                            "secret": secret.name,
+                            "provider": t.provider,
+                            "kind": t.kind,
+                            "config": t.config,
+                        }
+                    )
+
+            audit_logger.log(
+                action="list_targets",
+                resource="targets",
+                details={"count": len(all_targets)},
+            )
+
+            return TargetListResponse(targets=all_targets, total=len(all_targets))
+        except HTTPException:
+            raise
+        except Exception as e:
+            audit_logger.log(
+                action="list_targets",
+                resource="targets",
+                details={"error": str(e)},
+                success=False,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to list targets: {str(e)}",
+            )
+
+    @app.get("/list/variables", response_model=VariableListResponse)
+    async def list_variables(_auth: str = RequireAuth):
+        """List all variables defined in the Secretfile."""
+        audit_logger = get_audit_logger()
+
+        try:
+            config_path = Path(app.state.secretfile_path)
+            if not config_path.exists():
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Secretfile not found: {config_path}",
+                )
+
+            loader = ConfigLoader()
+            config = loader.load_file(config_path)
+
+            variables = dict(config.variables)
+
+            audit_logger.log(
+                action="list_variables",
+                resource="variables",
+                details={"count": len(variables)},
+            )
+
+            return VariableListResponse(variables=variables, total=len(variables))
+        except HTTPException:
+            raise
+        except Exception as e:
+            audit_logger.log(
+                action="list_variables",
+                resource="variables",
+                details={"error": str(e)},
+                success=False,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to list variables: {str(e)}",
+            )
+
+    @app.get("/config/render", response_model=ConfigRenderResponse)
+    async def render_config(_auth: str = RequireAuth):
+        """Render the Secretfile configuration with variables interpolated."""
+        audit_logger = get_audit_logger()
+
+        try:
+            config_path = Path(app.state.secretfile_path)
+            if not config_path.exists():
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Secretfile not found: {config_path}",
+                )
+
+            loader = ConfigLoader()
+            config = loader.load_file(config_path)
+
+            config_dict = config.model_dump(mode="python", exclude_none=True)
+
+            audit_logger.log(
+                action="render_config",
+                resource="config",
+                details={},
+            )
+
+            return ConfigRenderResponse(config=config_dict)
+        except HTTPException:
+            raise
+        except Exception as e:
+            audit_logger.log(
+                action="render_config",
+                resource="config",
+                details={"error": str(e)},
+                success=False,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to render config: {str(e)}",
+            )
+
+    @app.get("/schema")
+    async def get_schema():
+        """Export JSON Schema for Secretfile.yml."""
+        return Secretfile.model_json_schema()
+
+    @app.get("/secret-types", response_model=SecretTypesResponse)
+    async def get_secret_types():
+        """List all available secret generator and target types."""
+        generator_types = []
+        for name in dir(generators):
+            if name.endswith("Generator") and not name.startswith("_"):
+                obj = getattr(generators, name)
+                if inspect.isclass(obj) and obj != generators.BaseGenerator:
+                    type_name = _class_name_to_snake_case(name, "Generator")
+                    description = (obj.__doc__ or "").strip().split("\n")[0]
+                    generator_types.append({"type": type_name, "description": description})
+
+        target_types = []
+        for name in dir(targets):
+            if name.endswith("Target") and not name.startswith("_"):
+                obj = getattr(targets, name)
+                if inspect.isclass(obj) and obj != targets.BaseTarget:
+                    type_name = _class_name_to_snake_case(name, "Target")
+                    description = (obj.__doc__ or "").strip().split("\n")[0]
+                    target_types.append({"type": type_name, "description": description})
+
+        return SecretTypesResponse(
+            generators=sorted(generator_types, key=lambda x: x["type"]),
+            targets=sorted(target_types, key=lambda x: x["type"]),
+        )
+
+    @app.get("/graph", response_model=GraphResponse)
+    async def get_graph(_auth: str = RequireAuth):
+        """Generate a graph representation of Secretfile relationships."""
+        audit_logger = get_audit_logger()
+
+        try:
+            config_path = Path(app.state.secretfile_path)
+            if not config_path.exists():
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Secretfile not found: {config_path}",
+                )
+
+            loader = ConfigLoader()
+            config = loader.load_file(config_path)
+
+            nodes = []
+            edges = []
+            for secret in config.secrets:
+                nodes.append(
+                    {
+                        "id": secret.name,
+                        "type": "secret",
+                        "kind": secret.kind,
+                        "one_time": secret.one_time,
+                        "rotation_period": secret.rotation_period,
+                    }
+                )
+                edges.append(
+                    {
+                        "from": secret.kind,
+                        "to": secret.name,
+                        "label": "generates",
+                    }
+                )
+                for target in secret.targets:
+                    target_id = f"{target.provider}/{target.kind}"
+                    if not any(n["id"] == target_id for n in nodes):
+                        nodes.append(
+                            {
+                                "id": target_id,
+                                "type": "target",
+                                "provider": target.provider,
+                                "kind": target.kind,
+                            }
+                        )
+                    edges.append({"from": secret.name, "to": target_id, "label": "stored_in"})
+
+            audit_logger.log(
+                action="get_graph",
+                resource="config",
+                details={"nodes": len(nodes), "edges": len(edges)},
+            )
+
+            return GraphResponse(nodes=nodes, edges=edges)
+        except HTTPException:
+            raise
+        except Exception as e:
+            audit_logger.log(
+                action="get_graph",
+                resource="config",
+                details={"error": str(e)},
+                success=False,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to generate graph: {str(e)}",
+            )
+
+    @app.get("/secrets/{secret_name}", response_model=SecretDetailResponse)
+    async def get_secret_detail(secret_name: str, _auth: str = RequireAuth):
+        """Get detailed information about a specific secret."""
+        audit_logger = get_audit_logger()
+
+        try:
+            config_path = Path(app.state.secretfile_path)
+            if not config_path.exists():
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Secretfile not found: {config_path}",
+                )
+
+            loader = ConfigLoader()
+            config = loader.load_file(config_path)
+
+            secret = next((s for s in config.secrets if s.name == secret_name), None)
+            if not secret:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Secret not found: {secret_name}",
+                )
+
+            targets = [
+                {"provider": t.provider, "kind": t.kind, "config": t.config} for t in secret.targets
+            ]
+
+            lockfile = Lockfile.load(Path(".gitsecrets.lock"))
+            entry = lockfile.get_secret_info(secret_name)
+
+            audit_logger.log(
+                action="get_secret_detail",
+                resource=f"secret:{secret_name}",
+                details={"exists": entry is not None},
+            )
+
+            return SecretDetailResponse(
+                name=secret.name,
+                kind=secret.kind,
+                one_time=secret.one_time,
+                rotation_period=secret.rotation_period,
+                targets=targets,
+                exists=entry is not None,
+                created_at=entry.created_at if entry else None,
+                updated_at=entry.updated_at if entry else None,
+                last_rotated=entry.last_rotated if entry else None,
+                rotation_count=entry.rotation_count if entry else 0,
+            )
+        except HTTPException:
+            raise
+        except Exception as e:
+            audit_logger.log(
+                action="get_secret_detail",
+                resource=f"secret:{secret_name}",
+                details={"error": str(e)},
+                success=False,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to get secret detail: {str(e)}",
             )
 
     return app
