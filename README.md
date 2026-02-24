@@ -6,14 +6,11 @@
 </div>
 
 <p align="center">
-    <!-- <a href="https://hub.docker.com/r/zloeber/SecretZero" target="_blank">
-        <img src="https://img.shields.io/docker/pulls/zloeber/SecretZero?label=Docker%20Pulls&color=0db7ed&logo=docker&logoColor=white&style=flat-square" alt="docker pull zloeber/SecretZero:v0.24.0">
-    </a> -->
     <a href="https://github.com/zloeber/SecretZero/releases/latest">
         <img src="https://img.shields.io/github/v/release/zloeber/SecretZero?color=blue&label=Latest%20Release" alt="Latest Release">
     </a>
     <a href="https://github.com/zloeber/SecretZero/blob/main/LICENSE">
-        <img height="21" src="https://img.shields.io/badge/License-Apache--2.0-ffffff?labelColor=d4eaf7&color=2e6cc4" alt="License: Apache 2.0">
+        <img src="https://img.shields.io/badge/License-Apache--2.0-ffffff?labelColor=d4eaf7&color=2e6cc4" alt="License: Apache 2.0">
     </a>
     <a href="https://deepwiki.com/zloeber/SecretZero">
         <img alt="Ask DeepWiki" src="https://deepwiki.com/badge.svg">
