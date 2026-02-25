@@ -6,6 +6,37 @@ from typing import Any
 from pydantic import BaseModel, Field, field_validator
 
 
+class AutomationLevel(str, Enum):
+    """Level of automation possible for secret acquisition."""
+
+    FULLY_AUTOMATED = "fully_automated"
+    SEMI_AUTOMATED = "semi_automated"
+    MANUAL_ONLY = "manual_only"
+    REQUIRES_APPROVAL = "requires_approval"
+
+
+class AgentInstructionStep(BaseModel):
+    """Single step in agent instruction workflow."""
+
+    action: str = Field(description="Action to perform (CLI command, URL, or description)")
+    description: str = Field(description="Human-readable context for the action")
+    params: dict[str, Any] | None = Field(default=None, description="Optional parameters for API calls")
+    required: bool = Field(default=True, description="Whether this step is required or optional")
+
+
+class AgentInstructions(BaseModel):
+    """Instructions for agents to obtain a secret."""
+
+    summary: str = Field(description="Brief overview of the acquisition process")
+    steps: list[AgentInstructionStep] = Field(description="Step-by-step instructions")
+    prerequisites: list[str] | None = Field(default=None, description="Requirements before starting")
+    automation_hint: str | None = Field(default=None, description="Guidance on automation feasibility")
+    estimated_time: str | None = Field(default=None, description="Expected time to complete")
+    fallback: str | None = Field(default=None, description="What to do if automation fails")
+    required_tools: list[str] | None = Field(default=None, description="CLI tools or dependencies needed")
+    documentation_url: str | None = Field(default=None, description="Link to official documentation")
+
+
 class AuthKind(str, Enum):
     """Authentication kind for providers."""
 
@@ -116,6 +147,10 @@ class Secret(BaseModel):
     one_time: bool = False
     rotation_period: str | None = None
     targets: list[TargetConfig] = Field(default_factory=list)
+    agent_instructions: AgentInstructions | None = Field(
+        default=None,
+        description="Instructions for agents to obtain this secret",
+    )
 
 
 class Metadata(BaseModel):
