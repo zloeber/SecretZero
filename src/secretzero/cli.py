@@ -4456,5 +4456,132 @@ def discover(
         console.print("\n[dim]No secrets found above the confidence threshold.[/dim]")
 
 
+
+
+@main.command("validate-bundle")
+@click.argument("path", type=click.Path(exists=True))
+@click.option(
+    "--output-format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    help="Output format",
+)
+def validate_bundle(path: str, output_format: str) -> None:
+    """Validate a SecretZero provider bundle.
+
+    PATH can be a directory containing a Python package or a Python file
+    that exports a ``BUNDLE_MANIFEST`` attribute.
+
+    Checks performed:
+
+    \b
+    - BUNDLE_MANIFEST is a valid BundleManifest
+    - All declared dotted class paths can be imported
+    - Provider class inherits from BaseProvider
+    - Generator classes inherit from BaseGenerator
+    - Target classes inherit from BaseTarget
+    """
+    import importlib.util
+    import sys
+
+    from secretzero.bundles import BundleManifest
+    from secretzero.bundles.registry import BundleRegistry
+
+    bundle_path = Path(path).resolve()
+    errors: list[str] = []
+    manifest: BundleManifest | None = None
+
+    # ------------------------------------------------------------------
+    # 1. Locate and load the BUNDLE_MANIFEST
+    # ------------------------------------------------------------------
+    # Try loading as a Python file first, then as a package __init__.py
+    candidate_files = []
+    if bundle_path.is_file() and bundle_path.suffix == ".py":
+        candidate_files = [bundle_path]
+    elif bundle_path.is_dir():
+        candidate_files = [
+            bundle_path / "__init__.py",
+            bundle_path / "bundle.py",
+        ]
+
+    for candidate in candidate_files:
+        if not candidate.exists():
+            continue
+        spec = importlib.util.spec_from_file_location("_bundle_candidate", candidate)
+        if spec is None or spec.loader is None:
+            continue
+        try:
+            mod = importlib.util.module_from_spec(spec)
+            sys.modules["_bundle_candidate"] = mod
+            spec.loader.exec_module(mod)  # type: ignore[union-attr]
+            if hasattr(mod, "BUNDLE_MANIFEST"):
+                manifest = mod.BUNDLE_MANIFEST
+                break
+        except Exception as exc:
+            errors.append(f"Failed to import {candidate}: {exc}")
+        finally:
+            sys.modules.pop("_bundle_candidate", None)
+
+    if manifest is None and not errors:
+        errors.append(
+            f"No BUNDLE_MANIFEST found in '{bundle_path}'. "
+            "Ensure your package exports a BUNDLE_MANIFEST attribute."
+        )
+
+    # ------------------------------------------------------------------
+    # 2. Validate the manifest structure and class paths
+    # ------------------------------------------------------------------
+    if manifest is not None:
+        if not isinstance(manifest, BundleManifest):
+            errors.append(
+                f"BUNDLE_MANIFEST is not a BundleManifest instance (got {type(manifest).__name__})"
+            )
+        else:
+            registry = BundleRegistry()
+            validation_errors = registry.validate_bundle_manifest(manifest)
+            errors.extend(validation_errors)
+
+    # ------------------------------------------------------------------
+    # 3. Output results
+    # ------------------------------------------------------------------
+    if output_format == "json":
+        import json as _json
+
+        result = {
+            "path": str(bundle_path),
+            "valid": len(errors) == 0,
+            "manifest": manifest.model_dump() if isinstance(manifest, BundleManifest) else None,
+            "errors": errors,
+        }
+        console.print(_json.dumps(result, indent=2))
+        sys.exit(EXIT_SUCCESS if len(errors) == 0 else EXIT_VALIDATION_ERROR)
+
+    # Text output
+    if isinstance(manifest, BundleManifest) and not errors:
+        console.print(f"[green]✓[/green] Bundle [bold]{manifest.name}[/bold] v{manifest.version}")
+        if manifest.provider_class:
+            console.print(f"  Provider : [cyan]{manifest.provider_class}[/cyan]")
+        if manifest.generators:
+            console.print("  Generators:")
+            for kind, path_str in manifest.generators.items():
+                console.print(f"    • [cyan]{kind}[/cyan] → {path_str}")
+        if manifest.targets:
+            console.print("  Targets:")
+            for kind, path_str in manifest.targets.items():
+                console.print(f"    • [cyan]{kind}[/cyan] → {path_str}")
+        console.print("\n[green]✓ Bundle is valid.[/green]")
+        sys.exit(EXIT_SUCCESS)
+    else:
+        if isinstance(manifest, BundleManifest):
+            console.print(
+                f"[red]✗[/red] Bundle [bold]{manifest.name}[/bold] has {len(errors)} error(s):"
+            )
+        else:
+            console.print(f"[red]✗[/red] Bundle validation failed with {len(errors)} error(s):")
+        for err in errors:
+            console.print(f"  [red]•[/red] {err}")
+        sys.exit(EXIT_VALIDATION_ERROR)
+
+
 if __name__ == "__main__":
     main()

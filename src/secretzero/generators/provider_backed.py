@@ -37,6 +37,14 @@ class ProviderBackedGeneratorConfig:
 class ProviderBackedGenerator(BaseGenerator):
     """Generator that delegates to a provider's capability method.
 
+    .. rubric:: Bundle provider injection protocol
+
+    The sync engine inspects ``PROVIDER_CONFIG_KEY`` and ``PROVIDER_INJECTION_KEY``
+    class attributes to inject the resolved provider instance into the config
+    before instantiation.  For this generator both keys are ``"provider"``,
+    meaning the string provider name in ``config["provider"]`` is *replaced*
+    in-place with the actual provider instance.
+
     This allows using provider-native operations for secret generation:
     - Vault's password/certificate generation
     - AWS IAM credential generation
@@ -52,6 +60,14 @@ class ProviderBackedGenerator(BaseGenerator):
             length: 32
             special_chars: true
     """
+
+    #: Key in the generator config dict that holds the provider *name* string.
+    #: Used by the sync engine to resolve the provider instance.
+    PROVIDER_CONFIG_KEY: str = "provider"
+
+    #: Key under which the sync engine injects the resolved provider *instance*.
+    #: For this generator the string name is replaced in-place.
+    PROVIDER_INJECTION_KEY: str = "provider"
 
     def __init__(self, config: dict[str, Any]) -> None:
         """Initialize provider-backed generator.

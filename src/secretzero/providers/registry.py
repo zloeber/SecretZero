@@ -122,6 +122,23 @@ except (ImportError, ValueError):
     # Allow graceful degradation if imports fail
     pass
 
+# Sync third-party providers discovered via bundle entry points into the
+# legacy ProviderRegistry so that code still using get_registry() can
+# access bundle-provided providers without modification.
+try:
+    from secretzero.bundles import get_bundle_registry as _get_bundle_registry
+
+    _bundle_reg = _get_bundle_registry()
+    for _kind in _bundle_reg.list_provider_kinds():
+        _cls = _bundle_reg.get_provider_class(_kind)
+        if _cls is not None and _kind not in _global_registry._provider_classes:
+            try:
+                _global_registry.register_provider_class(_kind, _cls)
+            except ValueError:
+                pass  # already registered
+except Exception:
+    pass
+
 
 # Export for convenience (optional)
 GLOBAL_PROVIDER_REGISTRY = _global_registry

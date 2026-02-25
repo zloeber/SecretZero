@@ -30,6 +30,19 @@ from secretzero.generators.base import BaseGenerator
 class GitHubPATGenerator(BaseGenerator):
     """Generator that creates scoped GitHub App installation tokens.
 
+    .. rubric:: Bundle provider injection protocol
+
+    The sync engine inspects the following class attributes to determine how
+    to inject the resolved provider instance before instantiating a generator:
+
+    * ``PROVIDER_CONFIG_KEY`` – the key in ``config`` that holds the provider
+      *name* (a string referencing a configured provider).
+    * ``PROVIDER_INJECTION_KEY`` – the key under which the resolved provider
+      *instance* will be injected into ``config``.
+
+    Setting these attributes on a custom generator class is the standard way
+    to declare that the generator requires a live provider instance.
+
     Configuration keys (passed via ``config`` dict):
 
     * **provider** – *reserved*: at runtime the sync engine injects the
@@ -43,6 +56,14 @@ class GitHubPATGenerator(BaseGenerator):
     * **token_name** – human label (tracked in lockfile, not sent to API).
     * **expires_in_hours** – token lifetime (default ``1``).
     """
+
+    #: Key in the generator config dict that holds the provider *name* string.
+    #: Used by the sync engine to resolve the provider instance.
+    PROVIDER_CONFIG_KEY: str = "provider"
+
+    #: Key under which the sync engine injects the resolved provider *instance*
+    #: into the config before the generator is instantiated.
+    PROVIDER_INJECTION_KEY: str = "_provider_instance"
 
     def __init__(self, config: dict[str, Any]) -> None:
         """Initialize GitHub PAT generator.
