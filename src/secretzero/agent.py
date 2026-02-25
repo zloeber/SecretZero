@@ -22,6 +22,9 @@ class AgentSyncResult(BaseModel):
     synced_secrets: list[str] = Field(
         default_factory=list, description="Successfully synced secrets"
     )
+    already_synced: list[str] = Field(
+        default_factory=list, description="Secrets already in lockfile (skipped)"
+    )
     pending_secrets: dict[str, AgentInstructions] = Field(
         default_factory=dict,
         description="Secrets requiring manual intervention with instructions",
@@ -70,10 +73,19 @@ class AgentSecretSynchronizer:
             AgentSyncResult with synced, pending, and failed secrets
         """
         result = AgentSyncResult()
+        already_synced = []
 
         # Separate secrets into auto-syncable and manual
         auto_secrets = []
         for secret in self.secretfile.secrets:
+            # Check if secret already exists in lockfile
+            lockfile_entry = self.lockfile.get_secret_info(secret.name)
+            if lockfile_entry:
+                # Secret already exists in lockfile, skip it
+                already_synced.append(secret.name)
+                logger.debug("Secret '%s' already exists in lockfile, skipping", secret.name)
+                continue
+
             if self._can_auto_sync(secret):
                 auto_secrets.append(secret.name)
             else:
@@ -109,8 +121,12 @@ class AgentSecretSynchronizer:
                     result.failed_secrets[secret_name] = str(exc)
                 logger.error("Failed to sync secrets: %s", exc)
 
+        # Track already synced secrets
+        result.already_synced = already_synced
+
         result.automation_summary = {
             "fully_synced": len(result.synced_secrets),
+            "already_synced": len(result.already_synced),
             "requires_intervention": len(result.pending_secrets),
             "failed": len(result.failed_secrets),
         }

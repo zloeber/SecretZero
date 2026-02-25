@@ -4059,6 +4059,7 @@ def agent_sync(
 
         output = {
             "synced_secrets": result.synced_secrets,
+            "already_synced": result.already_synced,
             "pending_secrets": {
                 k: v.model_dump(exclude_none=True) for k, v in result.pending_secrets.items()
             },
@@ -4093,6 +4094,14 @@ def _display_agent_sync_results(
         )
         for secret in result.synced_secrets:
             console.print(f"  • {secret}", style="green")
+
+    # Already synced secrets (skipped)
+    if result.already_synced:
+        console.print(
+            f"\n[bold blue]ℹ️  {len(result.already_synced)} secret(s) already in lockfile (skipped):[/bold blue]"
+        )
+        for secret in result.already_synced:
+            console.print(f"  • {secret}", style="blue")
 
     # Pending secrets with instructions
     if result.pending_secrets:
@@ -4203,6 +4212,9 @@ def _display_agent_sync_results(
     if dry_run:
         console.print("[yellow]DRY RUN MODE - No changes applied[/yellow]")
     console.print(f"  Synced:   {result.automation_summary.get('fully_synced', 0)}")
+    already_synced = result.automation_summary.get("already_synced", 0)
+    if already_synced > 0:
+        console.print(f"  Already synced: {already_synced}")
     console.print(f"  Pending:  {result.automation_summary.get('requires_intervention', 0)}")
     console.print(f"  Failed:   {result.automation_summary.get('failed', 0)}")
 

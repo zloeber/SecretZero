@@ -250,6 +250,37 @@ class TestAgentSecretSynchronizer:
         assert "requires_intervention" in result.automation_summary
         assert "failed" in result.automation_summary
 
+    def test_secret_already_in_lockfile_is_skipped(self) -> None:
+        """Secrets already in lockfile should be skipped without error."""
+        from datetime import datetime, timezone
+
+        from secretzero.lockfile import Lockfile, SecretLockEntry
+
+        # Create a static secret without explicit value (would normally fail)
+        sf = _make_secretfile([_make_secret("existing_secret", "static")])
+
+        # Create lockfile with existing entry
+        lock = Lockfile()
+        now = datetime.now(timezone.utc).isoformat()
+        lock.secrets["existing_secret"] = SecretLockEntry(
+            hash="abc123",
+            created_at=now,
+            updated_at=now,
+            rotation_count=0,
+        )
+
+        result = AgentSecretSynchronizer(sf, lock, dry_run=True).sync()
+
+        # Should be in already_synced, not failed or pending
+        assert "existing_secret" in result.already_synced
+        assert "existing_secret" not in result.synced_secrets
+        assert "existing_secret" not in result.pending_secrets
+        assert "existing_secret" not in result.failed_secrets
+        assert result.automation_summary["already_synced"] == 1
+        assert result.automation_summary["fully_synced"] == 0
+        assert result.automation_summary["requires_intervention"] == 0
+        assert result.automation_summary["failed"] == 0
+
 
 # ---------------------------------------------------------------------------
 # CLI integration tests
