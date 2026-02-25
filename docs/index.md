@@ -1,4 +1,4 @@
-# Welcome to SecretZero
+# Welcome to SecretZero™
 
 <div align="center">
 <a href="https://secret0.com/">
@@ -41,6 +41,9 @@ SecretZero is a secrets management tool that automates the creation, seeding, an
 - **Renovate for credentials** - Automated rotation and lifecycle management
 - **npm/yarn for secret dependencies** - Dependency graph and lockfile tracking
 - **A compliance tool** - Built-in policies for SOC2, ISO27001, and custom requirements
+
+!!! info "🔒 Local-First Discovery"
+    The `discover` command uses **local AI models (Ollama)** by default. **No sensitive project data is sent to external services.** All secret analysis happens on your machine. Optional remote LLM providers (OpenAI, Anthropic) require explicit configuration.
 
 !!! warning "Active Development"
     SecretZero is actively being developed. Features and APIs may change between releases. Please refer to the [CHANGELOG](./reference/changelog.md) for breaking changes and version your dependencies accordingly.
@@ -97,6 +100,15 @@ secrets:
 - **Environment Fallbacks** - Manual secret override via environment variables
 - **Self-Documenting** - Secrets-as-code showing provenance and distribution
 
+### 🤖 AI-Powered Secret Discovery
+
+- **Automated Discovery** - Find existing secrets, credentials, and sensitive configuration
+- **Local-First Analysis** - All analysis runs locally using Ollama (no data leaves your machine)
+- **AI-Assisted** - Uses language models to intelligently identify secret patterns
+- **Confidence Scoring** - Distinguishes high-confidence from low-confidence discoveries
+- **Secretfile Generation** - Auto-generates `Secretfile.detect.yml` with recommendations
+- **Privacy-Focused** - Optional remote LLM support with explicit configuration required
+
 ### 🔄 Secret Rotation
 
 - **Secret Rotation** - Policy-based rotation (90d, 2w, custom periods)
@@ -134,6 +146,16 @@ secrets:
 
 ## Quick Start
 
+### Discover Existing Secrets
+
+```bash
+# Discover secrets using local AI analysis (Ollama required)
+secretzero discover
+
+# Reviews discovered secrets in Secretfile.detect.yml
+# All analysis is local - no data leaves your machine
+```
+
 ### Installation
 
 ```bash
@@ -156,7 +178,7 @@ uv tool install secretzero[all]
 ### Initialize a Project
 
 ```bash
-# Create a new Secretfile
+# Create a new Secretfile (or use discovered Secretfile.detect.yml)
 secretzero create
 
 # Validate configuration

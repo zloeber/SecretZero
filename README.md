@@ -1,4 +1,4 @@
-# SecretZero
+# SecretZero™
 <div align="center">
 <a href="https://secret0.com/">
 <img src="docs/inc/secret0_angel_small.png" width="520" alt="Secret0 logo">

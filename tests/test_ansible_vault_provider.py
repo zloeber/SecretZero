@@ -8,10 +8,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 import yaml
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_vault_mock(password: str, store: dict | None = None) -> MagicMock:
     """Return a mock Vault instance that encrypts/decrypts in memory.
@@ -29,7 +29,7 @@ def _make_vault_mock(password: str, store: dict | None = None) -> MagicMock:
         if isinstance(content, str):
             content = content.encode()
         if content.startswith(prefix):
-            return content[len(prefix):]
+            return content[len(prefix) :]
         # Allow plain text through (for "unencrypted" fixture data)
         return content
 
@@ -52,6 +52,7 @@ def _make_vault_mock(password: str, store: dict | None = None) -> MagicMock:
 # ---------------------------------------------------------------------------
 # AnsibleVaultAuth tests
 # ---------------------------------------------------------------------------
+
 
 class TestAnsibleVaultAuth:
     """Tests for AnsibleVaultAuth."""
@@ -106,6 +107,7 @@ class TestAnsibleVaultAuth:
 # AnsibleVaultProvider – construction
 # ---------------------------------------------------------------------------
 
+
 class TestAnsibleVaultProviderInit:
     """Tests for AnsibleVaultProvider initialisation."""
 
@@ -144,6 +146,7 @@ class TestAnsibleVaultProviderInit:
 # ---------------------------------------------------------------------------
 # AnsibleVaultProvider – test_connection
 # ---------------------------------------------------------------------------
+
 
 class TestAnsibleVaultProviderConnection:
     """Tests for AnsibleVaultProvider.test_connection()."""
@@ -225,6 +228,7 @@ class TestAnsibleVaultProviderConnection:
 # AnsibleVaultProvider – retrieve_secret
 # ---------------------------------------------------------------------------
 
+
 class TestAnsibleVaultProviderRetrieve:
     """Tests for AnsibleVaultProvider.retrieve_secret()."""
 
@@ -294,6 +298,7 @@ class TestAnsibleVaultProviderRetrieve:
 # ---------------------------------------------------------------------------
 # AnsibleVaultProvider – store_secret
 # ---------------------------------------------------------------------------
+
 
 class TestAnsibleVaultProviderStore:
     """Tests for AnsibleVaultProvider.store_secret()."""
@@ -375,6 +380,7 @@ class TestAnsibleVaultProviderStore:
 # AnsibleVaultProvider – delete_secret
 # ---------------------------------------------------------------------------
 
+
 class TestAnsibleVaultProviderDelete:
     """Tests for AnsibleVaultProvider.delete_secret()."""
 
@@ -435,6 +441,7 @@ class TestAnsibleVaultProviderDelete:
 # ---------------------------------------------------------------------------
 # AnsibleVaultProvider – alternative formats
 # ---------------------------------------------------------------------------
+
 
 class TestAnsibleVaultProviderFormats:
     """Tests for json and dotenv format support."""
@@ -508,6 +515,7 @@ class TestAnsibleVaultProviderFormats:
 # ---------------------------------------------------------------------------
 # Registry integration
 # ---------------------------------------------------------------------------
+
 
 def test_ansible_vault_registered_in_global_registry():
     """AnsibleVaultProvider is registered in the global provider registry."""

@@ -21,6 +21,35 @@ wheels = [
 ]
 
 [[package]]
+name = "ansible-core"
+version = "2.20.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cryptography" },
+    { name = "jinja2" },
+    { name = "packaging" },
+    { name = "pyyaml" },
+    { name = "resolvelib" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/03/d6/2a1fda59f9bab7519f2e94a7bec8416e080dd2e17af4f4fb5d1e3d0c997d/ansible_core-2.20.3.tar.gz", hash = "sha256:38670ab2d2ffd67ee7e9e562f7c94e0927c8b7b4b0eb69233bc008c29e32d591", size = 3325132, upload-time = "2026-02-23T23:09:01.4Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/16/e0/2e5602b2a3d71622894e5ba0a6071e896f1fef795cf7acde5d13ff308833/ansible_core-2.20.3-py3-none-any.whl", hash = "sha256:7fe2da953192cac5d5eb37bfc984bf9339daa252e0e3d1deb5526eb1f8be9f7f", size = 2403438, upload-time = "2026-02-23T23:08:59.605Z" },
+]
+
+[[package]]
+name = "ansible-vault"
+version = "4.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "ansible-core" },
+    { name = "pyyaml" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/33/60/bd340a38b7d9fd4fcdd2df4a2b21f5e23af0481c5424c07d30668a7d6ed8/ansible_vault-4.1.0.tar.gz", hash = "sha256:7e985a9329e4728961d7a00f62412fa8ec246a4d832ad6e6d158165e0026529b", size = 15876, upload-time = "2025-05-15T11:50:42.647Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9e/0b/1c4e83665280bde1101862635ee6d69b43886002b30128d2fe82ba63cab7/ansible_vault-4.1.0-py3-none-any.whl", hash = "sha256:ae2e194bb68cc94471d0cdba0705cea9390d9c3dfe6299eeb1d4ee36af602bd9", size = 16062, upload-time = "2025-05-15T11:50:41.435Z" },
+]
+
+[[package]]
 name = "anyio"
 version = "4.12.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1864,6 +1893,15 @@ wheels = [
 ]
 
 [[package]]
+name = "resolvelib"
+version = "1.2.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/1d/14/4669927e06631070edb968c78fdb6ce8992e27c9ab2cde4b3993e22ac7af/resolvelib-1.2.1.tar.gz", hash = "sha256:7d08a2022f6e16ce405d60b68c390f054efcfd0477d4b9bd019cc941c28fad1c", size = 24575, upload-time = "2025-10-11T01:07:44.582Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e2/23/c941a0d0353681ca138489983c4309e0f5095dfd902e1357004f2357ddf2/resolvelib-1.2.1-py3-none-any.whl", hash = "sha256:fb06b66c8da04172d9e72a21d7d06186d8919e32ae5ab5cdf5b9d920be805ac2", size = 18737, upload-time = "2025-10-11T01:07:43.081Z" },
+]
+
+[[package]]
 name = "rich"
 version = "14.3.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1927,6 +1965,7 @@ dependencies = [
 
 [package.optional-dependencies]
 all = [
+    { name = "ansible-vault" },
     { name = "azure-identity" },
     { name = "azure-keyvault-secrets" },
     { name = "boto3" },
@@ -1946,6 +1985,9 @@ all = [
     { name = "python-jenkins" },
     { name = "python-multipart" },
     { name = "uvicorn", extra = ["standard"] },
+]
+ansible-vault = [
+    { name = "ansible-vault" },
 ]
 api = [
     { name = "fastapi" },
@@ -2013,6 +2055,8 @@ vault = [
 
 [package.metadata]
 requires-dist = [
+    { name = "ansible-vault", marker = "extra == 'all'", specifier = ">=2.1.0" },
+    { name = "ansible-vault", marker = "extra == 'ansible-vault'", specifier = ">=2.1.0" },
     { name = "asciinema", marker = "extra == 'demos'", specifier = ">=2.4.0" },
     { name = "azure-identity", marker = "extra == 'all'", specifier = ">=1.12.0" },
     { name = "azure-identity", marker = "extra == 'azure'", specifier = ">=1.12.0" },
@@ -2076,7 +2120,7 @@ requires-dist = [
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'api'", specifier = ">=0.41.0" },
     { name = "wcwidth", marker = "extra == 'demos'" },
 ]
-provides-extras = ["dev", "aws", "azure", "vault", "github", "gitlab", "jenkins", "kubernetes", "cicd", "api", "docs", "security", "demos", "all"]
+provides-extras = ["dev", "aws", "azure", "vault", "ansible-vault", "github", "gitlab", "jenkins", "kubernetes", "cicd", "api", "docs", "security", "demos", "all"]
 
 [[package]]
 name = "setuptools"

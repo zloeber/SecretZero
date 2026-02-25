@@ -21,10 +21,11 @@ These options work with all commands:
 
 ## Available Commands
 
-### Configuration & Setup
+### Discovery & Setup
 
 | Command | Description |
 |---------|-------------|
+| [`discover`](discover.md) | Discover secrets in your project using AI analysis (local-first) |
 | [`create`](create.md) | Create a new Secretfile from a template |
 | [`init`](init.md) | Initialize project by checking and installing provider dependencies |
 | [`validate`](validate.md) | Validate Secretfile configuration |
@@ -52,6 +53,30 @@ These options work with all commands:
 | `secret-types` | List supported secret types and generators |
 
 ## Command Quick Reference
+
+### Discover Secrets in Your Project
+
+```bash
+# Discover with local AI analysis (Ollama required)
+secretzero discover
+
+# Preview without saving output
+secretzero discover --dry-run
+
+# Ensure only local models (no external APIs)
+secretzero discover --local-only
+
+# Use JSON output for parsing
+secretzero discover --format json
+
+# Control confidence threshold (0.0-1.0)
+secretzero discover --confidence-threshold 0.8
+```
+
+!!! info "Local-First Processing"
+    The `discover` command keeps all analysis local by default. No project data is sent to external services when using the default Ollama configuration.
+
+[Learn more →](discover.md)
 
 ### Create New Project
 

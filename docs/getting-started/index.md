@@ -6,10 +6,11 @@ Welcome to SecretZero! This guide will help you get up and running with secret m
 
 In this section, you'll learn how to:
 
-1. **Install SecretZero** and its optional dependencies
-2. **Set up your first project** with a Secretfile
-3. **Generate and sync secrets** to various targets
-4. **Understand core concepts** like providers, targets, and generators
+1. **Discover existing secrets** in your project using AI analysis (local-first)
+2. **Install SecretZero** and its optional dependencies
+3. **Set up your first project** with a Secretfile
+4. **Generate and sync secrets** to various targets
+5. **Understand core concepts** like providers, targets, and generators
 
 ## Prerequisites
 
@@ -23,6 +24,14 @@ Before you begin, ensure you have:
 ## Quick Navigation
 
 <div class="grid cards" markdown>
+
+-   :material-magnifying-glass: **Discover Secrets**
+
+    ---
+
+    AI-powered discovery of secrets in your project using local models
+    
+    [Start Discovery →](../user-guide/cli/discover.md)
 
 -   :material-download: **Installation**
 
@@ -74,20 +83,22 @@ Think of it as **infrastructure-as-code for secrets** - all your secret requirem
 
 ```mermaid
 graph LR
-    A[Create Secretfile.yml] --> B[Validate Config]
-    B --> C[Generate Secrets]
-    C --> D[Sync to Targets]
-    D --> E[Track in Lockfile]
-    E --> F[Rotate as Needed]
-    F --> C
+    A[Discover Existing Secrets] --> B[Define Secretfile.yml]
+    B --> C[Validate Config]
+    C --> D[Generate Secrets]
+    D --> E[Sync to Targets]
+    E --> F[Track in Lockfile]
+    F --> G[Rotate as Needed]
+    G --> D
 ```
 
-1. **Define** secrets in `Secretfile.yml`
-2. **Validate** configuration
-3. **Generate** secret values
-4. **Sync** to target locations
-5. **Track** in lockfile
-6. **Rotate** based on policies
+1. **Discover** existing secrets in your project (optional, AI-assisted)
+2. **Define** secrets in `Secretfile.yml`
+3. **Validate** configuration
+4. **Generate** secret values
+5. **Sync** to target locations
+6. **Track** in lockfile
+7. **Rotate** based on policies
 
 ## Key Benefits
 
