@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from secretzero.generators import (
+    GitHubPATGenerator,
     ProviderBackedGenerator,
     RandomPasswordGenerator,
     RandomStringGenerator,
@@ -645,6 +646,35 @@ class SyncEngine:
             generator_class = StaticGenerator
         elif kind == "script":
             generator_class = ScriptGenerator
+        elif kind == "github_pat":
+            # Inject the resolved provider instance into the config
+            provider_name = config.get("provider", "github")
+            provider = self._get_provider(provider_name)
+            if provider is None:
+                raise ValueError(
+                    f"github_pat generator requires provider '{provider_name}' "
+                    f"to be configured in the Secretfile providers section."
+                )
+            config = {**config, "_provider_instance": provider}
+            generator = GitHubPATGenerator(config)
+            if self.hide_input:
+                generator.hide_input = True
+            return generator.generate_with_fallback(
+                env_var_name, field_description=field_description
+            )
+        elif kind == "provider_backed":
+            # Generic provider-backed generation
+            provider_name = config.get("provider")
+            if provider_name:
+                provider = self._get_provider(provider_name)
+                if provider:
+                    config = {**config, "provider": provider}
+            generator = ProviderBackedGenerator(config)
+            if self.hide_input:
+                generator.hide_input = True
+            return generator.generate_with_fallback(
+                env_var_name, field_description=field_description
+            )
         else:
             raise ValueError(f"Unknown generator kind: {kind}")
 

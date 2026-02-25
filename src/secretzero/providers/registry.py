@@ -104,6 +104,7 @@ try:
     from secretzero.providers.azure import AzureProvider
     from secretzero.providers.github import GitHubProvider
     from secretzero.providers.gitlab import GitLabProvider
+    from secretzero.providers.infisical import InfisicalProvider
     from secretzero.providers.jenkins import JenkinsProvider
     from secretzero.providers.kubernetes import KubernetesProvider
     from secretzero.providers.vault import VaultProvider
@@ -113,6 +114,7 @@ try:
     _global_registry.register_provider_class("azure", AzureProvider)
     _global_registry.register_provider_class("github", GitHubProvider)
     _global_registry.register_provider_class("gitlab", GitLabProvider)
+    _global_registry.register_provider_class("infisical", InfisicalProvider)
     _global_registry.register_provider_class("jenkins", JenkinsProvider)
     _global_registry.register_provider_class("kubernetes", KubernetesProvider)
     _global_registry.register_provider_class("vault", VaultProvider)

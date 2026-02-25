@@ -1,0 +1,105 @@
+# yaml-language-server: $schema=../Secretfile.schema.json
+#
+# Example: Generate a scoped GitHub App installation token (fine-grained PAT
+# equivalent) with specific permissions declared in the manifest.
+#
+# Prerequisites:
+#   1. A GitHub App must be registered with the desired permission set.
+#   2. The App must be installed on the target organization/repository.
+#   3. Set environment variables (or provide via provider config):
+#        GITHUB_APP_ID            – numeric App ID
+#        GITHUB_APP_PRIVATE_KEY   – PEM-encoded App private key
+#        GITHUB_APP_INSTALLATION_ID – numeric installation ID
+#        GITHUB_TOKEN             – classic PAT for storing the resulting token
+#
+# How it works:
+#   SecretZero mints a short-lived JWT from the App credentials, then calls
+#   POST /app/installations/{id}/access_tokens with only the permissions
+#   listed below.  The resulting token is stored in the configured targets.
+
+version: '1.0'
+
+variables:
+  github_org: my-org
+  github_repo: my-service
+
+providers:
+  github:
+    kind: github
+    auth:
+      kind: token
+      config:
+        token: ${GITHUB_TOKEN}
+    config:
+      # GitHub App credentials for PAT generation
+      app_id: ${GITHUB_APP_ID}
+      private_key: ${GITHUB_APP_PRIVATE_KEY}
+      installation_id: ${GITHUB_APP_INSTALLATION_ID}
+
+secrets:
+  # ── CI deploy token with read-only access ──────────────────────────
+  - name: ci_deploy_token
+    kind: github_pat
+    config:
+      provider: github
+      permissions:
+        contents: read
+        metadata: read
+        actions: read
+      repositories:
+        - my-service
+      token_name: ci-deploy-readonly
+      expires_in_hours: 1
+    targets:
+      - provider: github
+        kind: github_secret
+        config:
+          owner: ${github_org}
+          repo: ${github_repo}
+          secret_name: CI_DEPLOY_TOKEN
+
+  # ── Release token with write access to contents & PRs ──────────────
+  - name: release_token
+    kind: github_pat
+    config:
+      provider: github
+      permissions:
+        contents: write
+        pull_requests: write
+        issues: write
+        workflows: write
+      repositories:
+        - my-service
+      token_name: release-bot
+    targets:
+      - provider: github
+        kind: github_secret
+        config:
+          owner: ${github_org}
+          repo: ${github_repo}
+          secret_name: RELEASE_TOKEN
+
+  # ── Broad org-level admin token (no repository scoping) ────────────
+  - name: org_admin_token
+    kind: github_pat
+    config:
+      provider: github
+      permissions:
+        organization_administration: write
+        members: read
+      token_name: org-admin
+    targets:
+      - provider: github
+        kind: github_secret
+        config:
+          owner: ${github_org}
+          repo: ${github_repo}
+          secret_name: ORG_ADMIN_TOKEN
+
+metadata:
+  project: github-pat-example
+  owner: platform-team
+  description: Demonstrates scoped GitHub PAT generation via GitHub App tokens
+  environments:
+    - ci
+    - production

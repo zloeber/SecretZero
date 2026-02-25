@@ -1,0 +1,94 @@
+# Example: Using Infisical provider with SecretZero
+#
+# This example shows how to use Infisical (https://infisical.com/) as a provider
+# for SecretZero to centrally manage and sync secrets.
+#
+# Prerequisites:
+#  - Infisical account and workspace set up
+#  - INFISICAL_TOKEN or INFISICAL_SERVICE_TOKEN environment variable set
+#
+# Usage: export INFISICAL_TOKEN="your-token" && secretzero sync -f infisical-provider.yml
+
+version: "1.0"
+
+variables:
+  infisical_workspace_id: "your-workspace-id-here"
+  infisical_environment: "dev"
+
+secrets:
+  # Auto-generated password synced to Infisical
+  database_password:
+    description: "PostgreSQL database password generated and stored in Infisical"
+    generator: random_password
+    generator_config:
+      length: 32
+      include_uppercase: true
+      include_numbers: true
+      include_symbols: true
+    targets:
+      # Store in Infisical
+      - kind: infisical
+        config:
+          workspace_id: "${infisical_workspace_id}"
+          environment: "${infisical_environment}"
+      # Also save to local .env for development
+      - kind: file
+        config:
+          path: .env.local
+          format: dotenv
+
+  # API key that requires manual setup (will provide instructions)
+  third_party_api_key:
+    description: "API key from external service"
+    kind: static
+    agent_instructions:
+      summary: "Obtain API key from third-party service and provision in Infisical"
+      prerequisites:
+        - "Active account with third-party service"
+        - "Admin access to API key management"
+      steps:
+        - action: "Log in to service"
+          description: "Navigate to the third-party service and log in"
+        - action: "Create API key"
+          description: "Go to Settings > API Keys > Create New Key"
+          params: "Name the key 'secretzero-dev'"
+        - action: "Copy the key value"
+          description: "Copy the generated API key to your clipboard"
+      required_tools:
+        - "Third-party service web UI"
+      estimated_time: "5 minutes"
+      automation_hint: "Could be automated with API if service supports programmatic key creation"
+      documentation_url: "https://docs.example.com/api-keys"
+    targets:
+      - kind: infisical
+        config:
+          workspace_id: "${infisical_workspace_id}"
+          environment: "${infisical_environment}"
+
+  # Generated string synced to Infisical
+  jwt_secret:
+    description: "JWT signing secret"
+    generator: random_string
+    generator_config:
+      length: 64
+      charset: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!"
+    targets:
+      - kind: infisical
+        config:
+          workspace_id: "${infisical_workspace_id}"
+          environment: "${infisical_environment}"
+
+  # Multi-environment example using profiles
+  environment_specific_secret:
+    description: "Environment-specific configuration"
+    kind: static
+    config:
+      value: "dev-specific-value"
+    targets:
+      - kind: infisical
+        config:
+          workspace_id: "${infisical_workspace_id}"
+          environment: "${infisical_environment}"
+
+templates: {}
+providers: {}

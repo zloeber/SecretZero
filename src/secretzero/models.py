@@ -65,6 +65,7 @@ class GeneratorKind(str, Enum):
     SCRIPT = "script"
     API = "api"
     PROVIDER_BACKED = "provider_backed"
+    GITHUB_PAT = "github_pat"
 
 
 class TargetKind(str, Enum):

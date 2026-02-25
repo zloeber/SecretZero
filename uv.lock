@@ -2451,6 +2451,7 @@ all = [
     { name = "azure-keyvault-secrets" },
     { name = "boto3" },
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "hvac" },
     { name = "kubernetes" },
     { name = "mkdocs" },
@@ -2520,6 +2521,9 @@ github = [
 gitlab = [
     { name = "python-gitlab" },
 ]
+infisical = [
+    { name = "httpx" },
+]
 jenkins = [
     { name = "python-jenkins" },
 ]
@@ -2550,7 +2554,9 @@ requires-dist = [
     { name = "click", specifier = ">=8.0.0" },
     { name = "fastapi", marker = "extra == 'all'", specifier = ">=0.104.0" },
     { name = "fastapi", marker = "extra == 'api'", specifier = ">=0.129.0" },
+    { name = "httpx", marker = "extra == 'all'", specifier = ">=0.24.0" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.25.0" },
+    { name = "httpx", marker = "extra == 'infisical'", specifier = ">=0.24.0" },
     { name = "hvac", marker = "extra == 'all'", specifier = ">=1.0.0" },
     { name = "hvac", marker = "extra == 'vault'", specifier = ">=1.0.0" },
     { name = "jinja2", specifier = ">=3.0.0" },
@@ -2606,7 +2612,7 @@ requires-dist = [
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'api'", specifier = ">=0.41.0" },
     { name = "wcwidth", marker = "extra == 'demos'" },
 ]
-provides-extras = ["dev", "aws", "azure", "vault", "ansible-vault", "github", "gitlab", "jenkins", "kubernetes", "cicd", "api", "docs", "ai", "security", "demos", "all"]
+provides-extras = ["dev", "aws", "azure", "vault", "ansible-vault", "github", "gitlab", "jenkins", "kubernetes", "infisical", "cicd", "api", "docs", "ai", "security", "demos", "all"]
 
 [[package]]
 name = "setuptools"

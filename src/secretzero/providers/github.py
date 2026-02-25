@@ -1,10 +1,76 @@
-"""GitHub provider for GitHub Actions secrets."""
+"""GitHub provider for GitHub Actions secrets and PAT generation."""
 
+import json
 import os
 import secrets
 from typing import Any
 
 from secretzero.providers.base import BaseProvider, ProviderAuth
+
+# ===== GitHub PAT Permission Models =====
+
+# Valid permission names for fine-grained GitHub PATs / App installation tokens.
+# Maps permission name -> allowed access levels.
+GITHUB_PAT_PERMISSIONS: dict[str, list[str]] = {
+    # Repository permissions
+    "actions": ["read", "write"],
+    "administration": ["read", "write"],
+    "checks": ["read", "write"],
+    "codespaces": ["read", "write"],
+    "contents": ["read", "write"],
+    "dependabot_secrets": ["read", "write"],
+    "deployments": ["read", "write"],
+    "environments": ["read", "write"],
+    "issues": ["read", "write"],
+    "metadata": ["read", "write"],
+    "packages": ["read", "write"],
+    "pages": ["read", "write"],
+    "pull_requests": ["read", "write"],
+    "repository_hooks": ["read", "write"],
+    "repository_projects": ["read", "write", "admin"],
+    "secret_scanning_alerts": ["read", "write"],
+    "secrets": ["read", "write"],
+    "security_events": ["read", "write"],
+    "single_file": ["read", "write"],
+    "statuses": ["read", "write"],
+    "vulnerability_alerts": ["read", "write"],
+    "workflows": ["write"],
+    # Organization permissions
+    "members": ["read", "write"],
+    "organization_administration": ["read", "write"],
+    "organization_hooks": ["read", "write"],
+    "organization_plan": ["read"],
+    "organization_projects": ["read", "write", "admin"],
+    "organization_secrets": ["read", "write"],
+    "organization_self_hosted_runners": ["read", "write"],
+    "team_discussions": ["read", "write"],
+}
+
+
+def validate_pat_permissions(permissions: dict[str, str]) -> tuple[bool, list[str]]:
+    """Validate a set of PAT permissions against the known permission schema.
+
+    Args:
+        permissions: Mapping of permission name to access level (e.g. {"contents": "read"}).
+
+    Returns:
+        Tuple of (is_valid, list_of_error_messages).
+    """
+    errors: list[str] = []
+    for perm_name, access_level in permissions.items():
+        if perm_name not in GITHUB_PAT_PERMISSIONS:
+            errors.append(
+                f"Unknown permission '{perm_name}'. "
+                f"Valid: {', '.join(sorted(GITHUB_PAT_PERMISSIONS.keys()))}"
+            )
+            continue
+        allowed = GITHUB_PAT_PERMISSIONS[perm_name]
+        if access_level not in allowed:
+            errors.append(
+                f"Invalid access level '{access_level}' for permission '{perm_name}'. "
+                f"Allowed: {', '.join(allowed)}"
+            )
+    return (len(errors) == 0, errors)
 
 
 class GitHubAuth(ProviderAuth):
@@ -414,3 +480,178 @@ class GitHubProvider(BaseProvider):
             return True
         except Exception as e:
             raise ValueError(f"Failed to delete secret from GitHub: {e}")
+
+    # ===== GENERATE PAT CAPABILITY =====
+
+    def generate_pat(
+        self,
+        permissions: dict[str, str] | None = None,
+        repositories: list[str] | None = None,
+        repository: str | None = None,
+        token_name: str | None = None,
+        expires_in_hours: int = 1,
+    ) -> str:
+        """Generate a scoped GitHub App installation access token.
+
+        Creates a short-lived installation token via a GitHub App with only
+        the requested permissions.  This is the API-automatable equivalent
+        of a fine-grained PAT.
+
+        The calling token **must** be a GitHub App JWT or an installation
+        token that itself has permission to create installation tokens.
+        Alternatively, if ``app_id`` and ``private_key`` (or
+        ``private_key_path``) are provided in the provider config, those
+        are used to mint a JWT automatically.
+
+        Args:
+            permissions: Mapping of permission scope to access level,
+                e.g. ``{"contents": "read", "pull_requests": "write"}``.
+                Must conform to :data:`GITHUB_PAT_PERMISSIONS`.
+                If *None*, the installation's full default permissions are used.
+            repositories: Optional list of repository names (not full
+                ``owner/repo``) to scope the token to.
+            repository: Convenience alias – single ``owner/repo`` string.
+                When supplied and *repositories* is empty, the repo name
+                part is extracted automatically.
+            token_name: Human-readable label stored in metadata (not sent
+                to the API, but useful for lockfile tracking).
+            expires_in_hours: Lifetime of the token in hours (1-24,
+                default 1).  GitHub enforces a hard maximum of 1 hour for
+                installation tokens, so values > 1 are clamped.
+
+        Returns:
+            The installation access token string.
+
+        Raises:
+            ValueError: If permissions are invalid or required config is
+                missing.
+            RuntimeError: If the GitHub API call fails.
+        """
+        # ---- validate permissions ------------------------------------------
+        if permissions:
+            valid, errors = validate_pat_permissions(permissions)
+            if not valid:
+                raise ValueError("Invalid PAT permissions:\n  " + "\n  ".join(errors))
+
+        # ---- resolve repository list ---------------------------------------
+        repo_names: list[str] | None = None
+        if repositories:
+            repo_names = repositories
+        elif repository:
+            # Accept "owner/repo" or bare "repo"
+            repo_names = [repository.split("/")[-1]]
+        elif self.config.get("repository"):
+            repo_names = [self.config["repository"].split("/")[-1]]
+
+        # ---- build JWT from App credentials if available -------------------
+        app_id = self.config.get("app_id")
+        private_key = self.config.get("private_key")
+        private_key_path = self.config.get("private_key_path")
+        installation_id = self.config.get("installation_id")
+
+        if not app_id:
+            app_id = os.environ.get("GITHUB_APP_ID")
+        if not private_key and not private_key_path:
+            private_key = os.environ.get("GITHUB_APP_PRIVATE_KEY")
+            private_key_path = os.environ.get("GITHUB_APP_PRIVATE_KEY_PATH")
+        if not installation_id:
+            installation_id = os.environ.get("GITHUB_APP_INSTALLATION_ID")
+
+        if not app_id or not installation_id:
+            raise ValueError(
+                "generate_pat requires GitHub App credentials. "
+                "Set 'app_id' and 'installation_id' in provider config, "
+                "or GITHUB_APP_ID / GITHUB_APP_INSTALLATION_ID env vars."
+            )
+
+        if private_key_path and not private_key:
+            try:
+                with open(private_key_path) as fh:
+                    private_key = fh.read()
+            except OSError as exc:
+                raise ValueError(
+                    f"Cannot read GitHub App private key from {private_key_path}: {exc}"
+                )
+
+        if not private_key:
+            raise ValueError(
+                "generate_pat requires a GitHub App private key. "
+                "Set 'private_key' in config or GITHUB_APP_PRIVATE_KEY env var."
+            )
+
+        # ---- mint JWT and request installation token -----------------------
+        try:
+            import time
+
+            import jwt as pyjwt
+            import requests
+        except ImportError as exc:
+            raise RuntimeError(f"generate_pat requires 'PyJWT' and 'requests' packages: {exc}")
+
+        now = int(time.time())
+        payload = {
+            "iat": now - 60,  # issued-at (1 min in the past for clock skew)
+            "exp": now + (10 * 60),  # 10-minute JWT lifetime (max allowed)
+            "iss": str(app_id),
+        }
+        encoded_jwt = pyjwt.encode(payload, private_key, algorithm="RS256")
+
+        api_url = (
+            self.config.get("api_url")
+            or (self.auth.config.get("api_url") if self.auth else None)
+            or "https://api.github.com"
+        )
+
+        # Build the access token request body
+        body: dict[str, Any] = {}
+        if permissions:
+            body["permissions"] = permissions
+        if repo_names:
+            body["repositories"] = repo_names
+
+        headers = {
+            "Authorization": f"Bearer {encoded_jwt}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+        }
+
+        url = f"{api_url}/app/installations/{installation_id}/access_tokens"
+        response = requests.post(url, headers=headers, json=body, timeout=30)
+
+        if response.status_code != 201:
+            detail = response.text[:500]
+            raise RuntimeError(
+                f"GitHub API returned {response.status_code} creating installation token: {detail}"
+            )
+
+        data = response.json()
+        token = data.get("token")
+        if not token:
+            raise RuntimeError("GitHub API response missing 'token' field")
+
+        return token
+
+    def generate_pat_with_manifest(
+        self,
+        manifest: dict[str, Any],
+    ) -> str:
+        """Generate a PAT from a full manifest block (convenience wrapper).
+
+        This is the method invoked by the ``github_pat`` generator kind.
+        It unpacks a manifest dict and delegates to :meth:`generate_pat`.
+
+        Args:
+            manifest: Dictionary with keys matching :meth:`generate_pat`
+                parameters: ``permissions``, ``repositories``, ``repository``,
+                ``token_name``, ``expires_in_hours``.
+
+        Returns:
+            The installation access token string.
+        """
+        return self.generate_pat(
+            permissions=manifest.get("permissions"),
+            repositories=manifest.get("repositories"),
+            repository=manifest.get("repository"),
+            token_name=manifest.get("token_name"),
+            expires_in_hours=manifest.get("expires_in_hours", 1),
+        )
