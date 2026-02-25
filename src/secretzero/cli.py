@@ -4033,7 +4033,7 @@ def _display_agent_sync_results(result: Any, *, interactive: bool = False) -> No
     # Synced secrets
     if result.synced_secrets:
         console.print(
-            f"\n[bold green]✅ Successfully synced {len(result.synced_secrets)} secret(s):[/bold green]"
+            f"\n[bold green]\u2705 Successfully synced {len(result.synced_secrets)} secret(s):[/bold green]"
         )
         for secret in result.synced_secrets:
             console.print(f"  • {secret}", style="green")
@@ -4041,7 +4041,7 @@ def _display_agent_sync_results(result: Any, *, interactive: bool = False) -> No
     # Pending secrets with instructions
     if result.pending_secrets:
         console.print(
-            f"\n[bold yellow]⏳ {len(result.pending_secrets)} secret(s) require manual intervention:[/bold yellow]"
+            f"\n[bold yellow]\u23f3 {len(result.pending_secrets)} secret(s) require manual intervention:[/bold yellow]"
         )
 
         for secret_name, instructions in result.pending_secrets.items():
@@ -4063,22 +4063,20 @@ def _display_agent_sync_results(result: Any, *, interactive: bool = False) -> No
 
             if instructions.automation_hint:
                 console.print(
-                    f"\n  💡 [italic]Automation: {instructions.automation_hint}[/italic]"
+                    f"\n  \U0001f4a1 [italic]Automation: {instructions.automation_hint}[/italic]"
                 )
             if instructions.estimated_time:
                 console.print(
-                    f"  ⏱️  [italic]Estimated time: {instructions.estimated_time}[/italic]"
+                    f"  \u23f1\ufe0f  [italic]Estimated time: {instructions.estimated_time}[/italic]"
                 )
             if instructions.required_tools:
                 console.print(
-                    f"  🔧 [italic]Required tools: {', '.join(instructions.required_tools)}[/italic]"
+                    f"  \U0001f527 [italic]Required tools: {', '.join(instructions.required_tools)}[/italic]"
                 )
             if instructions.fallback:
-                console.print(f"  🔄 [italic]Fallback: {instructions.fallback}[/italic]")
+                console.print(f"  \U0001f504 [italic]Fallback: {instructions.fallback}[/italic]")
             if instructions.documentation_url:
-                console.print(
-                    f"  📚 [blue]Docs: {instructions.documentation_url}[/blue]"
-                )
+                console.print(f"  \U0001f4da [blue]Docs: {instructions.documentation_url}[/blue]")
 
             if interactive:
                 if click.confirm(f"\nHave you obtained the value for '{secret_name}'?"):
@@ -4088,23 +4086,253 @@ def _display_agent_sync_results(result: Any, *, interactive: bool = False) -> No
                         confirmation_prompt=False,
                     )
                     console.print(
-                        f"[green]✅ Value received for {secret_name}[/green] "
+                        f"[green]\u2705 Value received for {secret_name}[/green] "
                         "(apply with 'secretzero sync' or store it manually)"
                     )
 
     # Failed secrets
     if result.failed_secrets:
         console.print(
-            f"\n[bold red]❌ {len(result.failed_secrets)} secret(s) failed:[/bold red]"
+            f"\n[bold red]\u274c {len(result.failed_secrets)} secret(s) failed:[/bold red]"
         )
         for secret, error in result.failed_secrets.items():
             console.print(f"  • [red]{secret}[/red]: {error}")
 
     # Summary
-    console.print("\n[bold]📊 Summary:[/bold]")
+    console.print("\n[bold]\U0001f4ca Summary:[/bold]")
     console.print(f"  Synced:   {result.automation_summary.get('fully_synced', 0)}")
     console.print(f"  Pending:  {result.automation_summary.get('requires_intervention', 0)}")
     console.print(f"  Failed:   {result.automation_summary.get('failed', 0)}")
+
+
+@main.command()
+@click.option(
+    "--path",
+    "-p",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+    default=".",
+    help="Project root directory to scan",
+)
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(),
+    default=None,
+    help="Output path for Secretfile.detect.yml (default: <path>/Secretfile.detect.yml)",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Analyse without writing output files",
+)
+@click.option(
+    "--provider",
+    type=click.Choice(["ollama", "openai", "anthropic", "azure_openai"]),
+    default=None,
+    help="LLM provider to use for AI-enhanced analysis",
+)
+@click.option(
+    "--model",
+    default=None,
+    help="LLM model name override",
+)
+@click.option(
+    "--local-only",
+    is_flag=True,
+    help="Restrict to local LLM providers only (e.g. Ollama)",
+)
+@click.option(
+    "--no-llm",
+    is_flag=True,
+    help="Disable LLM analysis; use pattern matching only",
+)
+@click.option(
+    "--config",
+    "-c",
+    "config_file",
+    type=click.Path(exists=True),
+    default=None,
+    help="Path to secretzero.yml configuration file",
+)
+@click.option(
+    "--format",
+    "-f",
+    "output_format",
+    type=click.Choice(["text", "json", "yaml"]),
+    default="text",
+    help="Output summary format",
+)
+@click.option(
+    "--threshold",
+    type=float,
+    default=None,
+    help="Confidence threshold (0.0\u20131.0) for including secrets (default from config)",
+)
+def discover(
+    path: str,
+    output: str | None,
+    dry_run: bool,
+    provider: str | None,
+    model: str | None,
+    local_only: bool,
+    no_llm: bool,
+    config_file: str | None,
+    output_format: str,
+    threshold: float | None,
+) -> None:
+    """AI-powered secret discovery.
+
+    Scans a project directory for secrets, credentials, and sensitive
+    configuration values.  Generates a ``Secretfile.detect.yml`` with
+    recommended secret definitions that you can review and use as a
+    starting point for your ``Secretfile.yml``.
+
+    \b
+    Examples:
+      # Basic scan of current directory
+      secretzero discover
+
+      # Use OpenAI for deeper analysis
+      secretzero discover --provider openai
+
+      # Privacy-first local-only scan
+      secretzero discover --local-only
+
+      # Dry-run to preview without writing
+      secretzero discover --dry-run
+    """
+    from secretzero.cli_config import CliConfigLoader
+    from secretzero.discovery import DiscoveryAgent
+
+    # Load CLI configuration
+    loader = CliConfigLoader()
+    try:
+        cli_cfg = loader.load(config_path=config_file)
+    except ValueError as exc:
+        console.print(f"[red]Error loading config:[/red] {exc}")
+        raise click.Abort()
+
+    # Apply threshold override
+    if threshold is not None:
+        cli_cfg.discovery.confidence_threshold = threshold
+
+    if output_format == "text":
+        console.print("[bold]\U0001f50d Starting secret discovery...[/bold]\n")
+        console.print(f"  Project root : [cyan]{Path(path).resolve()}[/cyan]")
+
+        effective_provider = provider or cli_cfg.llm.default_provider
+        if no_llm:
+            console.print("  LLM analysis : [yellow]disabled (--no-llm)[/yellow]")
+        elif local_only:
+            console.print(f"  LLM provider : [cyan]{effective_provider}[/cyan] (local-only)")
+        else:
+            console.print(f"  LLM provider : [cyan]{effective_provider}[/cyan]")
+
+        if dry_run:
+            console.print("  Mode         : [yellow]dry-run (no files written)[/yellow]")
+
+        console.print()
+
+    agent = DiscoveryAgent(config=cli_cfg)
+
+    try:
+        result = agent.discover(
+            project_root=path,
+            output_path=output,
+            dry_run=dry_run,
+            use_llm=not no_llm,
+            local_only=local_only,
+            provider=provider,
+            model=model,
+        )
+    except Exception as exc:
+        console.print(f"[red]Discovery failed:[/red] {exc}")
+        sys.exit(EXIT_UNKNOWN_ERROR)
+
+    # Format output
+    if output_format == "json":
+        data = {
+            "files_scanned": result.files_scanned,
+            "total_secrets": result.total_secrets,
+            "dry_run": result.dry_run,
+            "output_path": str(result.output_path) if result.output_path else None,
+            "secrets": [
+                {
+                    "name": c.name,
+                    "description": c.description,
+                    "confidence": c.confidence,
+                    "generator": c.suggested_generator,
+                    "source_file": c.source_file,
+                    "line": c.line_number,
+                    "tags": c.tags,
+                }
+                for c in result.candidates
+            ],
+        }
+        click.echo(json.dumps(data, indent=2))
+        return
+
+    if output_format == "yaml":
+        data = {
+            "files_scanned": result.files_scanned,
+            "total_secrets": result.total_secrets,
+            "dry_run": result.dry_run,
+            "output_path": str(result.output_path) if result.output_path else None,
+            "secrets": [
+                {
+                    "name": c.name,
+                    "description": c.description,
+                    "confidence": round(c.confidence, 2),
+                    "generator": c.suggested_generator,
+                    "source_file": c.source_file,
+                }
+                for c in result.candidates
+            ],
+        }
+        click.echo(yaml.dump(data, sort_keys=False, default_flow_style=False))
+        return
+
+    # Default: text output
+    console.print(f"[green]\u2713[/green] Scanned [bold]{result.files_scanned}[/bold] file(s)")
+    console.print(
+        f"[green]\u2713[/green] Found [bold]{result.total_secrets}[/bold] secret candidate(s)"
+    )
+
+    if result.total_secrets > 0:
+        console.print()
+        from rich import box as _box
+        from rich.table import Table as _Table
+
+        table = _Table(show_header=True, header_style="bold cyan", box=_box.SIMPLE)
+        table.add_column("Name", style="green")
+        table.add_column("Generator", style="cyan")
+        table.add_column("Confidence", justify="right")
+        table.add_column("Source", style="dim")
+        table.add_column("Tags", style="dim")
+
+        for c in result.candidates:
+            conf_color = (
+                "green" if c.confidence >= 0.85 else "yellow" if c.confidence >= 0.65 else "red"
+            )
+            conf_str = f"[{conf_color}]{c.confidence:.0%}[/{conf_color}]"
+            tags_str = ", ".join(c.tags[:3]) if c.tags else ""
+            table.add_row(c.name, c.suggested_generator, conf_str, c.source_file, tags_str)
+
+        console.print(table)
+
+    if dry_run:
+        console.print("\n[yellow]Dry-run mode:[/yellow] no files written.")
+        console.print(
+            f"[dim]Run without --dry-run to write:[/dim] [cyan]{result.output_path}[/cyan]"
+        )
+    elif result.total_secrets > 0 and result.output_path:
+        console.print(f"\n[green]\u2713[/green] Written to: [cyan]{result.output_path}[/cyan]")
+        console.print("\nNext steps:")
+        console.print("  1. Review [cyan]Secretfile.detect.yml[/cyan] and remove false positives")
+        console.print("  2. Rename/merge entries into your [cyan]Secretfile.yml[/cyan]")
+        console.print("  3. Run [cyan]secretzero validate[/cyan] to check the configuration")
+    else:
+        console.print("\n[dim]No secrets found above the confidence threshold.[/dim]")
 
 
 if __name__ == "__main__":

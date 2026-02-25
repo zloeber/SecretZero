@@ -305,7 +305,7 @@ prerequisites:
 
 ## See Also
 
-- [Configuration Reference](../reference/configuration.md)
+- [Configuration Reference](configuration/index.md)
 - [Generator Types](generators/index.md)
 - [Target Types](targets/index.md)
 - [CLI Reference](cli/index.md)

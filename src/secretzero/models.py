@@ -20,7 +20,9 @@ class AgentInstructionStep(BaseModel):
 
     action: str = Field(description="Action to perform (CLI command, URL, or description)")
     description: str = Field(description="Human-readable context for the action")
-    params: dict[str, Any] | None = Field(default=None, description="Optional parameters for API calls")
+    params: dict[str, Any] | None = Field(
+        default=None, description="Optional parameters for API calls"
+    )
     required: bool = Field(default=True, description="Whether this step is required or optional")
 
 
@@ -29,12 +31,20 @@ class AgentInstructions(BaseModel):
 
     summary: str = Field(description="Brief overview of the acquisition process")
     steps: list[AgentInstructionStep] = Field(description="Step-by-step instructions")
-    prerequisites: list[str] | None = Field(default=None, description="Requirements before starting")
-    automation_hint: str | None = Field(default=None, description="Guidance on automation feasibility")
+    prerequisites: list[str] | None = Field(
+        default=None, description="Requirements before starting"
+    )
+    automation_hint: str | None = Field(
+        default=None, description="Guidance on automation feasibility"
+    )
     estimated_time: str | None = Field(default=None, description="Expected time to complete")
     fallback: str | None = Field(default=None, description="What to do if automation fails")
-    required_tools: list[str] | None = Field(default=None, description="CLI tools or dependencies needed")
-    documentation_url: str | None = Field(default=None, description="Link to official documentation")
+    required_tools: list[str] | None = Field(
+        default=None, description="CLI tools or dependencies needed"
+    )
+    documentation_url: str | None = Field(
+        default=None, description="Link to official documentation"
+    )
 
 
 class AuthKind(str, Enum):

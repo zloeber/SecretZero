@@ -21,6 +21,7 @@ from secretzero.models import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_secretfile(secrets: list[Secret]) -> Secretfile:
     """Build a minimal Secretfile containing the given secrets."""
     return Secretfile(
@@ -46,6 +47,7 @@ def _make_secret(
 # ---------------------------------------------------------------------------
 # Model validation
 # ---------------------------------------------------------------------------
+
 
 class TestAgentInstructionsModel:
     """Unit tests for AgentInstructions Pydantic model."""
@@ -122,6 +124,7 @@ class TestSecretModelWithAgentInstructions:
 # detect_automation_level
 # ---------------------------------------------------------------------------
 
+
 class TestDetectAutomationLevel:
     """Unit tests for detect_automation_level()."""
 
@@ -160,6 +163,7 @@ class TestDetectAutomationLevel:
 # ---------------------------------------------------------------------------
 # AgentSecretSynchronizer
 # ---------------------------------------------------------------------------
+
 
 class TestAgentSecretSynchronizer:
     """Unit tests for AgentSecretSynchronizer."""
@@ -230,6 +234,7 @@ class TestAgentSecretSynchronizer:
 # CLI integration tests
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def runner() -> CliRunner:
     return CliRunner()
@@ -240,15 +245,13 @@ class TestAgentSyncCLI:
 
     @staticmethod
     def _write_secretfile(path: Path, secrets_yaml: str = "") -> None:
-        path.write_text(
-            f"""version: '1.0'
+        path.write_text(f"""version: '1.0'
 variables: {{}}
 providers: {{}}
 secrets:
 {secrets_yaml}
 templates: {{}}
-"""
-        )
+""")
 
     def test_help_output(self, runner: CliRunner) -> None:
         result = runner.invoke(main, ["agent", "sync", "--help"])
@@ -267,7 +270,9 @@ templates: {{}}
                 sf,
                 "  - name: pwd\n    kind: random_password\n    config: {length: 24}",
             )
-            result = runner.invoke(main, ["agent", "sync", "--file", str(sf), "--json", "--dry-run"])
+            result = runner.invoke(
+                main, ["agent", "sync", "--file", str(sf), "--json", "--dry-run"]
+            )
             assert result.exit_code == 0, result.output
             data = json.loads(result.output)
             assert "pwd" in data["synced_secrets"]
@@ -276,8 +281,7 @@ templates: {{}}
     def test_json_output_pending_secrets(self, runner: CliRunner) -> None:
         with TemporaryDirectory() as tmpdir:
             sf = Path(tmpdir) / "Secretfile.yml"
-            sf.write_text(
-                """version: '1.0'
+            sf.write_text("""version: '1.0'
 variables: {}
 providers: {}
 secrets:
@@ -290,9 +294,10 @@ secrets:
         - action: Visit https://dashboard.stripe.com/register
           description: Create account
 templates: {}
-"""
+""")
+            result = runner.invoke(
+                main, ["agent", "sync", "--file", str(sf), "--json", "--dry-run"]
             )
-            result = runner.invoke(main, ["agent", "sync", "--file", str(sf), "--json", "--dry-run"])
             assert result.exit_code == 0, result.output
             data = json.loads(result.output)
             assert "stripe_key" in data["pending_secrets"]
@@ -302,8 +307,7 @@ templates: {}
     def test_human_readable_output(self, runner: CliRunner) -> None:
         with TemporaryDirectory() as tmpdir:
             sf = Path(tmpdir) / "Secretfile.yml"
-            sf.write_text(
-                """version: '1.0'
+            sf.write_text("""version: '1.0'
 variables: {}
 providers: {}
 secrets:
@@ -319,8 +323,7 @@ secrets:
         - action: Login to dashboard
           description: Visit https://example.com
 templates: {}
-"""
-            )
+""")
             result = runner.invoke(main, ["agent", "sync", "--file", str(sf), "--dry-run"])
             assert result.exit_code == 0, result.output
             assert "pwd" in result.output
@@ -337,10 +340,17 @@ templates: {}
         with TemporaryDirectory() as tmpdir:
             sf = Path(tmpdir) / "Secretfile.yml"
             self._write_secretfile(sf, "  - name: p\n    kind: random_string\n    config: {}")
-            result = runner.invoke(main, ["agent", "sync", "--file", str(sf), "--json", "--dry-run"])
+            result = runner.invoke(
+                main, ["agent", "sync", "--file", str(sf), "--json", "--dry-run"]
+            )
             assert result.exit_code == 0, result.output
             data = json.loads(result.output)
-            for key in ("synced_secrets", "pending_secrets", "failed_secrets", "automation_summary"):
+            for key in (
+                "synced_secrets",
+                "pending_secrets",
+                "failed_secrets",
+                "automation_summary",
+            ):
                 assert key in data
 
     def test_empty_secretfile(self, runner: CliRunner) -> None:
@@ -348,7 +358,9 @@ templates: {}
         with TemporaryDirectory() as tmpdir:
             sf = Path(tmpdir) / "Secretfile.yml"
             self._write_secretfile(sf, "  []")
-            result = runner.invoke(main, ["agent", "sync", "--file", str(sf), "--json", "--dry-run"])
+            result = runner.invoke(
+                main, ["agent", "sync", "--file", str(sf), "--json", "--dry-run"]
+            )
             assert result.exit_code == 0, result.output
             data = json.loads(result.output)
             assert data["synced_secrets"] == []
