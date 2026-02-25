@@ -170,42 +170,59 @@ class TestAgentSecretSynchronizer:
 
     def test_auto_secrets_land_in_synced_secrets(self) -> None:
         """Random-password secrets are synced automatically (dry_run=True)."""
+        from secretzero.lockfile import Lockfile
+
         sf = _make_secretfile([_make_secret("pwd", "random_password")])
-        sync = AgentSecretSynchronizer(sf, dry_run=True)
+        lock = Lockfile()
+        sync = AgentSecretSynchronizer(sf, lock, dry_run=True)
         result = sync.sync()
         assert "pwd" in result.synced_secrets
         assert len(result.pending_secrets) == 0
         assert len(result.failed_secrets) == 0
 
     def test_random_string_is_auto_synced(self) -> None:
+        from secretzero.lockfile import Lockfile
+
         sf = _make_secretfile([_make_secret("tok", "random_string")])
-        result = AgentSecretSynchronizer(sf, dry_run=True).sync()
+        lock = Lockfile()
+        result = AgentSecretSynchronizer(sf, lock, dry_run=True).sync()
         assert "tok" in result.synced_secrets
 
     def test_static_with_value_is_auto_synced(self) -> None:
+        from secretzero.lockfile import Lockfile
+
         sf = _make_secretfile([_make_secret("k", "static", config={"value": "secret123"})])
-        result = AgentSecretSynchronizer(sf, dry_run=True).sync()
+        lock = Lockfile()
+        result = AgentSecretSynchronizer(sf, lock, dry_run=True).sync()
         assert "k" in result.synced_secrets
 
     def test_static_without_value_with_instructions_goes_to_pending(self) -> None:
         """Static secret with no value but with instructions ends up in pending."""
+        from secretzero.lockfile import Lockfile
+
         instructions = AgentInstructions(
             summary="Manual setup required",
             steps=[AgentInstructionStep(action="Visit site", description="Sign up")],
         )
         sf = _make_secretfile([_make_secret("api_key", "static", agent_instructions=instructions)])
-        result = AgentSecretSynchronizer(sf, dry_run=True).sync()
+        lock = Lockfile()
+        result = AgentSecretSynchronizer(sf, lock, dry_run=True).sync()
         assert "api_key" in result.pending_secrets
         assert result.pending_secrets["api_key"].summary == "Manual setup required"
 
     def test_static_without_value_or_instructions_goes_to_failed(self) -> None:
         """Static secret with no value and no instructions ends up in failed."""
+        from secretzero.lockfile import Lockfile
+
         sf = _make_secretfile([_make_secret("bare", "static")])
-        result = AgentSecretSynchronizer(sf, dry_run=True).sync()
+        lock = Lockfile()
+        result = AgentSecretSynchronizer(sf, lock, dry_run=True).sync()
         assert "bare" in result.failed_secrets
 
     def test_mixed_secrets(self) -> None:
         """Mixed auto, pending, and failed secrets are correctly classified."""
+        from secretzero.lockfile import Lockfile
+
         instructions = AgentInstructions(summary="Manual", steps=[])
         secrets = [
             _make_secret("auto1", "random_password"),
@@ -214,7 +231,8 @@ class TestAgentSecretSynchronizer:
             _make_secret("failed1", "static"),  # no value, no instructions
         ]
         sf = _make_secretfile(secrets)
-        result = AgentSecretSynchronizer(sf, dry_run=True).sync()
+        lock = Lockfile()
+        result = AgentSecretSynchronizer(sf, lock, dry_run=True).sync()
         assert set(result.synced_secrets) == {"auto1", "auto2"}
         assert "manual1" in result.pending_secrets
         assert "failed1" in result.failed_secrets
@@ -223,8 +241,11 @@ class TestAgentSecretSynchronizer:
         assert result.automation_summary["failed"] == 1
 
     def test_automation_summary_keys_are_always_present(self) -> None:
+        from secretzero.lockfile import Lockfile
+
         sf = _make_secretfile([])
-        result = AgentSecretSynchronizer(sf, dry_run=True).sync()
+        lock = Lockfile()
+        result = AgentSecretSynchronizer(sf, lock, dry_run=True).sync()
         assert "fully_synced" in result.automation_summary
         assert "requires_intervention" in result.automation_summary
         assert "failed" in result.automation_summary

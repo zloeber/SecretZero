@@ -172,5 +172,5 @@ After running discovery:
 ## Related
 
 - [CLI Reference: discover](cli/discover.md)
-- [Configuration Reference](../reference/configuration.md)
+- [Configuration Reference](configuration/index.md)
 - [Getting Started](../getting-started/index.md)

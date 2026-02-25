@@ -1,11 +1,14 @@
 """Agent-specific functionality for autonomous secret synchronization."""
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
 
+from secretzero.lockfile import Lockfile
 from secretzero.models import AgentInstructions, AutomationLevel, Secret, Secretfile
+from secretzero.sync import SyncEngine
 
 logger = logging.getLogger(__name__)
 
@@ -29,20 +32,36 @@ class AgentSyncResult(BaseModel):
     automation_summary: dict[str, int] = Field(
         default_factory=dict, description="Count by automation level"
     )
+    sync_results: dict[str, Any] = Field(
+        default_factory=dict, description="Detailed sync results from SyncEngine"
+    )
 
 
 class AgentSecretSynchronizer:
     """Synchronizer with agent-specific intelligence."""
 
-    def __init__(self, secretfile: Secretfile, dry_run: bool = False) -> None:
+    def __init__(
+        self,
+        secretfile: Secretfile,
+        lockfile: Lockfile,
+        dry_run: bool = False,
+        secretfile_path: Path | None = None,
+        secretfile_content: str | None = None,
+    ) -> None:
         """Initialize synchronizer.
 
         Args:
             secretfile: Loaded Secretfile configuration
+            lockfile: Lockfile for tracking secret state
             dry_run: If True, preview changes without applying
+            secretfile_path: Path to Secretfile for change detection
+            secretfile_content: Content of Secretfile for change detection
         """
         self.secretfile = secretfile
+        self.lockfile = lockfile
         self.dry_run = dry_run
+        self.secretfile_path = secretfile_path
+        self.secretfile_content = secretfile_content
 
     def sync(self) -> AgentSyncResult:
         """Perform agent-aware secret synchronization.
@@ -52,28 +71,43 @@ class AgentSecretSynchronizer:
         """
         result = AgentSyncResult()
 
+        # Separate secrets into auto-syncable and manual
+        auto_secrets = []
         for secret in self.secretfile.secrets:
-            try:
-                if self._can_auto_sync(secret):
-                    if not self.dry_run:
-                        self._sync_secret(secret)
-                    result.synced_secrets.append(secret.name)
-                    logger.info("Secret '%s' synced automatically", secret.name)
+            if self._can_auto_sync(secret):
+                auto_secrets.append(secret.name)
+            else:
+                if secret.agent_instructions:
+                    result.pending_secrets[secret.name] = secret.agent_instructions
+                    logger.info("Secret '%s' requires manual intervention", secret.name)
                 else:
-                    if secret.agent_instructions:
-                        result.pending_secrets[secret.name] = secret.agent_instructions
-                        logger.info("Secret '%s' requires manual intervention", secret.name)
-                    else:
-                        result.failed_secrets[secret.name] = (
-                            "Secret requires manual input but no agent_instructions provided"
-                        )
-                        logger.warning(
-                            "Secret '%s' cannot be auto-synced and has no agent instructions",
-                            secret.name,
-                        )
+                    result.failed_secrets[secret.name] = (
+                        "Secret requires manual input but no agent_instructions provided"
+                    )
+                    logger.warning(
+                        "Secret '%s' cannot be auto-synced and has no agent instructions",
+                        secret.name,
+                    )
+
+        # Use SyncEngine to sync auto-syncable secrets
+        if auto_secrets:
+            engine = SyncEngine(
+                self.secretfile,
+                self.lockfile,
+                secretfile_path=self.secretfile_path,
+                secretfile_content=self.secretfile_content,
+                hide_input=True,
+                prompt_on_empty=False,
+            )
+            try:
+                sync_results = engine.sync(dry_run=self.dry_run, secret_names=auto_secrets)
+                result.sync_results = sync_results
+                result.synced_secrets = auto_secrets
+                logger.info("Synced %d secrets automatically", len(auto_secrets))
             except Exception as exc:
-                result.failed_secrets[secret.name] = str(exc)
-                logger.error("Failed to sync '%s': %s", secret.name, exc)
+                for secret_name in auto_secrets:
+                    result.failed_secrets[secret_name] = str(exc)
+                logger.error("Failed to sync secrets: %s", exc)
 
         result.automation_summary = {
             "fully_synced": len(result.synced_secrets),
@@ -107,24 +141,6 @@ class AgentSecretSynchronizer:
             return True
 
         return False
-
-    def _sync_secret(self, secret: Secret) -> None:
-        """Perform actual secret synchronization using the SyncEngine.
-
-        Args:
-            secret: Secret to sync
-        """
-        from secretzero.lockfile import Lockfile
-        from secretzero.sync import SyncEngine
-
-        lockfile = Lockfile()
-        engine = SyncEngine(
-            secretfile=self.secretfile,
-            lockfile=lockfile,
-            hide_input=True,
-            prompt_on_empty=False,
-        )
-        engine._sync_secret(secret)  # type: ignore[attr-defined]
 
 
 def detect_automation_level(secret: Secret) -> AutomationLevel:

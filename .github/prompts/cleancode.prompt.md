@@ -15,14 +15,14 @@ task format lint:fix
 task lint
 ```
 
-Run this command to ensure all code builds successfully:
-```bash
-task build
-```
 Run this command to check for and resolve any security issues:
-
 ```bash
 task security:check
+```
+
+Run this command to ensure all code builds successfully:
+```bash
+task cli:build build:image
 ```
 
 Run this command to update the root Secretfile.schema.json file:

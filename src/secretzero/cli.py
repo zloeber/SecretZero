@@ -3949,6 +3949,21 @@ def agent() -> None:
     help="Path to Secretfile",
 )
 @click.option(
+    "--lockfile",
+    "-l",
+    type=click.Path(),
+    default=".gitsecrets.lock",
+    help="Path to lockfile",
+)
+@click.option(
+    "--var-file",
+    "-v",
+    "var_files",
+    type=click.Path(exists=True),
+    multiple=True,
+    help="Path to .szvar variable file(s) to merge (can be specified multiple times)",
+)
+@click.option(
     "--dry-run",
     is_flag=True,
     help="Preview changes without applying them",
@@ -3964,7 +3979,14 @@ def agent() -> None:
     is_flag=True,
     help="Prompt for manual secrets interactively",
 )
-def agent_sync(file: str, dry_run: bool, output_json: bool, interactive: bool) -> None:
+def agent_sync(
+    file: str,
+    lockfile: str,
+    var_files: tuple[str, ...],
+    dry_run: bool,
+    output_json: bool,
+    interactive: bool,
+) -> None:
     """Agent-aware secret synchronisation with guided instructions.
 
     Automatically syncs secrets that can be generated without external input
@@ -3984,25 +4006,53 @@ def agent_sync(file: str, dry_run: bool, output_json: bool, interactive: bool) -
 
         # Interactively supply values for pending secrets
         secretzero agent sync --interactive
+
+        # Sync with variable file override
+        secretzero agent sync --var-file dev.szvar
     """
     from secretzero.agent import AgentSecretSynchronizer
 
     file_path = Path(file)
+
+    # Generate default lockfile name from secretfile if not explicitly provided
+    if lockfile == ".gitsecrets.lock":
+        if file != "Secretfile.yml":
+            lockfile_name = file_path.stem + ".lock"
+            lockfile = lockfile_name
+
+    lockfile_path = Path(lockfile)
+    var_file_paths = [Path(vf) for vf in var_files] if var_files else None
     loader = ConfigLoader()
 
     try:
-        secretfile = loader.load_file(file_path)
+        secretfile = loader.load_file(file_path, var_files=var_file_paths)
     except Exception as exc:
         console.print(f"[red]Error loading Secretfile:[/red] {exc}")
         raise click.ClickException(str(exc)) from exc
 
-    synchronizer = AgentSecretSynchronizer(secretfile, dry_run=dry_run)
+    # Read secretfile content for change detection
+    secretfile_content = file_path.read_text()
+
+    # Load lockfile
+    lock = Lockfile.load(lockfile_path)
+
+    synchronizer = AgentSecretSynchronizer(
+        secretfile,
+        lock,
+        dry_run=dry_run,
+        secretfile_path=file_path,
+        secretfile_content=secretfile_content,
+    )
 
     try:
         result = synchronizer.sync()
     except Exception as exc:
         console.print(f"[red]Agent sync failed:[/red] {exc}")
         raise click.ClickException(str(exc)) from exc
+
+    # Save lockfile if not dry run
+    if not dry_run:
+        lock.save(lockfile_path)
 
     if output_json:
         import json as _json
@@ -4014,19 +4064,25 @@ def agent_sync(file: str, dry_run: bool, output_json: bool, interactive: bool) -
             },
             "failed_secrets": result.failed_secrets,
             "automation_summary": result.automation_summary,
+            "sync_results": result.sync_results,
+            "dry_run": dry_run,
         }
-        click.echo(_json.dumps(output, indent=2))
+        click.echo(_json.dumps(output, indent=2, default=str))
         return
 
-    _display_agent_sync_results(result, interactive=interactive)
+    _display_agent_sync_results(result, lock, interactive=interactive, dry_run=dry_run)
 
 
-def _display_agent_sync_results(result: Any, *, interactive: bool = False) -> None:
+def _display_agent_sync_results(
+    result: Any, lock: Lockfile, *, interactive: bool = False, dry_run: bool = False
+) -> None:
     """Display agent sync results in a human-readable format.
 
     Args:
         result: AgentSyncResult to display
+        lock: Lockfile for validation information
         interactive: If True, prompt the user for pending secret values
+        dry_run: If True, indicate preview mode
     """
     from rich.rule import Rule
 
@@ -4098,11 +4154,64 @@ def _display_agent_sync_results(result: Any, *, interactive: bool = False) -> No
         for secret, error in result.failed_secrets.items():
             console.print(f"  • [red]{secret}[/red]: {error}")
 
+    # Show detailed sync results if available
+    sync_results = result.sync_results
+    if sync_results and sync_results.get("details"):
+        console.print("\n[bold]Synced Secret Details[/bold]")
+
+        details_table = Table(show_header=True, header_style="bold cyan", box=box.ROUNDED)
+        details_table.add_column("Status", justify="center", width=8)
+        details_table.add_column("Secret Name", style="bold")
+        details_table.add_column("Type", style="dim")
+        details_table.add_column("Result", justify="left")
+
+        for detail in sync_results["details"]:
+            secret_name = detail["name"]
+            secret_kind = detail["kind"]
+            is_stored = detail.get("stored")
+            is_skipped = detail.get("skipped")
+            has_errors = bool(detail.get("errors"))
+
+            if has_errors:
+                status_icon = "[red]✗[/red]"
+                result_text = "[red]Failed[/red]"
+            elif is_skipped:
+                status_icon = "[yellow]⊙[/yellow]"
+                reason = detail.get("reason", "unknown")
+                result_text = f"[yellow]Skipped[/yellow] [dim]({reason})[/dim]"
+            elif is_stored:
+                status_icon = "[green]✓[/green]"
+                if dry_run:
+                    result_text = "[green]Would store[/green]"
+                else:
+                    # Check lockfile for validation
+                    lockfile_info = lock.get_secret_info(secret_name)
+                    if lockfile_info:
+                        result_text = "[green]Stored & Validated[/green]"
+                    else:
+                        result_text = "[green]Stored[/green]"
+            else:
+                status_icon = "[dim]•[/dim]"
+                result_text = "[dim]Processed[/dim]"
+
+            details_table.add_row(status_icon, secret_name, secret_kind, result_text)
+
+        console.print(details_table)
+
     # Summary
     console.print("\n[bold]\U0001f4ca Summary:[/bold]")
+    if dry_run:
+        console.print("[yellow]DRY RUN MODE - No changes applied[/yellow]")
     console.print(f"  Synced:   {result.automation_summary.get('fully_synced', 0)}")
     console.print(f"  Pending:  {result.automation_summary.get('requires_intervention', 0)}")
     console.print(f"  Failed:   {result.automation_summary.get('failed', 0)}")
+
+    # Show lockfile validation
+    if not dry_run and result.synced_secrets:
+        validated_count = sum(
+            1 for name in result.synced_secrets if lock.get_secret_info(name) is not None
+        )
+        console.print(f"  Validated in lockfile: {validated_count}/{len(result.synced_secrets)}")
 
 
 @main.command()
