@@ -32,7 +32,6 @@ from pydantic import BaseModel
 
 from secretzero.cli_config import CliConfig, CliConfigLoader
 
-
 # ---------------------------------------------------------------------------
 # Data models
 # ---------------------------------------------------------------------------
@@ -475,7 +474,10 @@ class DiscoveryAgent:
         return candidates
 
     def _derive_var_name(
-        self, pattern_name: str, file_path: Path, match: re.Match  # type: ignore[type-arg]
+        self,
+        pattern_name: str,
+        file_path: Path,
+        match: re.Match,  # type: ignore[type-arg]
     ) -> str:
         """Derive a clean variable name for a discovered secret.
 
@@ -630,8 +632,7 @@ class DiscoveryAgent:
                     "azure_deployment": model
                     or cfg.deployment
                     or os.environ.get("AZURE_OPENAI_DEPLOYMENT", ""),
-                    "azure_endpoint": cfg.endpoint
-                    or os.environ.get("AZURE_OPENAI_ENDPOINT", ""),
+                    "azure_endpoint": cfg.endpoint or os.environ.get("AZURE_OPENAI_ENDPOINT", ""),
                     "openai_api_version": cfg.api_version,
                     "temperature": cfg.temperature,
                     "max_tokens": cfg.max_tokens,
@@ -818,9 +819,7 @@ class DiscoveryAgent:
     # Output generation
     # ------------------------------------------------------------------
 
-    def _write_secretfile(
-        self, candidates: list[SecretCandidate], output_path: Path
-    ) -> None:
+    def _write_secretfile(self, candidates: list[SecretCandidate], output_path: Path) -> None:
         """Write the generated Secretfile to disk.
 
         Args:

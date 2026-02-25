@@ -19,7 +19,6 @@ from secretzero.cli_config import (
     OutputConfig,
 )
 
-
 # ---------------------------------------------------------------------------
 # Model defaults
 # ---------------------------------------------------------------------------
@@ -239,9 +238,7 @@ class TestCliConfigLoader:
     def test_cwd_discovery(self, tmp_path: Path) -> None:
         """Loader should find ./secretzero.yml in the CWD."""
         config_file = tmp_path / "secretzero.yml"
-        config_file.write_text(
-            yaml.dump({"version": "1.0", "output": {"verbosity": 3}})
-        )
+        config_file.write_text(yaml.dump({"version": "1.0", "output": {"verbosity": 3}}))
         original_cwd = os.getcwd()
         os.chdir(tmp_path)
         try:

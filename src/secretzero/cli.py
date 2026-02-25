@@ -4111,9 +4111,7 @@ def discover(
 
     # Default: text output
     console.print(f"[green]✓[/green] Scanned [bold]{result.files_scanned}[/bold] file(s)")
-    console.print(
-        f"[green]✓[/green] Found [bold]{result.total_secrets}[/bold] secret candidate(s)"
-    )
+    console.print(f"[green]✓[/green] Found [bold]{result.total_secrets}[/bold] secret candidate(s)")
 
     if result.total_secrets > 0:
         console.print()
@@ -4140,15 +4138,12 @@ def discover(
     if dry_run:
         console.print("\n[yellow]Dry-run mode:[/yellow] no files written.")
         console.print(
-            f"[dim]Run without --dry-run to write:[/dim] "
-            f"[cyan]{result.output_path}[/cyan]"
+            f"[dim]Run without --dry-run to write:[/dim] [cyan]{result.output_path}[/cyan]"
         )
     elif result.total_secrets > 0 and result.output_path:
         console.print(f"\n[green]✓[/green] Written to: [cyan]{result.output_path}[/cyan]")
         console.print("\nNext steps:")
-        console.print(
-            "  1. Review [cyan]Secretfile.detect.yml[/cyan] and remove false positives"
-        )
+        console.print("  1. Review [cyan]Secretfile.detect.yml[/cyan] and remove false positives")
         console.print("  2. Rename/merge entries into your [cyan]Secretfile.yml[/cyan]")
         console.print("  3. Run [cyan]secretzero validate[/cyan] to check the configuration")
     else:

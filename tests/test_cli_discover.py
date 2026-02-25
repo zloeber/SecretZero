@@ -11,7 +11,6 @@ from secretzero.cli import main
 from secretzero.cli_config import CliConfig, DiscoveryConfig
 from secretzero.discovery import DiscoveryAgent, DiscoveryResult, SecretCandidate
 
-
 # ---------------------------------------------------------------------------
 # SecretCandidate
 # ---------------------------------------------------------------------------
@@ -181,9 +180,7 @@ class TestDiscoveryAgentPatternScan:
         candidates = agent._scan_file(env, tmp_path)
         assert len(candidates) > 0
 
-    def test_unreadable_file_returns_empty(
-        self, tmp_path: Path, agent: DiscoveryAgent
-    ) -> None:
+    def test_unreadable_file_returns_empty(self, tmp_path: Path, agent: DiscoveryAgent) -> None:
         fake = tmp_path / ".env"
         # Don't write anything – simulate by patching read_text
         fake.write_text("")
@@ -335,9 +332,7 @@ class TestDiscoveryAgentFullPipeline:
         if result.total_secrets > 0:
             assert (tmp_path / "Secretfile.detect.yml").exists()
             # Validate YAML
-            content = yaml.safe_load(
-                (tmp_path / "Secretfile.detect.yml").read_text()
-            )
+            content = yaml.safe_load((tmp_path / "Secretfile.detect.yml").read_text())
             assert "secrets" in content
             assert isinstance(content["secrets"], list)
 
@@ -409,18 +404,12 @@ class TestDiscoverCLICommand:
         assert result.exit_code == 0
         assert "secret" in result.output.lower() or "discover" in result.output.lower()
 
-    def test_discover_dry_run_empty_project(
-        self, runner: CliRunner, tmp_path: Path
-    ) -> None:
-        result = runner.invoke(
-            main, ["discover", "--path", str(tmp_path), "--dry-run", "--no-llm"]
-        )
+    def test_discover_dry_run_empty_project(self, runner: CliRunner, tmp_path: Path) -> None:
+        result = runner.invoke(main, ["discover", "--path", str(tmp_path), "--dry-run", "--no-llm"])
         assert result.exit_code == 0
         assert "Scanned" in result.output
 
-    def test_discover_with_env_file(
-        self, runner: CliRunner, tmp_path: Path
-    ) -> None:
+    def test_discover_with_env_file(self, runner: CliRunner, tmp_path: Path) -> None:
         env = tmp_path / ".env"
         env.write_text("DATABASE_PASSWORD=supersecretpassword123\n")
 
@@ -437,9 +426,7 @@ class TestDiscoverCLICommand:
         assert result.exit_code == 0
         assert "Scanned" in result.output
 
-    def test_discover_json_output(
-        self, runner: CliRunner, tmp_path: Path
-    ) -> None:
+    def test_discover_json_output(self, runner: CliRunner, tmp_path: Path) -> None:
         import json
 
         env = tmp_path / ".env"
@@ -464,9 +451,7 @@ class TestDiscoverCLICommand:
         assert "secrets" in data
         assert isinstance(data["secrets"], list)
 
-    def test_discover_yaml_output(
-        self, runner: CliRunner, tmp_path: Path
-    ) -> None:
+    def test_discover_yaml_output(self, runner: CliRunner, tmp_path: Path) -> None:
         env = tmp_path / ".env"
         env.write_text("API_KEY=realkey123456789abcdef\n")
 
@@ -487,9 +472,7 @@ class TestDiscoverCLICommand:
         assert "files_scanned" in data
         assert "secrets" in data
 
-    def test_discover_writes_output_file(
-        self, runner: CliRunner, tmp_path: Path
-    ) -> None:
+    def test_discover_writes_output_file(self, runner: CliRunner, tmp_path: Path) -> None:
         env = tmp_path / ".env"
         env.write_text("DATABASE_PASSWORD=supersecretpassword123\n")
         out = tmp_path / "Secretfile.detect.yml"
@@ -507,9 +490,7 @@ class TestDiscoverCLICommand:
         )
         assert result.exit_code == 0
 
-    def test_discover_with_custom_config(
-        self, runner: CliRunner, tmp_path: Path
-    ) -> None:
+    def test_discover_with_custom_config(self, runner: CliRunner, tmp_path: Path) -> None:
         config_file = tmp_path / "secretzero.yml"
         config_file.write_text(
             yaml.dump(
@@ -537,9 +518,7 @@ class TestDiscoverCLICommand:
         )
         assert result.exit_code == 0
 
-    def test_discover_threshold_override(
-        self, runner: CliRunner, tmp_path: Path
-    ) -> None:
+    def test_discover_threshold_override(self, runner: CliRunner, tmp_path: Path) -> None:
         result = runner.invoke(
             main,
             [

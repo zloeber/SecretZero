@@ -16,7 +16,6 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, Field
 
-
 # ---------------------------------------------------------------------------
 # LLM provider configuration models
 # ---------------------------------------------------------------------------
@@ -41,9 +40,7 @@ class OllamaConfig(BaseModel):
     temperature: float = Field(
         default=0.7, ge=0.0, le=1.0, description="Generation temperature (0.0–1.0)"
     )
-    max_tokens: int = Field(
-        default=4096, gt=0, description="Maximum number of tokens to generate"
-    )
+    max_tokens: int = Field(default=4096, gt=0, description="Maximum number of tokens to generate")
 
 
 class OpenAIConfig(BaseModel):
@@ -54,9 +51,7 @@ class OpenAIConfig(BaseModel):
         description="OpenAI API key (prefer OPENAI_API_KEY env var)",
     )
     model: str = Field(default="gpt-4o-mini", description="OpenAI model name")
-    organization: str | None = Field(
-        default=None, description="OpenAI organisation ID (optional)"
-    )
+    organization: str | None = Field(default=None, description="OpenAI organisation ID (optional)")
     timeout: int = Field(default=120, gt=0, description="Request timeout in seconds")
     temperature: float = Field(default=0.7, ge=0.0, le=1.0)
     max_tokens: int = Field(default=4096, gt=0)
@@ -69,9 +64,7 @@ class AnthropicConfig(BaseModel):
         default=None,
         description="Anthropic API key (prefer ANTHROPIC_API_KEY env var)",
     )
-    model: str = Field(
-        default="claude-3-5-sonnet-20241022", description="Anthropic model name"
-    )
+    model: str = Field(default="claude-3-5-sonnet-20241022", description="Anthropic model name")
     timeout: int = Field(default=120, gt=0, description="Request timeout in seconds")
     temperature: float = Field(default=0.7, ge=0.0, le=1.0)
     max_tokens: int = Field(default=4096, gt=0)
@@ -92,9 +85,7 @@ class AzureOpenAIConfig(BaseModel):
         default=None,
         description="Azure deployment name (prefer AZURE_OPENAI_DEPLOYMENT env var)",
     )
-    api_version: str = Field(
-        default="2024-02-15-preview", description="Azure OpenAI API version"
-    )
+    api_version: str = Field(default="2024-02-15-preview", description="Azure OpenAI API version")
     timeout: int = Field(default=120, gt=0)
     temperature: float = Field(default=0.7, ge=0.0, le=1.0)
     max_tokens: int = Field(default=4096, gt=0)
@@ -137,9 +128,7 @@ class DiscoveryConfig(BaseModel):
         le=1.0,
         description="Minimum confidence score to include a secret in the output",
     )
-    max_files: int = Field(
-        default=1000, gt=0, description="Maximum number of files to scan"
-    )
+    max_files: int = Field(default=1000, gt=0, description="Maximum number of files to scan")
     include_patterns: list[str] = Field(
         default_factory=lambda: [
             "*.env*",
