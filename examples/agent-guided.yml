@@ -1,0 +1,151 @@
+version: '1.0'
+
+# Example: Agent-Guided Secret Synchronisation
+#
+# This Secretfile demonstrates the agent_instructions feature which enables
+# AI agents to autonomously sync secrets or receive guided instructions when
+# manual intervention is required.
+#
+# Run: secretzero agent sync            (human-readable output)
+#      secretzero agent sync --json     (machine-readable JSON)
+#      secretzero agent sync --dry-run  (preview only)
+
+variables:
+  environment: local
+
+metadata:
+  project: agent-guided-example
+  owner: platform-team
+
+providers:
+  local:
+    kind: local
+    config: {}
+
+secrets:
+  # ── Fully automated ─────────────────────────────────────────────────────────
+  # No agent_instructions needed – the generator creates the value automatically.
+  - name: database_password
+    kind: random_password
+    config:
+      length: 32
+      special: true
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: .env
+          format: dotenv
+          merge: true
+
+  - name: jwt_secret
+    kind: random_string
+    config:
+      length: 64
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: .env
+          format: dotenv
+          merge: true
+
+  # ── Semi-automated (OAuth Device Flow) ──────────────────────────────────────
+  # The agent can automate the API calls; the user must approve in the browser.
+  - name: github_token
+    kind: static
+    config: {}
+    agent_instructions:
+      summary: Generate GitHub Personal Access Token via OAuth Device Flow
+      prerequisites:
+        - GitHub account must exist
+        - GITHUB_CLIENT_ID environment variable must be set
+      steps:
+        - action: "curl -X POST https://github.com/login/device/code -d 'client_id=$GITHUB_CLIENT_ID&scope=repo,workflow'"
+          description: Request a device code from GitHub
+        - action: Display device_code to user and open verification_uri in browser
+          description: User approves access at https://github.com/login/device
+        - action: "Poll https://github.com/login/oauth/access_token every 5 seconds"
+          description: Wait for user authorisation (max 15 minutes)
+          params:
+            grant_type: "urn:ietf:params:oauth:grant-type:device_code"
+            device_code: "${DEVICE_CODE}"
+            client_id: "${GITHUB_CLIENT_ID}"
+      automation_hint: "Semi-automated: Agent calls APIs, user approves in browser"
+      estimated_time: 2-5 minutes
+      documentation_url: https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#device-flow
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: .env
+          format: dotenv
+          merge: true
+
+  # ── Manual only (third-party sign-up) ───────────────────────────────────────
+  # Requires browser interaction and email verification.
+  - name: sendgrid_api_key
+    kind: static
+    config: {}
+    agent_instructions:
+      summary: Create SendGrid account and generate API key
+      steps:
+        - action: Visit https://signup.sendgrid.com
+          description: Create a free SendGrid account
+        - action: Verify email address
+          description: Check inbox for the SendGrid verification email
+        - action: Navigate to Settings > API Keys
+          description: Access the API key management dashboard
+        - action: "Click 'Create API Key', give it a name, select 'Full Access'"
+          description: Generate a new API key with the required permissions
+        - action: "Copy the API key (starts with 'SG.')"
+          description: Save immediately – it will not be shown again
+      automation_hint: "Manual only: Requires browser interaction and email verification"
+      estimated_time: 5-10 minutes
+      fallback: Request the user to complete SendGrid sign-up and provide the API key
+      documentation_url: https://docs.sendgrid.com/ui/account-and-settings/api-keys
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: .env
+          format: dotenv
+          merge: true
+
+  # ── Fully automatable via CLI ────────────────────────────────────────────────
+  # Can be automated if the AWS CLI is authenticated.
+  - name: aws_access_key
+    kind: script
+    config:
+      command: "aws iam create-access-key --user-name terraform-user --output json | jq -r '.AccessKey.AccessKeyId'"
+    agent_instructions:
+      summary: Create AWS IAM access key via AWS CLI
+      prerequisites:
+        - AWS CLI must be installed and configured (run 'aws configure')
+        - User must have IAM permissions to manage service accounts
+        - IAM user 'terraform-user' must already exist
+      steps:
+        - action: "aws iam create-user --user-name terraform-user"
+          description: Create IAM user (skip if it already exists)
+          required: false
+        - action: "aws iam attach-user-policy --user-name terraform-user --policy-arn arn:aws:iam::aws:policy/AdministratorAccess"
+          description: Grant the necessary permissions to the IAM user
+        - action: "aws iam create-access-key --user-name terraform-user"
+          description: Generate the access key pair and capture the output
+      automation_hint: Fully automated if AWS CLI is authenticated
+      required_tools:
+        - aws
+        - jq
+      documentation_url: https://docs.aws.amazon.com/cli/latest/reference/iam/create-access-key.html
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: .env
+          format: dotenv
+          merge: true
+
+templates: {}
+policies: {}
+labels: {}
+annotations: {}

@@ -181,6 +181,7 @@ nav:
           - Endpoints: user-guide/api/endpoints.md
           - Python Client: user-guide/api/python-client.md
           - Deployment: user-guide/api/deployment.md
+      - Agent Sync: user-guide/agent-sync.md
   - Advanced Topics:
       - advanced/index.md
       - Secret Rotation:

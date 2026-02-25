@@ -3,6 +3,7 @@
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 import click
 import yaml
@@ -3922,6 +3923,188 @@ def audit(
     console.print(f"\n[dim]Showing {len(logs)} of available entries[/dim]")
 
 
+# ---------------------------------------------------------------------------
+# Agent command group
+# ---------------------------------------------------------------------------
+
+
+@main.group()
+def agent() -> None:
+    """Agent-specific commands for autonomous secret management.
+
+    These commands are designed for use by AI agents and automation tools that
+    need to manage secrets with minimal human intervention. They provide
+    structured output and guided instructions for secrets that require manual
+    acquisition.
+    """
+    pass
+
+
+@agent.command("sync")
+@click.option(
+    "--file",
+    "-f",
+    type=click.Path(exists=True),
+    default="Secretfile.yml",
+    help="Path to Secretfile",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Preview changes without applying them",
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    help="Output results as JSON (machine-readable)",
+)
+@click.option(
+    "--interactive",
+    is_flag=True,
+    help="Prompt for manual secrets interactively",
+)
+def agent_sync(file: str, dry_run: bool, output_json: bool, interactive: bool) -> None:
+    """Agent-aware secret synchronisation with guided instructions.
+
+    Automatically syncs secrets that can be generated without external input
+    and provides structured step-by-step instructions for secrets that require
+    manual acquisition (sign-ups, OAuth flows, admin approvals, etc.).
+
+    Examples:
+
+        # Run agent sync and view instructions for pending secrets
+        secretzero agent sync
+
+        # Output machine-readable JSON for further processing
+        secretzero agent sync --json
+
+        # Preview what would happen without making changes
+        secretzero agent sync --dry-run
+
+        # Interactively supply values for pending secrets
+        secretzero agent sync --interactive
+    """
+    from secretzero.agent import AgentSecretSynchronizer
+
+    file_path = Path(file)
+    loader = ConfigLoader()
+
+    try:
+        secretfile = loader.load_file(file_path)
+    except Exception as exc:
+        console.print(f"[red]Error loading Secretfile:[/red] {exc}")
+        raise click.ClickException(str(exc)) from exc
+
+    synchronizer = AgentSecretSynchronizer(secretfile, dry_run=dry_run)
+
+    try:
+        result = synchronizer.sync()
+    except Exception as exc:
+        console.print(f"[red]Agent sync failed:[/red] {exc}")
+        raise click.ClickException(str(exc)) from exc
+
+    if output_json:
+        import json as _json
+
+        output = {
+            "synced_secrets": result.synced_secrets,
+            "pending_secrets": {
+                k: v.model_dump(exclude_none=True) for k, v in result.pending_secrets.items()
+            },
+            "failed_secrets": result.failed_secrets,
+            "automation_summary": result.automation_summary,
+        }
+        click.echo(_json.dumps(output, indent=2))
+        return
+
+    _display_agent_sync_results(result, interactive=interactive)
+
+
+def _display_agent_sync_results(result: Any, *, interactive: bool = False) -> None:
+    """Display agent sync results in a human-readable format.
+
+    Args:
+        result: AgentSyncResult to display
+        interactive: If True, prompt the user for pending secret values
+    """
+    from rich.rule import Rule
+
+    # Synced secrets
+    if result.synced_secrets:
+        console.print(
+            f"\n[bold green]\u2705 Successfully synced {len(result.synced_secrets)} secret(s):[/bold green]"
+        )
+        for secret in result.synced_secrets:
+            console.print(f"  • {secret}", style="green")
+
+    # Pending secrets with instructions
+    if result.pending_secrets:
+        console.print(
+            f"\n[bold yellow]\u23f3 {len(result.pending_secrets)} secret(s) require manual intervention:[/bold yellow]"
+        )
+
+        for secret_name, instructions in result.pending_secrets.items():
+            console.print()
+            console.print(Rule(f"[bold cyan]{secret_name}[/bold cyan]", style="cyan"))
+            console.print(f"  [bold]Summary:[/bold] {instructions.summary}")
+
+            if instructions.prerequisites:
+                console.print("\n  [bold yellow]Prerequisites:[/bold yellow]")
+                for prereq in instructions.prerequisites:
+                    console.print(f"    • {prereq}")
+
+            console.print("\n  [bold blue]Steps:[/bold blue]")
+            for i, step in enumerate(instructions.steps, 1):
+                console.print(f"    {i}. [bold]{step.action}[/bold]")
+                console.print(f"       [dim]{step.description}[/dim]")
+                if step.params:
+                    console.print(f"       [italic]Params: {step.params}[/italic]")
+
+            if instructions.automation_hint:
+                console.print(
+                    f"\n  \U0001f4a1 [italic]Automation: {instructions.automation_hint}[/italic]"
+                )
+            if instructions.estimated_time:
+                console.print(
+                    f"  \u23f1\ufe0f  [italic]Estimated time: {instructions.estimated_time}[/italic]"
+                )
+            if instructions.required_tools:
+                console.print(
+                    f"  \U0001f527 [italic]Required tools: {', '.join(instructions.required_tools)}[/italic]"
+                )
+            if instructions.fallback:
+                console.print(f"  \U0001f504 [italic]Fallback: {instructions.fallback}[/italic]")
+            if instructions.documentation_url:
+                console.print(f"  \U0001f4da [blue]Docs: {instructions.documentation_url}[/blue]")
+
+            if interactive:
+                if click.confirm(f"\nHave you obtained the value for '{secret_name}'?"):
+                    click.prompt(
+                        f"Enter the secret value for {secret_name}",
+                        hide_input=True,
+                        confirmation_prompt=False,
+                    )
+                    console.print(
+                        f"[green]\u2705 Value received for {secret_name}[/green] "
+                        "(apply with 'secretzero sync' or store it manually)"
+                    )
+
+    # Failed secrets
+    if result.failed_secrets:
+        console.print(
+            f"\n[bold red]\u274c {len(result.failed_secrets)} secret(s) failed:[/bold red]"
+        )
+        for secret, error in result.failed_secrets.items():
+            console.print(f"  • [red]{secret}[/red]: {error}")
+
+    # Summary
+    console.print("\n[bold]\U0001f4ca Summary:[/bold]")
+    console.print(f"  Synced:   {result.automation_summary.get('fully_synced', 0)}")
+    console.print(f"  Pending:  {result.automation_summary.get('requires_intervention', 0)}")
+    console.print(f"  Failed:   {result.automation_summary.get('failed', 0)}")
+
+
 @main.command()
 @click.option(
     "--path",
@@ -3983,7 +4166,7 @@ def audit(
     "--threshold",
     type=float,
     default=None,
-    help="Confidence threshold (0.0–1.0) for including secrets (default from config)",
+    help="Confidence threshold (0.0\u20131.0) for including secrets (default from config)",
 )
 def discover(
     path: str,
@@ -4034,7 +4217,7 @@ def discover(
         cli_cfg.discovery.confidence_threshold = threshold
 
     if output_format == "text":
-        console.print("[bold]🔍 Starting secret discovery...[/bold]\n")
+        console.print("[bold]\U0001f50d Starting secret discovery...[/bold]\n")
         console.print(f"  Project root : [cyan]{Path(path).resolve()}[/cyan]")
 
         effective_provider = provider or cli_cfg.llm.default_provider
@@ -4110,8 +4293,10 @@ def discover(
         return
 
     # Default: text output
-    console.print(f"[green]✓[/green] Scanned [bold]{result.files_scanned}[/bold] file(s)")
-    console.print(f"[green]✓[/green] Found [bold]{result.total_secrets}[/bold] secret candidate(s)")
+    console.print(f"[green]\u2713[/green] Scanned [bold]{result.files_scanned}[/bold] file(s)")
+    console.print(
+        f"[green]\u2713[/green] Found [bold]{result.total_secrets}[/bold] secret candidate(s)"
+    )
 
     if result.total_secrets > 0:
         console.print()
@@ -4141,7 +4326,7 @@ def discover(
             f"[dim]Run without --dry-run to write:[/dim] [cyan]{result.output_path}[/cyan]"
         )
     elif result.total_secrets > 0 and result.output_path:
-        console.print(f"\n[green]✓[/green] Written to: [cyan]{result.output_path}[/cyan]")
+        console.print(f"\n[green]\u2713[/green] Written to: [cyan]{result.output_path}[/cyan]")
         console.print("\nNext steps:")
         console.print("  1. Review [cyan]Secretfile.detect.yml[/cyan] and remove false positives")
         console.print("  2. Rename/merge entries into your [cyan]Secretfile.yml[/cyan]")
