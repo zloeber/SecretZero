@@ -110,6 +110,11 @@ class VaultAuth(ProviderAuth):
 class VaultProvider(BaseProvider):
     """HashiCorp Vault provider for SecretZero."""
 
+    display_name = "HashiCorp Vault"
+    description = "Secret storage and management"
+    required_package = ("hvac", "secretzero[vault]")
+    auth_class = VaultAuth
+
     def __init__(
         self,
         name: str = "vault",

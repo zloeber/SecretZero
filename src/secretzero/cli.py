@@ -176,16 +176,8 @@ def init(file: str, install: bool, dry_run: bool) -> None:
         console.print(f"[red]Error loading Secretfile:[/red] {e}")
         raise click.Abort()
 
-    # Map provider kinds to required packages
-    provider_packages = {
-        "aws": ("boto3", "secretzero[aws]"),
-        "azure": ("azure.identity", "secretzero[azure]"),
-        "vault": ("hvac", "secretzero[vault]"),
-        "kubernetes": ("kubernetes", "secretzero[kubernetes]"),
-        "github": ("github", "secretzero[github]"),
-        "gitlab": ("gitlab", "secretzero[gitlab]"),
-        "jenkins": ("jenkins", "secretzero[jenkins]"),
-    }
+    # Look up required packages from provider registry
+    from secretzero.providers.registry import GLOBAL_PROVIDER_REGISTRY
 
     console.print("[bold]Checking provider dependencies...[/bold]\n")
 
@@ -195,8 +187,9 @@ def init(file: str, install: bool, dry_run: bool) -> None:
     for provider_name, provider_config in config.providers.items():
         provider_kind = provider_config.kind or ""
 
-        if provider_kind in provider_packages:
-            import_name, install_name = provider_packages[provider_kind]
+        provider_class = GLOBAL_PROVIDER_REGISTRY.get_provider_class(provider_kind)
+        if provider_class is not None and provider_class.required_package is not None:
+            import_name, install_name = provider_class.required_package
 
             try:
                 # Try to import the package
@@ -1183,6 +1176,8 @@ def _test_provider_profiles(config) -> None:
     Args:
         config: Loaded Secretfile configuration
     """
+    from secretzero.providers.registry import GLOBAL_PROVIDER_REGISTRY
+
     console.print("\n[bold]Testing Provider Profiles:[/bold]\n")
 
     has_profiles = False
@@ -1198,52 +1193,16 @@ def _test_provider_profiles(config) -> None:
         for profile_name, profile in provider_config.auth.profiles.items():
             console.print(f"  • {profile_name}: ", end="")
 
-            # Create provider instance with the profile
+            # Create provider instance with the profile via registry
             provider = None
             try:
-                if provider_kind == "aws":
-                    from secretzero.providers.aws import AWSProvider
-
-                    config_dict = provider_config.model_dump()
-                    # Set the profile to test
-                    config_dict["auth"]["selected_profile"] = profile_name
-                    provider = AWSProvider(name=provider_name, config=config_dict)
-                elif provider_kind == "azure":
-                    from secretzero.providers.azure import AzureProvider
-
-                    config_dict = provider_config.model_dump()
-                    config_dict["auth"]["selected_profile"] = profile_name
-                    provider = AzureProvider(name=provider_name, config=config_dict)
-                elif provider_kind == "vault":
-                    from secretzero.providers.vault import VaultProvider
-
-                    config_dict = provider_config.model_dump()
-                    config_dict["auth"]["selected_profile"] = profile_name
-                    provider = VaultProvider(name=provider_name, config=config_dict)
-                elif provider_kind == "github":
-                    from secretzero.providers.github import GitHubProvider
-
-                    config_dict = provider_config.model_dump()
-                    config_dict["auth"]["selected_profile"] = profile_name
-                    provider = GitHubProvider(name=provider_name, config=config_dict)
-                elif provider_kind == "gitlab":
-                    from secretzero.providers.gitlab import GitLabProvider
-
-                    config_dict = provider_config.model_dump()
-                    config_dict["auth"]["selected_profile"] = profile_name
-                    provider = GitLabProvider(name=provider_name, config=config_dict)
-                elif provider_kind == "jenkins":
-                    from secretzero.providers.jenkins import JenkinsProvider
-
-                    config_dict = provider_config.model_dump()
-                    config_dict["auth"]["selected_profile"] = profile_name
-                    provider = JenkinsProvider(name=provider_name, config=config_dict)
-                elif provider_kind == "kubernetes":
-                    from secretzero.providers.kubernetes import KubernetesProvider
-
-                    config_dict = provider_config.model_dump()
-                    config_dict["auth"]["selected_profile"] = profile_name
-                    provider = KubernetesProvider(name=provider_name, config=config_dict)
+                provider_class = GLOBAL_PROVIDER_REGISTRY.get_provider_class(provider_kind)
+                if provider_class is None:
+                    console.print(f"[yellow]Unknown provider type: {provider_kind}[/yellow]")
+                    continue
+                config_dict = provider_config.model_dump()
+                config_dict["auth"]["selected_profile"] = profile_name
+                provider = provider_class(name=provider_name, config=config_dict)
             except ImportError:
                 console.print("[yellow]SDK not installed[/yellow]")
                 continue
@@ -1312,6 +1271,8 @@ def test(file: str, include_profiles: bool, verbose: bool) -> None:
         console.print("[dim]No providers configured[/dim]")
         return
 
+    from secretzero.providers.registry import GLOBAL_PROVIDER_REGISTRY
+
     all_passed = True
     for provider_name, provider_config in config.providers.items():
         console.print(f"  • {provider_name}: ", end="")
@@ -1319,148 +1280,37 @@ def test(file: str, include_profiles: bool, verbose: bool) -> None:
         # Determine provider type - provider_config is a Provider model
         provider_kind = provider_config.kind if provider_config.kind else provider_name
 
-        # Create provider instance
-        provider = None
-        if provider_kind == "aws":
-            try:
-                from secretzero.providers.aws import AWSProvider
-
-                # Convert Pydantic model to dict for provider initialization
-                config_dict = provider_config.model_dump()
-                provider = AWSProvider(name=provider_name, config=config_dict)
-            except ImportError:
-                console.print("[yellow]boto3 not installed[/yellow]")
-                all_passed = False
-                continue
-            except Exception as e:
-                import traceback
-
-                console.print("[red]✗ Failed to initialize provider[/red]")
-                all_passed = False
-                if verbose:
-                    console.print(f"[dim]Error: {type(e).__name__}: {str(e)}[/dim]")
-                    console.print(f"[dim]{traceback.format_exc()}[/dim]")
-                continue
-        elif provider_kind == "azure":
-            try:
-                from secretzero.providers.azure import AzureProvider
-
-                config_dict = provider_config.model_dump()
-                provider = AzureProvider(name=provider_name, config=config_dict)
-            except ImportError:
-                console.print("[yellow]Azure SDK not installed[/yellow]")
-                all_passed = False
-                continue
-            except Exception as e:
-                import traceback
-
-                console.print("[red]✗ Failed to initialize provider[/red]")
-                all_passed = False
-                if verbose:
-                    console.print(f"[dim]Error: {type(e).__name__}: {str(e)}[/dim]")
-                    console.print(f"[dim]{traceback.format_exc()}[/dim]")
-                continue
-        elif provider_kind == "vault":
-            try:
-                from secretzero.providers.vault import VaultProvider
-
-                config_dict = provider_config.model_dump()
-                provider = VaultProvider(name=provider_name, config=config_dict)
-            except ImportError:
-                console.print("[yellow]hvac not installed[/yellow]")
-                all_passed = False
-                continue
-            except Exception as e:
-                import traceback
-
-                console.print("[red]✗ Failed to initialize provider[/red]")
-                all_passed = False
-                if verbose:
-                    console.print(f"[dim]Error: {type(e).__name__}: {str(e)}[/dim]")
-                    console.print(f"[dim]{traceback.format_exc()}[/dim]")
-                continue
-        elif provider_kind == "github":
-            try:
-                from secretzero.providers.github import GitHubProvider
-
-                config_dict = provider_config.model_dump()
-                provider = GitHubProvider(name=provider_name, config=config_dict)
-            except ImportError:
-                console.print("[yellow]PyGithub not installed[/yellow]")
-                all_passed = False
-                continue
-            except Exception as e:
-                import traceback
-
-                console.print("[red]✗ Failed to initialize provider[/red]")
-                all_passed = False
-                if verbose:
-                    console.print(f"[dim]Error: {type(e).__name__}: {str(e)}[/dim]")
-                    console.print(f"[dim]{traceback.format_exc()}[/dim]")
-                continue
-        elif provider_kind == "gitlab":
-            try:
-                from secretzero.providers.gitlab import GitLabProvider
-
-                config_dict = provider_config.model_dump()
-                provider = GitLabProvider(name=provider_name, config=config_dict)
-            except ImportError:
-                console.print("[yellow]python-gitlab not installed[/yellow]")
-                all_passed = False
-                continue
-            except Exception as e:
-                import traceback
-
-                console.print("[red]✗ Failed to initialize provider[/red]")
-                all_passed = False
-                if verbose:
-                    console.print(f"[dim]Error: {type(e).__name__}: {str(e)}[/dim]")
-                    console.print(f"[dim]{traceback.format_exc()}[/dim]")
-                continue
-        elif provider_kind == "jenkins":
-            try:
-                from secretzero.providers.jenkins import JenkinsProvider
-
-                config_dict = provider_config.model_dump()
-                provider = JenkinsProvider(name=provider_name, config=config_dict)
-            except ImportError:
-                console.print("[yellow]python-jenkins not installed[/yellow]")
-                all_passed = False
-                continue
-            except Exception as e:
-                import traceback
-
-                console.print("[red]✗ Failed to initialize provider[/red]")
-                all_passed = False
-                if verbose:
-                    console.print(f"[dim]Error: {type(e).__name__}: {str(e)}[/dim]")
-                    console.print(f"[dim]{traceback.format_exc()}[/dim]")
-                continue
-        elif provider_kind == "kubernetes":
-            try:
-                from secretzero.providers.kubernetes import KubernetesProvider
-
-                config_dict = provider_config.model_dump()
-                provider = KubernetesProvider(name=provider_name, config=config_dict)
-            except ImportError:
-                console.print("[yellow]kubernetes not installed[/yellow]")
-                all_passed = False
-                continue
-            except Exception as e:
-                import traceback
-
-                console.print("[red]✗ Failed to initialize provider[/red]")
-                all_passed = False
-                if verbose:
-                    console.print(f"[dim]Error: {type(e).__name__}: {str(e)}[/dim]")
-                    console.print(f"[dim]{traceback.format_exc()}[/dim]")
-                continue
-        elif provider_kind == "local":
+        # Handle special "local" provider
+        if provider_kind == "local":
             console.print("[green]✓ Local provider (always available)[/green]")
             continue
-        else:
+
+        # Look up the provider class from the registry
+        provider_class = GLOBAL_PROVIDER_REGISTRY.get_provider_class(provider_kind)
+        if provider_class is None:
             console.print(f"[yellow]Unknown provider type: {provider_kind}[/yellow]")
             all_passed = False
+            continue
+
+        # Create provider instance
+        provider = None
+        try:
+            config_dict = provider_config.model_dump()
+            provider = provider_class(name=provider_name, config=config_dict)
+        except ImportError:
+            pkg_info = provider_class.required_package
+            pkg_label = pkg_info[0] if pkg_info else provider_kind
+            console.print(f"[yellow]{pkg_label} not installed[/yellow]")
+            all_passed = False
+            continue
+        except Exception as e:
+            import traceback
+
+            console.print("[red]✗ Failed to initialize provider[/red]")
+            all_passed = False
+            if verbose:
+                console.print(f"[dim]Error: {type(e).__name__}: {str(e)}[/dim]")
+                console.print(f"[dim]{traceback.format_exc()}[/dim]")
             continue
 
         # Test connectivity
@@ -4456,8 +4306,6 @@ def discover(
         console.print("\n[dim]No secrets found above the confidence threshold.[/dim]")
 
 
-
-
 @main.command("validate-bundle")
 @click.argument("path", type=click.Path(exists=True))
 @click.option(
@@ -4553,7 +4401,7 @@ def validate_bundle(path: str, output_format: str) -> None:
             "manifest": manifest.model_dump() if isinstance(manifest, BundleManifest) else None,
             "errors": errors,
         }
-        console.print(_json.dumps(result, indent=2))
+        click.echo(_json.dumps(result, indent=2))
         sys.exit(EXIT_SUCCESS if len(errors) == 0 else EXIT_VALIDATION_ERROR)
 
     # Text output

@@ -83,6 +83,11 @@ class GitLabAuth(ProviderAuth):
 class GitLabProvider(BaseProvider):
     """GitLab provider for CI/CD variables."""
 
+    display_name = "GitLab"
+    description = "GitLab CI/CD variables and secrets"
+    required_package = ("gitlab", "secretzero[gitlab]")
+    auth_class = GitLabAuth
+
     def __init__(
         self,
         name: str,

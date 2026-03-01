@@ -84,6 +84,57 @@ class GitHubAuth(ProviderAuth):
     # Environment variable to check for token
     ENV_TOKEN = "GITHUB_TOKEN"
 
+    # Human-readable descriptions for GitHub OAuth / fine-grained token scopes.
+    SCOPE_DESCRIPTIONS: dict[str, str] = {
+        "repo": "Full control of private repositories",
+        "repo:status": "Access commit status",
+        "repo_deployment": "Access deployment status",
+        "public_repo": "Access public repositories",
+        "repo:invite": "Access repository invitations",
+        "security_events": "Read and write security events",
+        "admin:repo_hook": "Full control of repository hooks",
+        "write:repo_hook": "Write repository hooks",
+        "read:repo_hook": "Read repository hooks",
+        "admin:org": "Full control of orgs and teams",
+        "write:org": "Read and write org and team membership",
+        "read:org": "Read org and team membership",
+        "admin:public_key": "Full control of user public keys",
+        "write:public_key": "Write user public keys",
+        "read:public_key": "Read user public keys",
+        "admin:org_hook": "Full control of organization hooks",
+        "gist": "Create gists",
+        "notifications": "Access notifications",
+        "user": "Update all user data",
+        "read:user": "Read all user profile data",
+        "user:email": "Access user email addresses",
+        "user:follow": "Follow and unfollow users",
+        "delete_repo": "Delete repositories",
+        "write:discussion": "Read and write team discussions",
+        "read:discussion": "Read team discussions",
+        "write:packages": "Upload packages",
+        "read:packages": "Download packages",
+        "delete:packages": "Delete packages",
+        "admin:gpg_key": "Full control of user GPG keys",
+        "write:gpg_key": "Write user GPG keys",
+        "read:gpg_key": "Read user GPG keys",
+        "workflow": "Update GitHub Action workflows",
+        "admin:enterprise": "Full control of enterprises",
+        "manage_runners:enterprise": "Manage enterprise runners and runner groups",
+        "manage_billing:enterprise": "Read and write enterprise billing data",
+        "read:enterprise": "Read enterprise profile data",
+        "codespace": "Full control of codespaces",
+        "copilot": "Full control of GitHub Copilot settings",
+    }
+
+    @classmethod
+    def get_scope_descriptions(cls) -> dict[str, str]:
+        """Return GitHub OAuth scope descriptions.
+
+        Returns:
+            Mapping of scope name to human-readable description.
+        """
+        return dict(cls.SCOPE_DESCRIPTIONS)
+
     def __init__(self, config: dict[str, Any]):
         """Initialize GitHub authentication.
 
@@ -202,6 +253,11 @@ class GitHubAuth(ProviderAuth):
 class GitHubProvider(BaseProvider):
     """GitHub provider for Actions secrets."""
 
+    display_name = "GitHub"
+    description = "GitHub repository secrets and Actions"
+    required_package = ("github", "secretzero[github]")
+    auth_class = GitHubAuth
+
     def __init__(
         self,
         name: str,
@@ -272,17 +328,26 @@ class GitHubProvider(BaseProvider):
     def get_token_permissions(self) -> dict[str, Any]:
         """Get information about the current GitHub token.
 
+        .. deprecated::
+            Use :meth:`get_token_info` (inherited from :class:`BaseProvider`)
+            instead. This method is kept for backward compatibility.
+
         Returns:
             Dictionary with token information including scopes/permissions.
 
         Raises:
             RuntimeError: If not authenticated or token info cannot be retrieved.
         """
-        if not self.auth:
-            raise RuntimeError("No authentication configured")
+        return self.get_token_info()
 
-        # get_token_info() uses requests directly, doesn't need PyGithub client
-        return self.auth.get_token_info()
+    @classmethod
+    def get_scope_descriptions(cls) -> dict[str, str]:
+        """Return GitHub OAuth scope descriptions.
+
+        Returns:
+            Mapping of scope name to human-readable description.
+        """
+        return GitHubAuth.get_scope_descriptions()
 
     # ===== GENERATE CAPABILITY =====
 

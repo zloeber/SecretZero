@@ -86,6 +86,11 @@ class JenkinsAuth(ProviderAuth):
 class JenkinsProvider(BaseProvider):
     """Jenkins provider for credentials."""
 
+    display_name = "Jenkins"
+    description = "Jenkins credentials and secrets"
+    required_package = ("jenkins", "secretzero[jenkins]")
+    auth_class = JenkinsAuth
+
     def __init__(
         self,
         name: str,

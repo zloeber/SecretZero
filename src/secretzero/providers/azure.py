@@ -128,6 +128,11 @@ class AzureAuth(ProviderAuth):
 class AzureProvider(BaseProvider):
     """Azure provider for SecretZero."""
 
+    display_name = "Microsoft Azure"
+    description = "Azure Key Vault and services"
+    required_package = ("azure.identity", "secretzero[azure]")
+    auth_class = AzureAuth
+
     def __init__(
         self,
         name: str = "azure",

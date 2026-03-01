@@ -34,7 +34,6 @@ from secretzero.generators.provider_backed import ProviderBackedGenerator
 from secretzero.models import GeneratorKind, TargetKind
 from secretzero.targets.base import BaseTarget
 
-
 # ---------------------------------------------------------------------------
 # Helpers / fixtures
 # ---------------------------------------------------------------------------
@@ -528,9 +527,7 @@ class TestSyncEngineGenerateViaRegistry:
 
     def test_generate_static(self) -> None:
         engine = self._make_engine()
-        value = engine._generate_secret_value(
-            "static", {"default": "hello"}, "TEST_VAR"
-        )
+        value = engine._generate_secret_value("static", {"default": "hello"}, "TEST_VAR")
         assert value == "hello"
 
     def test_generate_unknown_kind_raises(self) -> None:

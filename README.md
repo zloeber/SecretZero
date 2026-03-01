@@ -91,8 +91,8 @@ secretzero drift                   # Detect drift in secrets
 # Provider management
 secretzero providers list          # List available providers
 secretzero providers capabilities  # Show provider capabilities
-secretzero providers token-info    # Show GitHub token permissions
-secretzero providers token-info --provider github  # Explicit provider
+secretzero providers token-info    # Show token permissions (defaults to github)
+secretzero providers token-info github --token ghp_xxx  # Explicit provider + token
 
 # API Server
 secretzero-api                     # Start REST API server

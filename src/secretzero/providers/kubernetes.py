@@ -105,6 +105,11 @@ class KubernetesAuth(ProviderAuth):
 class KubernetesProvider(BaseProvider):
     """Kubernetes provider for cluster secret management."""
 
+    display_name = "Kubernetes"
+    description = "Kubernetes cluster secret management"
+    required_package = ("kubernetes", "secretzero[kubernetes]")
+    auth_class = KubernetesAuth
+
     def __init__(
         self,
         name: str,

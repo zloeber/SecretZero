@@ -95,6 +95,11 @@ class AnsibleVaultProvider(BaseProvider):
             format: yaml
     """
 
+    display_name = "Ansible Vault"
+    description = "Ansible Vault encrypted file storage"
+    required_package = ("ansible_vault", "secretzero[ansible_vault]")
+    auth_class = AnsibleVaultAuth
+
     def __init__(
         self,
         name: str,

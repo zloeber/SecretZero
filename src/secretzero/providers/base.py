@@ -17,6 +17,10 @@ from secretzero.providers.capabilities import (
 class ProviderAuth(ABC):
     """Base class for provider authentication."""
 
+    #: Environment variable that carries the authentication token.
+    #: Subclasses should override (e.g. ``ENV_TOKEN = "GITHUB_TOKEN"``).
+    ENV_TOKEN: str = ""
+
     def __init__(self, config: dict[str, Any] | None = None):
         """Initialize authentication with configuration.
 
@@ -51,9 +55,54 @@ class ProviderAuth(ABC):
         """
         return None
 
+    def get_token_info(self) -> dict[str, Any]:
+        """Return information about the current authentication token.
+
+        Providers that support token introspection should override this method
+        to return details such as user identity, scopes/permissions, and token
+        type.
+
+        Returns:
+            Dictionary with at least:
+                - user: Identity associated with the token
+                - scopes: List of permission scopes granted
+                - token_type: Kind of token (e.g. 'PAT', 'OAuth')
+
+        Raises:
+            NotImplementedError: If the provider does not support token introspection.
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not support token introspection")
+
+    @classmethod
+    def get_scope_descriptions(cls) -> dict[str, str]:
+        """Return a mapping of scope/permission names to human-readable descriptions.
+
+        Providers that expose OAuth-style scopes should override this method.
+
+        Returns:
+            Dictionary mapping scope name to description string.
+        """
+        return {}
+
 
 class BaseProvider(IProviderWithCapabilities):
     """Base class for all providers with capability support."""
+
+    #: Human-readable name shown in CLI listings (e.g. "Amazon Web Services").
+    display_name: str = ""
+
+    #: Short description shown in CLI listings.
+    description: str = ""
+
+    #: ``(import_name, pip_install_name)`` for the required third-party
+    #: package, e.g. ``("boto3", "secretzero[aws]")``.  ``None`` if the
+    #: provider has no extra dependencies.
+    required_package: tuple[str, str] | None = None
+
+    #: The :class:`ProviderAuth` subclass used by this provider.
+    #: Subclasses should override this so CLI/tooling can inspect
+    #: auth-level metadata (e.g. ``ENV_TOKEN``) without instantiation.
+    auth_class: type[ProviderAuth] = ProviderAuth
 
     def __init__(
         self,
@@ -253,3 +302,30 @@ class BaseProvider(IProviderWithCapabilities):
             raise ValueError(f"Method '{method_name}' not found in {self.provider_kind} provider")
 
         return capability.method
+
+    def get_token_info(self) -> dict[str, Any]:
+        """Return information about the current authentication token.
+
+        Delegates to the underlying :class:`ProviderAuth` instance. Providers
+        whose auth class implements ``get_token_info`` will return meaningful
+        data; others will raise :class:`NotImplementedError`.
+
+        Returns:
+            Dictionary with token details (see :meth:`ProviderAuth.get_token_info`).
+
+        Raises:
+            RuntimeError: If no authentication is configured.
+            NotImplementedError: If the auth class does not support introspection.
+        """
+        if not self.auth:
+            raise RuntimeError("No authentication configured")
+        return self.auth.get_token_info()
+
+    @classmethod
+    def get_scope_descriptions(cls) -> dict[str, str]:
+        """Return scope/permission descriptions for this provider's auth layer.
+
+        Returns:
+            Mapping of scope name to human-readable description.
+        """
+        return {}

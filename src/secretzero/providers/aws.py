@@ -130,6 +130,11 @@ class AWSAuth(ProviderAuth):
 class AWSProvider(BaseProvider):
     """AWS provider for SecretZero."""
 
+    display_name = "Amazon Web Services"
+    description = "AWS Secrets Manager and other services"
+    required_package = ("boto3", "secretzero[aws]")
+    auth_class = AWSAuth
+
     def __init__(
         self,
         name: str = "aws",
