@@ -129,6 +129,7 @@ jobs:
       - name: Security Scans - ${{ matrix.os }}
         run: |
           pip install uv
+          uv pip install -e ".[security]"
           uv run pip-audit
           uv run bandit -r ${{ env.PROJECT_PATH }} -ll
 
