@@ -40,7 +40,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install uv
-          uv sync --extra dev
+          uv sync --all-extras
 
       - name: Unit Tests - ${{ matrix.os }}
         run: uv run pytest --maxfail=1 --disable-warnings -v tests
