@@ -1,6 +1,5 @@
 """Provider capability introspection CLI commands."""
 
-import json
 from typing import Any
 
 import click
@@ -8,7 +7,6 @@ from rich.console import Console
 from rich.syntax import Syntax
 from rich.table import Table
 
-from secretzero.providers.base import BaseProvider
 from secretzero.providers.capabilities import CapabilityType
 from secretzero.providers.registry import GLOBAL_PROVIDER_REGISTRY
 
@@ -43,25 +41,19 @@ def list_providers() -> None:
     table.add_column("Type", style="magenta")
     table.add_column("Description")
 
-    provider_info = {
-        "local": ("Local Filesystem", "Local file and template targets"),
-        "vault": ("Hashicorp Vault", "Secret storage and management"),
-        "aws": ("Amazon Web Services", "AWS Secrets Manager and other services"),
-        "azure": ("Microsoft Azure", "Azure Key Vault and services"),
-        "github": ("GitHub", "GitHub repository secrets"),
-        "gitlab": ("GitLab", "GitLab project secrets"),
-        "jenkins": ("Jenkins", "Jenkins credentials"),
-        "kubernetes": ("Kubernetes", "Kubernetes secrets"),
-    }
-
     for provider_type in sorted(provider_types):
-        name, description = provider_info.get(provider_type, (provider_type.title(), ""))
+        provider_class = GLOBAL_PROVIDER_REGISTRY.get_provider_class(provider_type)
+        if provider_class is not None:
+            name = provider_class.display_name or provider_type.title()
+            description = provider_class.description or ""
+        else:
+            name = provider_type.title()
+            description = ""
         table.add_row(provider_type, name, description)
 
     # Add "local" provider even if not in registry (it's a special case)
     if "local" not in provider_types:
-        name, description = provider_info["local"]
-        table.add_row("local", name, description)
+        table.add_row("local", "Local Filesystem", "Local file and template targets")
 
     console.print(table)
 
@@ -330,162 +322,114 @@ def _dict_to_yaml(d: dict, indent: int = 0) -> str:
 
 
 @providers_group.command("token-info")
-@click.option(
-    "--provider",
-    "-p",
-    type=click.Choice(["github"]),
-    default="github",
-    help="Provider to check token permissions for",
-)
+@click.argument("provider_type", default="github")
 @click.option(
     "--token",
     "-t",
-    help="Token to check (uses GITHUB_TOKEN env var if not provided)",
+    help="Token to check (falls back to provider-specific env var, e.g. GITHUB_TOKEN)",
 )
-def show_token_info(provider: str, token: str | None) -> None:
+def show_token_info(provider_type: str, token: str | None) -> None:
     """Show authentication token permissions and scopes.
 
-    Currently supports GitHub tokens. Displays OAuth scopes,
-    user information, and token capabilities.
+    Queries the provider's auth layer for token details such as user
+    identity, granted scopes, and common operations.  Any provider whose
+    auth class implements ``get_token_info`` is supported.
+
+    PROVIDER_TYPE defaults to "github" when omitted.
 
     Examples:
 
+    \b
         # Check GITHUB_TOKEN environment variable
         secretzero providers token-info
 
-        # Check specific token
-        secretzero providers token-info --token ghp_xxxxx
+        # Check a specific token
+        secretzero providers token-info github --token ghp_xxxxx
 
-        # Explicitly specify provider
-        secretzero providers token-info --provider github
+        # Use a different provider (if it supports token introspection)
+        secretzero providers token-info vault --token s.xxxxxxx
     """
-    if provider == "github":
-        import os
+    import os
 
-        from secretzero.providers.github import GitHubAuth, GitHubProvider
+    from secretzero.providers.base import BaseProvider as _BaseProvider
 
-        # Prepare auth config
-        auth_config = {}
-        if token:
-            auth_config["token"] = token
-        elif "GITHUB_TOKEN" in os.environ:
-            auth_config["token"] = os.environ["GITHUB_TOKEN"]
+    # --- resolve provider class from the registry -------------------------
+    provider_class = GLOBAL_PROVIDER_REGISTRY.get_provider_class(provider_type)
+    if provider_class is None:
+        console.print(
+            f"[red]Error:[/red] Provider '{provider_type}' is not registered. "
+            "Run [cyan]secretzero providers list[/cyan] to see available providers."
+        )
+        raise click.Abort()
+
+    # --- build an auth config from the explicit token or environment ------
+    auth_config: dict[str, Any] = {}
+    if token:
+        auth_config["token"] = token
+    else:
+        # Resolve env-var name from the provider's auth class metadata
+        env_var = getattr(provider_class.auth_class, "ENV_TOKEN", "") or ""
+        if env_var and env_var in os.environ:
+            auth_config["token"] = os.environ[env_var]
+        elif env_var:
+            console.print(
+                f"[red]Error:[/red] No token found. "
+                f"Set {env_var} environment variable or use --token"
+            )
+            raise click.Abort()
         else:
             console.print(
-                "[red]Error:[/red] No GitHub token found. "
-                "Set GITHUB_TOKEN environment variable or use --token"
+                f"[red]Error:[/red] No token provided and no known environment "
+                f"variable for provider '{provider_type}'. Use --token."
             )
             raise click.Abort()
 
-        try:
-            # Create auth instance and provider
-            auth = GitHubAuth(auth_config)
-            provider_instance = GitHubProvider("github", auth=auth)
+    # --- instantiate provider and retrieve token info ---------------------
+    try:
+        # Each provider's __init__ accepts (name, config, auth).
+        # Providers that define a custom Auth class typically accept token via
+        # config dict with a "token" key.
+        provider_instance: _BaseProvider = provider_class(
+            name=provider_type, config={"auth": auth_config, **auth_config}
+        )
 
-            # Get token info (uses requests directly, no PyGithub needed)
-            console.print("\n[bold]GitHub Token Information[/bold]\n")
+        console.print(f"\n[bold]{provider_type.upper()} Token Information[/bold]\n")
 
-            token_info = provider_instance.get_token_permissions()
+        token_info = provider_instance.get_token_info()
 
-            # Display user info
-            console.print(f"[cyan]User:[/cyan] {token_info.get('user', 'unknown')}")
-            if token_info.get("name"):
-                console.print(f"[cyan]Name:[/cyan] {token_info['name']}")
-            if token_info.get("email"):
-                console.print(f"[cyan]Email:[/cyan] {token_info['email']}")
+        # Display user info
+        console.print(f"[cyan]User:[/cyan] {token_info.get('user', 'unknown')}")
+        if token_info.get("name"):
+            console.print(f"[cyan]Name:[/cyan] {token_info['name']}")
+        if token_info.get("email"):
+            console.print(f"[cyan]Email:[/cyan] {token_info['email']}")
 
-            # Display scopes
-            scopes = token_info.get("scopes", [])
-            if scopes:
-                console.print(f"\n[cyan]Token Scopes ({len(scopes)}):[/cyan]")
-                for scope in sorted(scopes):
-                    scope_info = _get_scope_description(scope)
-                    console.print(f"  ✓ [green]{scope}[/green] - {scope_info}")
-            else:
-                console.print("\n[yellow]No OAuth scopes found (may be a classic PAT)[/yellow]")
+        # Display scopes using provider-supplied descriptions
+        scope_descriptions = provider_class.get_scope_descriptions()
+        scopes: list[str] = token_info.get("scopes", [])
+        if scopes:
+            console.print(f"\n[cyan]Token Scopes ({len(scopes)}):[/cyan]")
+            for scope in sorted(scopes):
+                desc = scope_descriptions.get(scope, "Permission granted")
+                console.print(f"  ✓ [green]{scope}[/green] - {desc}")
+        else:
+            console.print("\n[yellow]No scopes found (token may use implicit permissions)[/yellow]")
 
-            # Show common operations
-            console.print("\n[bold]Common Operations:[/bold]")
-            can_read_repo = "repo" in scopes or not scopes
-            can_write_secrets = "repo" in scopes or not scopes
-            can_write_actions = "workflow" in scopes or not scopes
+        # Display any extra keys the provider returned
+        extra_keys = set(token_info.keys()) - {"user", "name", "email", "scopes", "token_type"}
+        if extra_keys:
+            console.print("\n[bold]Additional Details:[/bold]")
+            for key in sorted(extra_keys):
+                console.print(f"  [cyan]{key}:[/cyan] {token_info[key]}")
 
-            if can_read_repo:
-                console.print("  ✓ Read repository data")
-            else:
-                console.print("  ✗ Cannot read repository data (needs 'repo' scope)")
-
-            if can_write_secrets:
-                console.print("  ✓ Create/update repository secrets")
-            else:
-                console.print("  ✗ Cannot write secrets (needs 'repo' scope)")
-
-            if can_write_actions:
-                console.print("  ✓ Update GitHub Actions workflows")
-            else:
-                console.print("  ✗ Cannot update workflows (needs 'workflow' scope)")
-
-            console.print(
-                "\n[dim]For more info on GitHub scopes: https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/scopes-for-oauth-apps[/dim]"
-            )
-
-        except RuntimeError as e:
-            console.print(f"[red]Error:[/red] {e}")
-            raise click.Abort()
-        except Exception as e:
-            console.print(f"[red]Error:[/red] Failed to get token information: {e}")
-            raise click.Abort()
-    else:
-        console.print(f"[yellow]Token info not yet implemented for {provider}[/yellow]")
-
-
-def _get_scope_description(scope: str) -> str:
-    """Get description for a GitHub OAuth scope.
-
-    Args:
-        scope: OAuth scope name
-
-    Returns:
-        Human-readable description
-    """
-    scope_descriptions = {
-        "repo": "Full control of private repositories",
-        "repo:status": "Access commit status",
-        "repo_deployment": "Access deployment status",
-        "public_repo": "Access public repositories",
-        "repo:invite": "Access repository invitations",
-        "security_events": "Read and write security events",
-        "admin:repo_hook": "Full control of repository hooks",
-        "write:repo_hook": "Write repository hooks",
-        "read:repo_hook": "Read repository hooks",
-        "admin:org": "Full control of orgs and teams",
-        "write:org": "Read and write org and team membership",
-        "read:org": "Read org and team membership",
-        "admin:public_key": "Full control of user public keys",
-        "write:public_key": "Write user public keys",
-        "read:public_key": "Read user public keys",
-        "admin:org_hook": "Full control of organization hooks",
-        "gist": "Create gists",
-        "notifications": "Access notifications",
-        "user": "Update all user data",
-        "read:user": "Read all user profile data",
-        "user:email": "Access user email addresses",
-        "user:follow": "Follow and unfollow users",
-        "delete_repo": "Delete repositories",
-        "write:discussion": "Read and write team discussions",
-        "read:discussion": "Read team discussions",
-        "write:packages": "Upload packages",
-        "read:packages": "Download packages",
-        "delete:packages": "Delete packages",
-        "admin:gpg_key": "Full control of user GPG keys",
-        "write:gpg_key": "Write user GPG keys",
-        "read:gpg_key": "Read user GPG keys",
-        "workflow": "Update GitHub Action workflows",
-        "admin:enterprise": "Full control of enterprises",
-        "manage_runners:enterprise": "Manage enterprise runners and runner groups",
-        "manage_billing:enterprise": "Read and write enterprise billing data",
-        "read:enterprise": "Read enterprise profile data",
-        "codespace": "Full control of codespaces",
-        "copilot": "Full control of GitHub Copilot settings",
-    }
-    return scope_descriptions.get(scope, "Permission granted")
+    except NotImplementedError:
+        console.print(
+            f"[yellow]Provider '{provider_type}' does not support token introspection.[/yellow]"
+        )
+        raise click.Abort()
+    except RuntimeError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise click.Abort()
+    except Exception as e:
+        console.print(f"[red]Error:[/red] Failed to get token information: {e}")
+        raise click.Abort()

@@ -95,6 +95,26 @@ class AnsibleVaultProvider(BaseProvider):
             format: yaml
     """
 
+    display_name = "Ansible Vault"
+    description = "Ansible Vault encrypted file storage"
+    required_package = ("ansible_vault", "secretzero[ansible_vault]")
+    auth_class = AnsibleVaultAuth
+    auth_methods = {
+        "password": "Use Ansible Vault password",
+        "password_env": "Use environment variable for vault password",
+    }
+    config_options = {
+        "vault_file": "Path to the Ansible Vault encrypted file",
+        "format": "Data format: yaml, json, or dotenv (default: yaml)",
+    }
+    config_example = """providers:
+  my_vault:
+    kind: ansible_vault
+    vault_file: secrets/vault.yml
+    vault_password_env: MY_VAULT_PASS
+    format: yaml"""
+    target_details = {}
+
     def __init__(
         self,
         name: str,
@@ -426,3 +446,26 @@ class AnsibleVaultProvider(BaseProvider):
                 value = f'"{value}"'
             lines.append(f"{key}={value}")
         return "\n".join(lines) + "\n"
+
+
+# ---------------------------------------------------------------------------
+# Bundle manifest – makes this provider extractable as a standalone package.
+# When extracted, expose this via entry_points:
+#   [project.entry-points."secretzero.providers"]
+#   ansible_vault = "secretzero_ansible_vault:BUNDLE_MANIFEST"
+# ---------------------------------------------------------------------------
+
+
+def _get_bundle_manifest() -> "BundleManifest":  # noqa: F821
+    """Lazily construct the Ansible Vault bundle manifest."""
+    from secretzero.bundles.registry import BundleManifest
+
+    return BundleManifest(
+        name="ansible_vault",
+        version="1.0.0",
+        provider_class="secretzero.providers.ansible_vault:AnsibleVaultProvider",
+        generators={},
+        targets={},
+        generator_kinds=[],
+        target_kinds=[],
+    )

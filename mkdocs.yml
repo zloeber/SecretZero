@@ -182,6 +182,10 @@ nav:
           - Python Client: user-guide/api/python-client.md
           - Deployment: user-guide/api/deployment.md
       - Agent Sync: user-guide/agent-sync.md
+      - Provider Bundles:
+          - user-guide/bundles/index.md
+          - Bundle Cookbook: user-guide/bundles/cookbook.md
+  - Extending: extending.md
   - Advanced Topics:
       - advanced/index.md
       - Secret Rotation:
@@ -231,6 +235,7 @@ nav:
       - CLI Auto-Reference: reference/cli-auto.md
       - API Interactive: reference/api-interactive.md
       - API Python Reference: reference/api-python.md
+      - Provider Bundles: reference/bundles.md
       - FAQ: reference/faq.md
       - Troubleshooting: reference/troubleshooting.md
       - Changelog: reference/changelog.md

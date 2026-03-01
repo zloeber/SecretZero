@@ -184,3 +184,47 @@ class TestGitHubTokenInfo:
             assert "read:user" in info["scopes"]
             # Empty string from trailing comma should be filtered out
             assert "" not in info["scopes"]
+
+
+class TestGitHubScopeDescriptions:
+    """Test GitHub scope descriptions interface."""
+
+    def test_auth_scope_descriptions_returns_dict(self):
+        """Test that GitHubAuth.get_scope_descriptions returns a non-empty dict."""
+        descriptions = GitHubAuth.get_scope_descriptions()
+        assert isinstance(descriptions, dict)
+        assert len(descriptions) > 0
+
+    def test_auth_scope_descriptions_contains_common_scopes(self):
+        """Test that common scopes are described."""
+        descriptions = GitHubAuth.get_scope_descriptions()
+        assert "repo" in descriptions
+        assert "workflow" in descriptions
+        assert "read:user" in descriptions
+
+    def test_provider_scope_descriptions_delegates_to_auth(self):
+        """Test that GitHubProvider.get_scope_descriptions delegates to GitHubAuth."""
+        provider_descs = GitHubProvider.get_scope_descriptions()
+        auth_descs = GitHubAuth.get_scope_descriptions()
+        assert provider_descs == auth_descs
+
+    def test_provider_get_token_info_via_base_interface(self):
+        """Test that get_token_info on provider works via BaseProvider interface."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"login": "testuser"}
+        mock_response.headers = {"X-OAuth-Scopes": "repo"}
+        mock_response.raise_for_status = Mock()
+
+        with patch("requests.get", return_value=mock_response):
+            auth = GitHubAuth({"token": "ghp_test"})
+            provider = GitHubProvider("github", auth=auth)
+
+            # Call via the base class interface (get_token_info)
+            info = provider.get_token_info()
+            assert info["user"] == "testuser"
+            assert "repo" in info["scopes"]
+
+            # Backward-compat alias should return the same result
+            info2 = provider.get_token_permissions()
+            assert info2["user"] == "testuser"

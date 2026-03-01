@@ -73,16 +73,81 @@ def validate_pat_permissions(permissions: dict[str, str]) -> tuple[bool, list[st
     return (len(errors) == 0, errors)
 
 
+# ===== GitHub OAuth Device Flow Defaults =====
+
+#: Default GitHub device-code endpoint (used by :meth:`GitHubAuth.authenticate_device_flow`).
+GITHUB_DEVICE_CODE_URL = "https://github.com/login/device/code"
+
+#: Default GitHub token endpoint.
+GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token"
+
+#: Default OAuth scopes requested when none are specified.
+GITHUB_DEFAULT_OAUTH_SCOPES: list[str] = ["repo", "read:org", "workflow"]
+
+
 class GitHubAuth(ProviderAuth):
     """GitHub authentication handler.
 
     Supports authentication via:
+
     - Explicit token in config
-    - Environment variable: GITHUB_TOKEN (checked automatically if not in config)
+    - Environment variable: ``GITHUB_TOKEN`` (checked automatically if not in config)
+    - Interactive OAuth device flow (see :meth:`authenticate_device_flow`)
     """
 
     # Environment variable to check for token
     ENV_TOKEN = "GITHUB_TOKEN"
+
+    # Human-readable descriptions for GitHub OAuth / fine-grained token scopes.
+    SCOPE_DESCRIPTIONS: dict[str, str] = {
+        "repo": "Full control of private repositories",
+        "repo:status": "Access commit status",
+        "repo_deployment": "Access deployment status",
+        "public_repo": "Access public repositories",
+        "repo:invite": "Access repository invitations",
+        "security_events": "Read and write security events",
+        "admin:repo_hook": "Full control of repository hooks",
+        "write:repo_hook": "Write repository hooks",
+        "read:repo_hook": "Read repository hooks",
+        "admin:org": "Full control of orgs and teams",
+        "write:org": "Read and write org and team membership",
+        "read:org": "Read org and team membership",
+        "admin:public_key": "Full control of user public keys",
+        "write:public_key": "Write user public keys",
+        "read:public_key": "Read user public keys",
+        "admin:org_hook": "Full control of organization hooks",
+        "gist": "Create gists",
+        "notifications": "Access notifications",
+        "user": "Update all user data",
+        "read:user": "Read all user profile data",
+        "user:email": "Access user email addresses",
+        "user:follow": "Follow and unfollow users",
+        "delete_repo": "Delete repositories",
+        "write:discussion": "Read and write team discussions",
+        "read:discussion": "Read team discussions",
+        "write:packages": "Upload packages",
+        "read:packages": "Download packages",
+        "delete:packages": "Delete packages",
+        "admin:gpg_key": "Full control of user GPG keys",
+        "write:gpg_key": "Write user GPG keys",
+        "read:gpg_key": "Read user GPG keys",
+        "workflow": "Update GitHub Action workflows",
+        "admin:enterprise": "Full control of enterprises",
+        "manage_runners:enterprise": "Manage enterprise runners and runner groups",
+        "manage_billing:enterprise": "Read and write enterprise billing data",
+        "read:enterprise": "Read enterprise profile data",
+        "codespace": "Full control of codespaces",
+        "copilot": "Full control of GitHub Copilot settings",
+    }
+
+    @classmethod
+    def get_scope_descriptions(cls) -> dict[str, str]:
+        """Return GitHub OAuth scope descriptions.
+
+        Returns:
+            Mapping of scope name to human-readable description.
+        """
+        return dict(cls.SCOPE_DESCRIPTIONS)
 
     def __init__(self, config: dict[str, Any]):
         """Initialize GitHub authentication.
@@ -147,6 +212,112 @@ class GitHubAuth(ProviderAuth):
             self.authenticate()
         return self._client
 
+    # ------------------------------------------------------------------
+    # Interactive OAuth device flow
+    # ------------------------------------------------------------------
+
+    def authenticate_device_flow(
+        self,
+        client_id: str,
+        scopes: list[str] | None = None,
+        *,
+        open_browser: bool = True,
+        on_user_code: Any = None,
+        max_wait: int = 0,
+        _sleep: Any = None,
+    ) -> dict[str, Any]:
+        """Run the OAuth 2.0 Device Authorization Grant interactively.
+
+        This method requests a one-time user code from GitHub, optionally
+        opens the verification URL in the user's browser, and then polls
+        until the user has authorized the application.
+
+        On success the resulting access token is stored internally so that
+        subsequent calls to :meth:`authenticate` and :meth:`get_client`
+        work transparently.
+
+        Args:
+            client_id: OAuth App or GitHub App client ID.
+            scopes: OAuth scopes to request.  Defaults to
+                :data:`GITHUB_DEFAULT_OAUTH_SCOPES`.
+            open_browser: If *True*, attempt to open the verification URL
+                in the user's default browser.
+            on_user_code: Optional callback ``(user_code, verification_uri,
+                verification_uri_complete) -> None`` invoked as soon as the
+                user code is available.  Useful for CLI output.
+            max_wait: Maximum seconds to wait for authorization.  ``0``
+                means use the server-provided expiry.
+            _sleep: Override for ``time.sleep`` (used in tests).
+
+        Returns:
+            Dictionary with ``access_token``, ``token_type``, ``scope``,
+            and the full ``raw`` server response.
+
+        Raises:
+            RuntimeError: If the device flow fails.
+        """
+        from secretzero.oauth.device_flow import (
+            DeviceFlowConfig,
+            DeviceFlowError,
+            poll_for_token,
+            request_device_code,
+        )
+
+        base_url = self.config.get("github_url", "https://github.com")
+        device_code_url = f"{base_url}/login/device/code"
+        token_url = f"{base_url}/login/oauth/access_token"
+
+        cfg = DeviceFlowConfig(
+            client_id=client_id,
+            device_code_url=device_code_url,
+            token_url=token_url,
+            scopes=scopes or GITHUB_DEFAULT_OAUTH_SCOPES,
+        )
+
+        try:
+            device = request_device_code(cfg)
+        except DeviceFlowError as exc:
+            raise RuntimeError(f"Failed to start GitHub device flow: {exc}") from exc
+
+        # Notify the caller so the CLI can display the code
+        if on_user_code:
+            on_user_code(
+                device.user_code,
+                device.verification_uri,
+                device.verification_uri_complete,
+            )
+
+        # Optionally open the browser
+        if open_browser:
+            try:
+                import webbrowser
+
+                target = device.verification_uri_complete or device.verification_uri
+                webbrowser.open(target)
+            except Exception:  # noqa: BLE001
+                pass  # Non-fatal; user can navigate manually.
+
+        try:
+            result = poll_for_token(
+                cfg,
+                device,
+                max_wait=max_wait,
+                _sleep=_sleep,
+            )
+        except DeviceFlowError as exc:
+            raise RuntimeError(f"GitHub device flow failed: {exc}") from exc
+
+        # Store the token so authenticate() / get_client() pick it up.
+        self.config["token"] = result.access_token
+        self._client = None  # Reset so next get_client() re-authenticates.
+
+        return {
+            "access_token": result.access_token,
+            "token_type": result.token_type,
+            "scope": result.scope,
+            "raw": result.raw,
+        }
+
     def get_token_info(self) -> dict[str, Any]:
         """Get information about the authenticated token.
 
@@ -201,6 +372,41 @@ class GitHubAuth(ProviderAuth):
 
 class GitHubProvider(BaseProvider):
     """GitHub provider for Actions secrets."""
+
+    display_name = "GitHub"
+    description = "GitHub repository secrets and Actions"
+    required_package = ("github", "secretzero[github]")
+    auth_class = GitHubAuth
+    auth_methods = {
+        "token": "Use GitHub personal access token",
+        "oauth_device": "Interactive OAuth device flow (browser-based login)",
+    }
+    config_options = {
+        "owner": "GitHub organization or username",
+        "repo": "Repository name",
+    }
+    config_example = """providers:
+  github:
+    kind: github
+    auth:
+      kind: token
+      config:
+        token: ${GITHUB_TOKEN}"""
+    target_details = {
+        "github_secret": {
+            "description": "GitHub Actions Secret",
+            "config": {
+                "repository": "GitHub repository (owner/repo format)",
+                "secret_name": "Secret name (optional, uses secret.name if not provided)",
+            },
+            "example": """targets:
+  - provider: github
+    kind: github_secret
+    config:
+      repository: myorg/myrepo
+      secret_name: DATABASE_PASSWORD""",
+        },
+    }
 
     def __init__(
         self,
@@ -272,17 +478,26 @@ class GitHubProvider(BaseProvider):
     def get_token_permissions(self) -> dict[str, Any]:
         """Get information about the current GitHub token.
 
+        .. deprecated::
+            Use :meth:`get_token_info` (inherited from :class:`BaseProvider`)
+            instead. This method is kept for backward compatibility.
+
         Returns:
             Dictionary with token information including scopes/permissions.
 
         Raises:
             RuntimeError: If not authenticated or token info cannot be retrieved.
         """
-        if not self.auth:
-            raise RuntimeError("No authentication configured")
+        return self.get_token_info()
 
-        # get_token_info() uses requests directly, doesn't need PyGithub client
-        return self.auth.get_token_info()
+    @classmethod
+    def get_scope_descriptions(cls) -> dict[str, str]:
+        """Return GitHub OAuth scope descriptions.
+
+        Returns:
+            Mapping of scope name to human-readable description.
+        """
+        return GitHubAuth.get_scope_descriptions()
 
     # ===== GENERATE CAPABILITY =====
 
@@ -655,3 +870,34 @@ class GitHubProvider(BaseProvider):
             token_name=manifest.get("token_name"),
             expires_in_hours=manifest.get("expires_in_hours", 1),
         )
+
+
+# ---------------------------------------------------------------------------
+# Bundle manifest – makes this provider extractable as a standalone package.
+# When extracted, expose this via entry_points:
+#   [project.entry-points."secretzero.providers"]
+#   github = "secretzero_github:BUNDLE_MANIFEST"
+# ---------------------------------------------------------------------------
+
+
+def _get_bundle_manifest() -> "BundleManifest":  # noqa: F821
+    """Lazily construct the GitHub bundle manifest.
+
+    The import is deferred so that importing this module does not force
+    the bundles package to load.
+    """
+    from secretzero.bundles.registry import BundleManifest
+
+    return BundleManifest(
+        name="github",
+        version="1.0.0",
+        provider_class="secretzero.providers.github:GitHubProvider",
+        generators={
+            "github_pat": "secretzero.generators.github_pat:GitHubPATGenerator",
+        },
+        targets={
+            "github_secret": "secretzero.targets.github:GitHubSecretTarget",
+        },
+        generator_kinds=["github_pat"],
+        target_kinds=["github_secret"],
+    )

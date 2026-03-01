@@ -1,7 +1,9 @@
 """Test Azure provider capability methods."""
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
+
 from secretzero.providers.azure import AzureProvider
 
 

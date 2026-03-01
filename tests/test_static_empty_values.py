@@ -1,6 +1,7 @@
 """Test static generator behavior with empty/unresolved values."""
 
 import pytest
+
 from secretzero.generators.static import StaticGenerator
 
 

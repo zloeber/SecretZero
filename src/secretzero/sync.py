@@ -3,17 +3,9 @@
 from pathlib import Path
 from typing import Any
 
-from secretzero.generators import (
-    GitHubPATGenerator,
-    ProviderBackedGenerator,
-    RandomPasswordGenerator,
-    RandomStringGenerator,
-    ScriptGenerator,
-    StaticGenerator,
-)
+from secretzero.bundles import get_bundle_registry
 from secretzero.lockfile import Lockfile
-from secretzero.models import GeneratorKind, Secret, Secretfile, Template
-from secretzero.targets import FileTarget, TemplateTarget
+from secretzero.models import Secret, Secretfile, Template
 
 # Import providers
 
@@ -46,15 +38,9 @@ class SyncEngine:
         self.secretfile_content = secretfile_content
         self.hide_input = hide_input
         self.prompt_on_empty = prompt_on_empty
-        self.generator_map = {
-            GeneratorKind.RANDOM_PASSWORD: RandomPasswordGenerator,
-            GeneratorKind.RANDOM_STRING: RandomStringGenerator,
-            GeneratorKind.STATIC: StaticGenerator,
-            GeneratorKind.SCRIPT: ScriptGenerator,
-            GeneratorKind.PROVIDER_BACKED: ProviderBackedGenerator,
-        }
-        self._providers = {}
-        self._template_targets = {}  # Track template targets and their secrets
+        self._bundle_registry = get_bundle_registry()
+        self._providers: dict[str, Any] = {}
+        self._template_targets: dict[str, Any] = {}  # Track template targets and their secrets
         self._initialize_providers()
 
     @staticmethod
@@ -96,7 +82,7 @@ class SyncEngine:
                 pass
 
     def _create_provider(self, name: str, config: dict) -> Any | None:
-        """Create a provider instance.
+        """Create a provider instance using the bundle registry.
 
         Args:
             name: Provider name
@@ -105,59 +91,13 @@ class SyncEngine:
         Returns:
             Provider instance or None
         """
-        # Determine provider type from config or name
         provider_kind = config.get("kind", name)
-
-        if provider_kind == "aws":
+        provider_class = self._bundle_registry.get_provider_class(provider_kind)
+        if provider_class is not None:
             try:
-                from secretzero.providers.aws import AWSProvider
-
-                return AWSProvider(name=name, config=config)
-            except ImportError:
+                return provider_class(name=name, config=config)
+            except Exception:
                 return None
-        elif provider_kind == "azure":
-            try:
-                from secretzero.providers.azure import AzureProvider
-
-                return AzureProvider(name=name, config=config)
-            except ImportError:
-                return None
-        elif provider_kind == "vault":
-            try:
-                from secretzero.providers.vault import VaultProvider
-
-                return VaultProvider(name=name, config=config)
-            except ImportError:
-                return None
-        elif provider_kind == "github":
-            try:
-                from secretzero.providers.github import GitHubProvider
-
-                return GitHubProvider(name=name, config=config)
-            except ImportError:
-                return None
-        elif provider_kind == "gitlab":
-            try:
-                from secretzero.providers.gitlab import GitLabProvider
-
-                return GitLabProvider(name=name, config=config)
-            except ImportError:
-                return None
-        elif provider_kind == "jenkins":
-            try:
-                from secretzero.providers.jenkins import JenkinsProvider
-
-                return JenkinsProvider(name=name, config=config)
-            except ImportError:
-                return None
-        elif provider_kind == "kubernetes":
-            try:
-                from secretzero.providers.kubernetes import KubernetesProvider
-
-                return KubernetesProvider(name=name, config=config)
-            except ImportError:
-                return None
-
         return None
 
     def _get_provider(self, provider_name: str) -> Any | None:
@@ -616,6 +556,48 @@ class SyncEngine:
 
         return result
 
+    def _resolve_provider_in_config(
+        self, generator_class: type, config: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Inject a live provider instance into *config* if the generator needs one.
+
+        Generator classes that require a provider instance declare two class
+        attributes:
+
+        * ``PROVIDER_CONFIG_KEY`` – the ``config`` key that holds the provider
+          *name* string (defaults to ``"provider"``).
+        * ``PROVIDER_INJECTION_KEY`` – the ``config`` key under which the
+          resolved provider *instance* should be injected.
+
+        When the resolved provider is not found the config is returned
+        unchanged; the generator's own ``generate()`` method will raise an
+        appropriate error at generation time.
+
+        Args:
+            generator_class: The generator class about to be instantiated.
+            config: Current generator config dict.
+
+        Returns:
+            Possibly-augmented config dict.
+        """
+        provider_config_key: str | None = getattr(generator_class, "PROVIDER_CONFIG_KEY", None)
+        provider_injection_key: str | None = getattr(
+            generator_class, "PROVIDER_INJECTION_KEY", None
+        )
+
+        if not provider_config_key or not provider_injection_key:
+            return config
+
+        provider_name = config.get(provider_config_key)
+        if not provider_name or not isinstance(provider_name, str):
+            return config
+
+        provider = self._get_provider(provider_name)
+        if provider is None:
+            return config
+
+        return {**config, provider_injection_key: provider}
+
     def _generate_secret_value(
         self,
         kind: str,
@@ -623,73 +605,58 @@ class SyncEngine:
         env_var_name: str,
         field_description: str | None = None,
     ) -> str:
-        """Generate a secret value using the appropriate generator.
+        """Generate a secret value using the bundle registry.
+
+        Looks up the generator class for *kind* in the bundle registry,
+        optionally injects a live provider instance (for generators that
+        declare ``PROVIDER_CONFIG_KEY`` / ``PROVIDER_INJECTION_KEY``), and
+        delegates to :meth:`~secretzero.generators.base.BaseGenerator.generate_with_fallback`.
 
         Args:
-            kind: Generator kind
-            config: Generator configuration
-            env_var_name: Environment variable name for fallback
-            field_description: Optional field description for user prompts
+            kind: Generator kind string (e.g. ``"random_password"``).
+            config: Generator configuration dict from the Secretfile.
+            env_var_name: Environment variable name checked before generation.
+            field_description: Optional human-readable label for user prompts.
 
         Returns:
-            Generated secret value
+            Generated secret value string.
 
         Raises:
-            ValueError: If generator kind is unknown
+            ValueError: If *kind* is not registered in the bundle registry.
         """
-        # Map string kinds to enum values
-        if kind == "random_password":
-            generator_class = RandomPasswordGenerator
-        elif kind == "random_string":
-            generator_class = RandomStringGenerator
-        elif kind == "static":
-            generator_class = StaticGenerator
-        elif kind == "script":
-            generator_class = ScriptGenerator
-        elif kind == "github_pat":
-            # Inject the resolved provider instance into the config
-            provider_name = config.get("provider", "github")
-            provider = self._get_provider(provider_name)
-            if provider is None:
+        generator_class = self._bundle_registry.get_generator_class(kind)
+        if generator_class is None:
+            raise ValueError(
+                f"Unknown generator kind: '{kind}'. "
+                f"Available kinds: {', '.join(self._bundle_registry.list_generator_kinds())}"
+            )
+
+        # Inject provider instance for generators that require one
+        resolved_config = self._resolve_provider_in_config(generator_class, config)
+
+        # Validate that provider-backed generators received their provider
+        injection_key: str | None = getattr(generator_class, "PROVIDER_INJECTION_KEY", None)
+        if injection_key and resolved_config.get(injection_key) is None:
+            config_key: str = getattr(generator_class, "PROVIDER_CONFIG_KEY", "provider")
+            provider_name = config.get(config_key, kind)
+            if self._get_provider(provider_name) is None:
                 raise ValueError(
-                    f"github_pat generator requires provider '{provider_name}' "
+                    f"'{kind}' generator requires provider '{provider_name}' "
                     f"to be configured in the Secretfile providers section."
                 )
-            config = {**config, "_provider_instance": provider}
-            generator = GitHubPATGenerator(config)
-            if self.hide_input:
-                generator.hide_input = True
-            return generator.generate_with_fallback(
-                env_var_name, field_description=field_description
-            )
-        elif kind == "provider_backed":
-            # Generic provider-backed generation
-            provider_name = config.get("provider")
-            if provider_name:
-                provider = self._get_provider(provider_name)
-                if provider:
-                    config = {**config, "provider": provider}
-            generator = ProviderBackedGenerator(config)
-            if self.hide_input:
-                generator.hide_input = True
-            return generator.generate_with_fallback(
-                env_var_name, field_description=field_description
-            )
-        else:
-            raise ValueError(f"Unknown generator kind: {kind}")
 
-        generator = generator_class(config)
+        generator = generator_class(resolved_config)
         if self.hide_input:
             generator.hide_input = True
 
-        # For static generators, control prompting behavior
-        if isinstance(generator, StaticGenerator):
+        # Allow generators to opt in to prompt_on_empty control
+        if hasattr(generator, "prompt_on_empty"):
             generator.prompt_on_empty = self.prompt_on_empty
 
         return generator.generate_with_fallback(env_var_name, field_description=field_description)
 
     def _retrieve_from_target(self, secret_name: str, target_config: Any) -> str | None:
-        """Retrieve a secret value from a target.
+        """Retrieve a secret value from a target using the bundle registry.
 
         Args:
             secret_name: Name of the secret
@@ -699,96 +666,30 @@ class SyncEngine:
             Secret value if found, None otherwise
         """
         try:
-            # Local file targets
-            if target_config.provider == "local" and target_config.kind == "file":
-                target = FileTarget(target_config.config)
-                return target.retrieve(secret_name)
+            kind_str = str(target_config.kind)
 
-            # Template targets (read from rendered output if it exists)
-            elif target_config.provider == "local" and target_config.kind == "template":
-                target = TemplateTarget(target_config.config)
-                return target.retrieve(secret_name)
-
-            # AWS targets
-            elif target_config.provider == "aws":
-                provider = self._get_provider("aws")
-                if not provider:
+            # Resolve provider for non-local targets
+            provider = None
+            if target_config.provider != "local":
+                provider = self._get_provider(target_config.provider)
+                if provider is None:
                     return None
-
-                # Authenticate provider if needed
                 if not provider.is_authenticated():
                     if not provider.authenticate():
                         return None
 
-                if target_config.kind == "ssm_parameter":
-                    try:
-                        from secretzero.targets.aws import SSMParameterTarget
+            # Look up target class in bundle registry
+            target_class = self._bundle_registry.get_target_class(kind_str)
+            if target_class is None:
+                return None
 
-                        target = SSMParameterTarget(provider, target_config.config)
-                        return target.retrieve(secret_name)
-                    except ImportError:
-                        return None
+            # Local targets receive only config; provider-based targets receive (provider, config)
+            if target_config.provider == "local":
+                target = target_class(target_config.config)
+            else:
+                target = target_class(provider, target_config.config)
 
-                elif target_config.kind == "secrets_manager":
-                    try:
-                        from secretzero.targets.aws import SecretsManagerTarget
-
-                        target = SecretsManagerTarget(provider, target_config.config)
-                        return target.retrieve(secret_name)
-                    except ImportError:
-                        return None
-
-            # Azure targets
-            elif target_config.provider == "azure":
-                provider = self._get_provider("azure")
-                if not provider:
-                    return None
-
-                # Authenticate provider if needed
-                if not provider.is_authenticated():
-                    if not provider.authenticate():
-                        return None
-
-                if target_config.kind == "key_vault":
-                    try:
-                        from secretzero.targets.azure import KeyVaultTarget
-
-                        target = KeyVaultTarget(provider, target_config.config)
-                        return target.retrieve(secret_name)
-                    except ImportError:
-                        return None
-
-            # GCP targets
-            elif target_config.provider == "gcp":
-                provider = self._get_provider("gcp")
-                if not provider:
-                    return None
-
-                if target_config.kind == "secret_manager":
-                    try:
-                        from secretzero.targets.gcp import SecretManagerTarget
-
-                        target = SecretManagerTarget(provider, target_config.config)
-                        return target.retrieve(secret_name)
-                    except ImportError:
-                        return None
-
-            # Kubernetes targets
-            elif target_config.provider == "kubernetes":
-                provider = self._get_provider("kubernetes")
-                if not provider:
-                    return None
-
-                if target_config.kind == "secret":
-                    try:
-                        from secretzero.targets.kubernetes import SecretTarget
-
-                        target = SecretTarget(provider, target_config.config)
-                        return target.retrieve(secret_name)
-                    except ImportError:
-                        return None
-
-            return None
+            return target.retrieve(secret_name)
 
         except Exception:
             return None
@@ -796,7 +697,7 @@ class SyncEngine:
     def _store_in_target(
         self, secret_name: str, secret_value: str, target_config: Any
     ) -> dict[str, Any]:
-        """Store a secret in a target.
+        """Store a secret in a target using the bundle registry.
 
         Args:
             secret_name: Name of the secret
@@ -806,33 +707,58 @@ class SyncEngine:
         Returns:
             Dictionary with storage result
         """
-        result = {
+        result: dict[str, Any] = {
             "provider": target_config.provider,
             "kind": target_config.kind,
             "status": "unknown",
         }
 
         try:
-            # Local file targets
-            if target_config.provider == "local" and target_config.kind == "file":
-                target = FileTarget(target_config.config)
+            kind_str = str(target_config.kind)
 
-                # Validate target before attempting to store
+            # Look up the target class from the bundle registry
+            target_class = self._bundle_registry.get_target_class(kind_str)
+            if target_class is None:
+                result["status"] = "unsupported"
+                result["message"] = (
+                    f"Target kind '{kind_str}' is not registered. "
+                    f"Available kinds: {', '.join(self._bundle_registry.list_target_kinds())}"
+                )
+                return result
+
+            # Resolve provider for non-local targets
+            provider = None
+            if target_config.provider != "local":
+                provider = self._get_provider(target_config.provider)
+                if provider is None:
+                    result["status"] = "error"
+                    result["message"] = f"{target_config.provider} provider not initialized"
+                    return result
+
+                # Authenticate if not already authenticated
+                if not provider.is_authenticated():
+                    if not provider.authenticate():
+                        result["status"] = "error"
+                        result["message"] = f"{target_config.provider} authentication failed"
+                        return result
+
+            # Instantiate the target
+            if target_config.provider == "local":
+                target = target_class(target_config.config)
+            else:
+                target = target_class(provider, target_config.config)
+
+            # File targets: validate before storing
+            if kind_str == "file":
                 is_valid, error_msg = target.validate()
                 if not is_valid:
                     result["status"] = "error"
                     result["message"] = f"File target validation failed: {error_msg}"
                     return result
 
+            # Template targets: collect secrets for deferred rendering
+            if kind_str == "template":
                 success = target.store(secret_name, secret_value)
-                result["status"] = "stored" if success else "failed"
-
-            # Template targets (collect secrets for later rendering)
-            elif target_config.provider == "local" and target_config.kind == "template":
-                target = TemplateTarget(target_config.config)
-                success = target.store(secret_name, secret_value)
-
-                # Track template target and its secrets for rendering later
                 template_id = target_config.config.get("output_path", "unknown")
                 if template_id not in self._template_targets:
                     self._template_targets[template_id] = {
@@ -840,230 +766,19 @@ class SyncEngine:
                         "secrets": {},
                     }
                 self._template_targets[template_id]["secrets"][secret_name] = secret_value
-
                 result["status"] = "stored" if success else "failed"
+                return result
 
-            # AWS targets
-            elif target_config.provider == "aws":
-                provider = self._get_provider("aws")
-                if not provider:
-                    result["status"] = "error"
-                    result["message"] = "AWS provider not initialized"
-                    return result
+            # Generic store
+            success = target.store(secret_name, secret_value)
+            result["status"] = "stored" if success else "failed"
 
-                # Authenticate provider if needed
-                if not provider.is_authenticated():
-                    if not provider.authenticate():
-                        result["status"] = "error"
-                        result["message"] = "AWS authentication failed"
-                        return result
-
-                if target_config.kind == "ssm_parameter":
-                    try:
-                        from secretzero.targets.aws import SSMParameterTarget
-
-                        target = SSMParameterTarget(provider, target_config.config)
-                        success = target.store(secret_name, secret_value)
-                        result["status"] = "stored" if success else "failed"
-                    except ImportError:
-                        result["status"] = "error"
-                        result["message"] = (
-                            "boto3 not installed. Install with: pip install secretzero[aws]"
-                        )
-
-                elif target_config.kind == "secrets_manager":
-                    try:
-                        from secretzero.targets.aws import SecretsManagerTarget
-
-                        target = SecretsManagerTarget(provider, target_config.config)
-                        success = target.store(secret_name, secret_value)
-                        result["status"] = "stored" if success else "failed"
-                    except ImportError:
-                        result["status"] = "error"
-                        result["message"] = (
-                            "boto3 not installed. Install with: pip install secretzero[aws]"
-                        )
-                else:
-                    result["status"] = "unsupported"
-                    result["message"] = f"AWS target kind '{target_config.kind}' not supported"
-
-            # Azure targets
-            elif target_config.provider == "azure":
-                provider = self._get_provider("azure")
-                if not provider:
-                    result["status"] = "error"
-                    result["message"] = "Azure provider not initialized"
-                    return result
-
-                # Authenticate provider if needed
-                if not provider.is_authenticated():
-                    if not provider.authenticate():
-                        result["status"] = "error"
-                        result["message"] = "Azure authentication failed"
-                        return result
-
-                if target_config.kind == "key_vault":
-                    try:
-                        from secretzero.targets.azure import KeyVaultTarget
-
-                        target = KeyVaultTarget(provider, target_config.config)
-                        success = target.store(secret_name, secret_value)
-                        result["status"] = "stored" if success else "failed"
-                    except ImportError:
-                        result["status"] = "error"
-                        result["message"] = (
-                            "Azure SDK not installed. Install with: pip install secretzero[azure]"
-                        )
-                else:
-                    result["status"] = "unsupported"
-                    result["message"] = f"Azure target kind '{target_config.kind}' not supported"
-
-            # Vault targets
-            elif target_config.provider == "vault":
-                provider = self._get_provider("vault")
-                if not provider:
-                    result["status"] = "error"
-                    result["message"] = "Vault provider not initialized"
-                    return result
-                # Authenticate provider if needed
-                if not provider.is_authenticated():
-                    if not provider.authenticate():
-                        result["status"] = "error"
-                        result["message"] = "Vault authentication failed"
-                        return result
-                if target_config.kind == "kv":
-                    try:
-                        from secretzero.targets.vault import VaultKVTarget
-
-                        target = VaultKVTarget(provider, target_config.config)
-                        success = target.store(secret_name, secret_value)
-                        result["status"] = "stored" if success else "failed"
-                    except ImportError:
-                        result["status"] = "error"
-                        result["message"] = (
-                            "hvac not installed. Install with: pip install secretzero[vault]"
-                        )
-                else:
-                    result["status"] = "unsupported"
-                    result["message"] = f"Vault target kind '{target_config.kind}' not supported"
-
-            # GitHub targets
-            elif target_config.provider == "github":
-                provider = self._get_provider("github")
-                if not provider:
-                    result["status"] = "error"
-                    result["message"] = "GitHub provider not initialized"
-                    return result
-
-                if target_config.kind == "github_secret":
-                    try:
-                        from secretzero.targets.github import GitHubSecretTarget
-
-                        target = GitHubSecretTarget(provider, target_config.config)
-                        success = target.store(secret_name, secret_value)
-                        result["status"] = "stored" if success else "failed"
-                    except ImportError:
-                        result["status"] = "error"
-                        result["message"] = (
-                            "PyGithub not installed. Install with: pip install secretzero[github]"
-                        )
-                else:
-                    result["status"] = "unsupported"
-                    result["message"] = f"GitHub target kind '{target_config.kind}' not supported"
-
-            # GitLab targets
-            elif target_config.provider == "gitlab":
-                provider = self._get_provider("gitlab")
-                if not provider:
-                    result["status"] = "error"
-                    result["message"] = "GitLab provider not initialized"
-                    return result
-
-                if target_config.kind == "gitlab_variable":
-                    try:
-                        from secretzero.targets.gitlab import GitLabVariableTarget
-
-                        target = GitLabVariableTarget(provider, target_config.config)
-                        success = target.store(secret_name, secret_value)
-                        result["status"] = "stored" if success else "failed"
-                    except ImportError:
-                        result["status"] = "error"
-                        result["message"] = (
-                            "python-gitlab not installed. Install with: pip install secretzero[gitlab]"
-                        )
-                else:
-                    result["status"] = "unsupported"
-                    result["message"] = f"GitLab target kind '{target_config.kind}' not supported"
-
-            # Jenkins targets
-            elif target_config.provider == "jenkins":
-                provider = self._get_provider("jenkins")
-                if not provider:
-                    result["status"] = "error"
-                    result["message"] = "Jenkins provider not initialized"
-                    return result
-
-                if target_config.kind == "jenkins_credential":
-                    try:
-                        from secretzero.targets.jenkins import JenkinsCredentialTarget
-
-                        target = JenkinsCredentialTarget(provider, target_config.config)
-                        success = target.store(secret_name, secret_value)
-                        result["status"] = "stored" if success else "failed"
-                    except ImportError:
-                        result["status"] = "error"
-                        result["message"] = (
-                            "python-jenkins not installed. Install with: pip install secretzero[jenkins]"
-                        )
-                else:
-                    result["status"] = "unsupported"
-                    result["message"] = f"Jenkins target kind '{target_config.kind}' not supported"
-
-            # Kubernetes targets
-            elif target_config.provider == "kubernetes":
-                provider = self._get_provider("kubernetes")
-                if not provider:
-                    result["status"] = "error"
-                    result["message"] = "Kubernetes provider not initialized"
-                    return result
-
-                if target_config.kind == "kubernetes_secret":
-                    try:
-                        from secretzero.targets.kubernetes import KubernetesSecretTarget
-
-                        target = KubernetesSecretTarget(provider, target_config.config)
-                        success = target.store(secret_name, secret_value)
-                        result["status"] = "stored" if success else "failed"
-                    except ImportError:
-                        result["status"] = "error"
-                        result["message"] = (
-                            "kubernetes not installed. Install with: pip install secretzero[kubernetes]"
-                        )
-                elif target_config.kind == "external_secret":
-                    try:
-                        from secretzero.targets.kubernetes import ExternalSecretTarget
-
-                        target = ExternalSecretTarget(provider, target_config.config)
-                        success = target.store(secret_name, secret_value)
-                        result["status"] = "stored" if success else "failed"
-                    except ImportError:
-                        result["status"] = "error"
-                        result["message"] = (
-                            "kubernetes not installed. Install with: pip install secretzero[kubernetes]"
-                        )
-                else:
-                    result["status"] = "unsupported"
-                    result["message"] = (
-                        f"Kubernetes target kind '{target_config.kind}' not supported"
-                    )
-
-            else:
-                result["status"] = "unsupported"
-                result["message"] = f"Provider '{target_config.provider}' not yet implemented"
-
-        except Exception as e:
+        except ImportError as exc:
             result["status"] = "error"
-            result["message"] = str(e)
+            result["message"] = f"Missing dependency: {exc}"
+        except Exception as exc:
+            result["status"] = "error"
+            result["message"] = str(exc)
 
         return result
 

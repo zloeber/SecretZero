@@ -99,6 +99,34 @@ class TestProviderBase:
         targets = provider.get_supported_targets()
         assert targets == ["dummy_target"]
 
+    def test_provider_auth_get_token_info_not_implemented(self):
+        """Test that base ProviderAuth.get_token_info raises NotImplementedError."""
+        auth = DummyAuth()
+        with pytest.raises(NotImplementedError, match="does not support token introspection"):
+            auth.get_token_info()
+
+    def test_provider_auth_get_scope_descriptions_default_empty(self):
+        """Test that base ProviderAuth.get_scope_descriptions returns empty dict."""
+        assert DummyAuth.get_scope_descriptions() == {}
+
+    def test_provider_get_token_info_delegates_to_auth(self):
+        """Test that BaseProvider.get_token_info delegates to auth."""
+        auth = DummyAuth()
+        provider = DummyProvider(name="test", auth=auth)
+        # DummyAuth doesn't implement get_token_info, so it should raise
+        with pytest.raises(NotImplementedError):
+            provider.get_token_info()
+
+    def test_provider_get_token_info_no_auth_raises(self):
+        """Test that BaseProvider.get_token_info raises when no auth configured."""
+        provider = DummyProvider(name="test", auth=None)
+        with pytest.raises(RuntimeError, match="No authentication configured"):
+            provider.get_token_info()
+
+    def test_provider_get_scope_descriptions_default_empty(self):
+        """Test that BaseProvider.get_scope_descriptions returns empty dict."""
+        assert DummyProvider.get_scope_descriptions() == {}
+
 
 class TestProviderRegistry:
     """Tests for provider registry."""
@@ -182,6 +210,7 @@ def test_aws_auth_ambient():
     """Test AWS ambient authentication (mocked)."""
     try:
         import boto3
+
         from secretzero.providers.aws import AWSAuth
 
         with patch("boto3.Session") as mock_session:
@@ -204,6 +233,7 @@ def test_aws_provider_test_connection():
     """Test AWS provider connectivity test (mocked)."""
     try:
         import boto3
+
         from secretzero.providers.aws import AWSAuth, AWSProvider
 
         with patch("boto3.Session") as mock_session:
@@ -279,6 +309,7 @@ def test_vault_auth_token():
     """Test Vault token authentication (mocked)."""
     try:
         import hvac
+
         from secretzero.providers.vault import VaultAuth
 
         with patch("hvac.Client") as mock_client:

@@ -15,3 +15,8 @@ node = "latest"
 version = "latest"
 asset_pattern = "agg-aarch64-apple-darwin"
 bin = "agg"
+
+# [tools."github:infisical/cli"]
+# version = "latest"
+# asset_pattern = "cli_*_darwin_arm64.tar.gz"
+# bin = "infisical"

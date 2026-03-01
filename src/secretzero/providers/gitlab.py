@@ -83,6 +83,44 @@ class GitLabAuth(ProviderAuth):
 class GitLabProvider(BaseProvider):
     """GitLab provider for CI/CD variables."""
 
+    display_name = "GitLab"
+    description = "GitLab CI/CD variables and secrets"
+    required_package = ("gitlab", "secretzero[gitlab]")
+    auth_class = GitLabAuth
+    auth_methods = {
+        "token": "Use GitLab personal access token",
+    }
+    config_options = {
+        "url": "GitLab instance URL (default: https://gitlab.com)",
+        "project_id": "GitLab project ID or path",
+    }
+    config_example = """providers:
+  gitlab:
+    kind: gitlab
+    auth:
+      kind: token
+      config:
+        url: https://gitlab.example.com
+        token: ${GITLAB_TOKEN}"""
+    target_details = {
+        "gitlab_variable": {
+            "description": "GitLab CI/CD Variable",
+            "config": {
+                "project_id": "GitLab project ID or path",
+                "variable_name": "Variable name (optional, uses secret.name if not provided)",
+                "protected": "Whether the variable is protected (default: false)",
+                "masked": "Whether the variable is masked in logs (default: true)",
+            },
+            "example": """targets:
+  - provider: gitlab
+    kind: gitlab_variable
+    config:
+      project_id: mygroup/myproject
+      variable_name: DATABASE_PASSWORD
+      masked: true""",
+        },
+    }
+
     def __init__(
         self,
         name: str,
@@ -380,3 +418,28 @@ class GitLabProvider(BaseProvider):
             return True
         except Exception as e:
             raise ValueError(f"Failed to delete variable from GitLab: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Bundle manifest – makes this provider extractable as a standalone package.
+# When extracted, expose this via entry_points:
+#   [project.entry-points."secretzero.providers"]
+#   gitlab = "secretzero_gitlab:BUNDLE_MANIFEST"
+# ---------------------------------------------------------------------------
+
+
+def _get_bundle_manifest() -> "BundleManifest":  # noqa: F821
+    """Lazily construct the GitLab bundle manifest."""
+    from secretzero.bundles.registry import BundleManifest
+
+    return BundleManifest(
+        name="gitlab",
+        version="1.0.0",
+        provider_class="secretzero.providers.gitlab:GitLabProvider",
+        generators={},
+        targets={
+            "gitlab_variable": "secretzero.targets.gitlab:GitLabVariableTarget",
+        },
+        generator_kinds=[],
+        target_kinds=["gitlab_variable"],
+    )

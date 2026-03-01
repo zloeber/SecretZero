@@ -1,9 +1,10 @@
 """Tests for AWS provider capability methods."""
 
-import pytest
-from unittest.mock import Mock, MagicMock, patch, call
+from unittest.mock import MagicMock, Mock, call, patch
 
-from secretzero.providers.aws import AWSProvider, AWSAuth
+import pytest
+
+from secretzero.providers.aws import AWSAuth, AWSProvider
 
 
 class TestAWSGeneratePassword:

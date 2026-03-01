@@ -1,7 +1,7 @@
 """Tests for lockfile management."""
 
-from pathlib import Path
 import tempfile
+from pathlib import Path
 
 from secretzero.lockfile import Lockfile
 

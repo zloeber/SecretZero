@@ -57,7 +57,13 @@ class AuthKind(str, Enum):
 
 
 class GeneratorKind(str, Enum):
-    """Generator kind for secret values."""
+    """Generator kind for secret values.
+
+    This enum is intentionally *open*: unknown string values passed by
+    third-party bundles are accepted at runtime via :meth:`_missing_`
+    instead of raising a ``ValueError``.  Built-in kinds are enumerated
+    below; bundle authors may declare any additional string as a kind.
+    """
 
     STATIC = "static"
     RANDOM_PASSWORD = "random_password"
@@ -67,9 +73,33 @@ class GeneratorKind(str, Enum):
     PROVIDER_BACKED = "provider_backed"
     GITHUB_PAT = "github_pat"
 
+    @classmethod
+    def _missing_(cls, value: object) -> "GeneratorKind | None":
+        """Accept unknown generator kinds registered by third-party bundles.
+
+        Args:
+            value: The string value that was not found in the enum.
+
+        Returns:
+            A new pseudo-member for the value if it is a non-empty string,
+            otherwise ``None``.
+        """
+        if isinstance(value, str) and value:
+            obj = str.__new__(cls, value)
+            obj._name_ = value
+            obj._value_ = value
+            return obj
+        return None
+
 
 class TargetKind(str, Enum):
-    """Target storage kind."""
+    """Target storage kind.
+
+    This enum is intentionally *open*: unknown string values passed by
+    third-party bundles are accepted at runtime via :meth:`_missing_`
+    instead of raising a ``ValueError``.  Built-in kinds are enumerated
+    below; bundle authors may declare any additional string as a kind.
+    """
 
     FILE = "file"
     TEMPLATE = "template"
@@ -81,6 +111,24 @@ class TargetKind(str, Enum):
     GITHUB_SECRET = "github_secret"
     GITLAB_VARIABLE = "gitlab_variable"
     JENKINS_CREDENTIAL = "jenkins_credential"
+
+    @classmethod
+    def _missing_(cls, value: object) -> "TargetKind | None":
+        """Accept unknown target kinds registered by third-party bundles.
+
+        Args:
+            value: The string value that was not found in the enum.
+
+        Returns:
+            A new pseudo-member for the value if it is a non-empty string,
+            otherwise ``None``.
+        """
+        if isinstance(value, str) and value:
+            obj = str.__new__(cls, value)
+            obj._name_ = value
+            obj._value_ = value
+            return obj
+        return None
 
 
 class FileFormat(str, Enum):

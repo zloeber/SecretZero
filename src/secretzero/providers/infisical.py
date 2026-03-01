@@ -280,3 +280,26 @@ class InfisicalProvider(BaseProvider):
                 self._client.close()
             except Exception:
                 pass
+
+
+# ---------------------------------------------------------------------------
+# Bundle manifest – makes this provider extractable as a standalone package.
+# When extracted, expose this via entry_points:
+#   [project.entry-points."secretzero.providers"]
+#   infisical = "secretzero_infisical:BUNDLE_MANIFEST"
+# ---------------------------------------------------------------------------
+
+
+def _get_bundle_manifest() -> "BundleManifest":  # noqa: F821
+    """Lazily construct the Infisical bundle manifest."""
+    from secretzero.bundles.registry import BundleManifest
+
+    return BundleManifest(
+        name="infisical",
+        version="1.0.0",
+        provider_class="secretzero.providers.infisical:InfisicalProvider",
+        generators={},
+        targets={},
+        generator_kinds=[],
+        target_kinds=[],
+    )
