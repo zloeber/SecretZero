@@ -100,6 +100,7 @@ jobs:
       - name: Lint Checks - ${{ matrix.os }}
         run: |
           pip install uv
+          uv pip install -e ".[dev]"
           uv run black --check ${{ env.PROJECT_PATH }}
           uv run ruff format --check ${{ env.PROJECT_PATH }}
 
