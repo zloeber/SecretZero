@@ -37,13 +37,37 @@ EXIT_UNKNOWN_ERROR = 127
 
 @click.group(context_settings={"help_option_names": ["-h", "--help"]})
 @click.version_option(version=__version__)
-def main() -> None:
+@click.option(
+    "--non-interactive",
+    "-n",
+    is_flag=True,
+    default=False,
+    help="Disable all interactive prompts; error when human input would be required.",
+)
+@click.pass_context
+def main(ctx: click.Context, non_interactive: bool) -> None:
     """SecretZero: Secrets orchestration, lifecycle, and bootstrap engine.
 
     SecretZero helps automate the creation, seeding, and lifecycle management
     of project secrets through a declarative, schema-driven workflow.
     """
-    pass
+    ctx.ensure_object(dict)
+    ctx.obj["non_interactive"] = non_interactive
+
+
+def _is_non_interactive() -> bool:
+    """Return True when ``--non-interactive`` was passed on the CLI.
+
+    Safe to call from any depth — returns *False* if there is no Click
+    context (e.g. during unit tests).
+    """
+    ctx = click.get_current_context(silent=True)
+    if ctx is None:
+        return False
+    obj = ctx.find_root().obj
+    if obj is None:
+        return False
+    return bool(obj.get("non_interactive", False))
 
 
 @main.command()
@@ -1343,6 +1367,268 @@ def test(file: str, include_profiles: bool, verbose: bool) -> None:
         _test_provider_profiles(config)
 
 
+# ---------------------------------------------------------------------------
+# auth group – interactive authentication helpers
+# ---------------------------------------------------------------------------
+
+
+@main.group()
+def auth() -> None:
+    """Authenticate with providers interactively.
+
+    Use ``auth login`` to start an interactive OAuth device flow for a
+    supported provider, and ``auth status`` to inspect the current token.
+    """
+    pass
+
+
+@auth.command("login")
+@click.option(
+    "--provider",
+    "-p",
+    required=True,
+    help="Provider to authenticate with (e.g. github)",
+)
+@click.option(
+    "--client-id",
+    required=True,
+    help="OAuth App client ID registered with the provider",
+)
+@click.option(
+    "--scopes",
+    "-s",
+    default=None,
+    help="Comma-separated OAuth scopes (default: provider-specific)",
+)
+@click.option(
+    "--no-browser",
+    is_flag=True,
+    help="Don't open the browser automatically",
+)
+@click.option(
+    "--save-to",
+    type=click.Path(),
+    default=None,
+    help="Write the token to a file (e.g. .env). Format: KEY=VALUE",
+)
+@click.option(
+    "--env-var",
+    default=None,
+    help="Environment variable name used when writing to --save-to (default: provider-specific)",
+)
+def auth_login(
+    provider: str,
+    client_id: str,
+    scopes: str | None,
+    no_browser: bool,
+    save_to: str | None,
+    env_var: str | None,
+) -> None:
+    """Log in to a provider using the OAuth device flow.
+
+    Starts the OAuth 2.0 Device Authorization Grant.  You will be shown a
+    one-time code and a URL to visit in your browser.  After authorizing,
+    the CLI receives an access token.
+
+    \b
+    Examples:
+      secretzero auth login --provider github --client-id Iv1.abc123
+      secretzero auth login -p github --client-id Iv1.abc123 --scopes repo,workflow
+      secretzero auth login -p github --client-id Iv1.abc123 --save-to .env
+    """
+    if _is_non_interactive():
+        console.print(
+            "[red]Error:[/red] 'auth login' requires interactive input "
+            "and cannot be used with --non-interactive."
+        )
+        sys.exit(EXIT_AUTH_FAILURE)
+    _auth_login_impl(provider, client_id, scopes, no_browser, save_to, env_var)
+
+
+def _auth_login_impl(
+    provider_name: str,
+    client_id: str,
+    scopes_csv: str | None,
+    no_browser: bool,
+    save_to: str | None,
+    env_var: str | None,
+) -> None:
+    """Implementation for ``auth login`` (extracted for testability)."""
+    from secretzero.providers.registry import GLOBAL_PROVIDER_REGISTRY
+
+    # --- Resolve provider class -------------------------------------------
+    provider_class = GLOBAL_PROVIDER_REGISTRY.get_provider_class(provider_name)
+    if provider_class is None:
+        console.print(f"[red]Unknown provider:[/red] {provider_name}")
+        console.print("Run [bold]secretzero providers[/bold] to see available types.")
+        raise click.Abort()
+
+    # --- Ensure the provider supports device flow -------------------------
+    auth_methods = provider_class.auth_methods or {}
+    if "oauth_device" not in auth_methods:
+        console.print(
+            f"[red]Provider '{provider_name}' does not support interactive OAuth login.[/red]"
+        )
+        console.print(f"Supported auth methods: {', '.join(auth_methods.keys()) or 'none'}")
+        raise click.Abort()
+
+    # --- Parse scopes -----------------------------------------------------
+    scope_list: list[str] | None = None
+    if scopes_csv:
+        scope_list = [s.strip() for s in scopes_csv.split(",") if s.strip()]
+
+    # --- Create an auth instance and run the device flow ------------------
+    auth_cls = provider_class.auth_class
+    if auth_cls is None:
+        console.print(f"[red]Provider '{provider_name}' has no auth class configured.[/red]")
+        raise click.Abort()
+
+    auth_instance = auth_cls({})
+
+    console.print(
+        f"\n[bold]Authenticating with {provider_class.display_name or provider_name}…[/bold]\n"
+    )
+
+    def _on_user_code(
+        user_code: str,
+        verification_uri: str,
+        verification_uri_complete: str | None,
+    ) -> None:
+        console.print("  Open your browser and visit:")
+        url = verification_uri_complete or verification_uri
+        console.print(f"    [bold cyan]{url}[/bold cyan]\n")
+        console.print(f"  Then enter the code: [bold yellow]{user_code}[/bold yellow]\n")
+        console.print("[dim]  Waiting for authorization…[/dim]")
+
+    try:
+        result = auth_instance.authenticate_device_flow(
+            client_id=client_id,
+            scopes=scope_list,
+            open_browser=not no_browser,
+            on_user_code=_on_user_code,
+        )
+    except RuntimeError as exc:
+        console.print(f"\n[red]Authentication failed:[/red] {exc}")
+        sys.exit(EXIT_UNKNOWN_ERROR)
+
+    # --- Success ----------------------------------------------------------
+    token = result["access_token"]
+    granted_scopes = result.get("scope", "")
+    console.print("\n[green]✓ Authentication successful![/green]")
+    if granted_scopes:
+        console.print(f"  Scopes: {granted_scopes}")
+
+    # Determine env-var name
+    default_env_var = getattr(auth_cls, "ENV_TOKEN", "TOKEN")
+    var_name = env_var or default_env_var
+
+    # --- Optionally persist to file ---------------------------------------
+    if save_to:
+        _save_token_to_file(save_to, var_name, token)
+    else:
+        console.print(f"\n  Token (set as [bold]{var_name}[/bold]):")
+        console.print(f"  [dim]{token[:8]}{'*' * 20}[/dim]")
+        console.print(
+            f"\n[dim]  Tip: use --save-to .env to persist, or export {var_name}=<token>[/dim]"
+        )
+
+
+def _save_token_to_file(path: str, var_name: str, token: str) -> None:
+    """Append or overwrite a KEY=VALUE entry in a dotenv-style file."""
+    from pathlib import Path as _Path
+
+    target = _Path(path)
+    lines: list[str] = []
+    replaced = False
+
+    if target.exists():
+        for line in target.read_text().splitlines():
+            if line.startswith(f"{var_name}="):
+                lines.append(f"{var_name}={token}")
+                replaced = True
+            else:
+                lines.append(line)
+
+    if not replaced:
+        lines.append(f"{var_name}={token}")
+
+    target.write_text("\n".join(lines) + "\n")
+    console.print(f"  Token written to [bold]{path}[/bold] as {var_name}")
+
+
+@auth.command("status")
+@click.option(
+    "--provider",
+    "-p",
+    required=True,
+    help="Provider to check token status for (e.g. github)",
+)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    help="Output format",
+)
+def auth_status(provider: str, output_format: str) -> None:
+    """Show information about the current authentication token.
+
+    Inspects the token found in the provider's expected environment variable
+    (e.g. ``GITHUB_TOKEN``) and displays user, scopes, and token type.
+
+    \b
+    Examples:
+      secretzero auth status --provider github
+      secretzero auth status -p github --format json
+    """
+    _auth_status_impl(provider, output_format)
+
+
+def _auth_status_impl(provider_name: str, output_format: str) -> None:
+    """Implementation for ``auth status``."""
+    from secretzero.providers.registry import GLOBAL_PROVIDER_REGISTRY
+
+    provider_class = GLOBAL_PROVIDER_REGISTRY.get_provider_class(provider_name)
+    if provider_class is None:
+        console.print(f"[red]Unknown provider:[/red] {provider_name}")
+        raise click.Abort()
+
+    auth_cls = provider_class.auth_class
+    if auth_cls is None:
+        console.print(f"[red]Provider '{provider_name}' has no auth class.[/red]")
+        raise click.Abort()
+
+    auth_instance = auth_cls({})
+
+    try:
+        info = auth_instance.get_token_info()
+    except RuntimeError as exc:
+        console.print(f"[red]Could not retrieve token info:[/red] {exc}")
+        sys.exit(EXIT_UNKNOWN_ERROR)
+
+    if output_format == "json":
+        click.echo(json.dumps(info, indent=2))
+        return
+
+    console.print(
+        f"[bold]Token status for {provider_class.display_name or provider_name}:[/bold]\n"
+    )
+    for key, value in info.items():
+        if isinstance(value, dict):
+            console.print(f"  {key}:")
+            for k, v in value.items():
+                console.print(f"    {k}: {v}")
+        elif isinstance(value, (tuple, set)) or type(value).__name__ == "list":
+            console.print(f"  {key}: {', '.join(str(v) for v in value)}")
+        else:
+            console.print(f"  {key}: {value}")
+
+
+# ---------------------------------------------------------------------------
+# providers – list/inspect provider types
+# ---------------------------------------------------------------------------
+
+
 @main.command()
 @click.option(
     "--provider",
@@ -1380,6 +1666,8 @@ def providers(provider: str | None, target: str | None, verbose: bool) -> None:
 
 def _list_all_providers(verbose: bool) -> None:
     """List all available provider types."""
+    from secretzero.providers.registry import GLOBAL_PROVIDER_REGISTRY
+
     console.print("[bold]Available Provider Types:[/bold]\n")
 
     table = Table(show_header=True, header_style="bold cyan")
@@ -1387,43 +1675,22 @@ def _list_all_providers(verbose: bool) -> None:
     table.add_column("Description")
     table.add_column("Auth Methods")
 
-    provider_info = {
-        "aws": {
-            "description": "Amazon Web Services",
-            "auth": "ambient, token, assume_role",
-        },
-        "azure": {
-            "description": "Microsoft Azure",
-            "auth": "ambient, token",
-        },
-        "vault": {
-            "description": "HashiCorp Vault",
-            "auth": "token, ambient",
-        },
-        "github": {
-            "description": "GitHub",
-            "auth": "token",
-        },
-        "gitlab": {
-            "description": "GitLab",
-            "auth": "token",
-        },
-        "jenkins": {
-            "description": "Jenkins",
-            "auth": "token",
-        },
-        "kubernetes": {
-            "description": "Kubernetes",
-            "auth": "ambient, kubeconfig",
-        },
-        "local": {
-            "description": "Local filesystem",
-            "auth": "none",
-        },
-    }
+    # Build info from the registry + class metadata
+    for prov_type in sorted(GLOBAL_PROVIDER_REGISTRY.list_provider_types()):
+        provider_class = GLOBAL_PROVIDER_REGISTRY.get_provider_class(prov_type)
+        if provider_class is not None:
+            desc = provider_class.display_name or provider_class.description or ""
+            auth = (
+                ", ".join(provider_class.auth_methods.keys()) if provider_class.auth_methods else ""
+            )
+        else:
+            desc = prov_type.title()
+            auth = ""
+        table.add_row(prov_type, desc, auth)
 
-    for prov_type, info in provider_info.items():
-        table.add_row(prov_type, info["description"], info["auth"])
+    # Always include "local" even if not in registry
+    if "local" not in [t for t in GLOBAL_PROVIDER_REGISTRY.list_provider_types()]:
+        table.add_row("local", "Local filesystem", "none")
 
     console.print(table)
 
@@ -1435,149 +1702,17 @@ def _list_all_providers(verbose: bool) -> None:
 
 def _show_provider_details(provider_name: str, target_name: str | None, verbose: bool) -> None:
     """Show detailed information about a specific provider and optionally a target type."""
-    # Target type details indexed by provider
-    target_details = {
-        "aws": {
-            "ssm_parameter": {
-                "description": "AWS Systems Manager Parameter Store",
-                "config": {
-                    "name": "Parameter name/path (required)",
-                    "type": "Parameter type: String, SecureString, or StringList (default: SecureString)",
-                    "overwrite": "Whether to overwrite existing parameter (default: true)",
-                    "description": "Parameter description (optional)",
-                    "tier": "Parameter tier: Standard, Advanced, or Intelligent-Tiering (default: Standard)",
-                    "region": "AWS region override (optional)",
-                    "endpoint_url": "Custom endpoint URL for LocalStack or other AWS-compatible services (optional)",
-                },
-                "example": """targets:
-  - provider: aws
-    kind: ssm_parameter
-    config:
-      name: /prod/database/password
-      type: SecureString
-      overwrite: true
-      description: RDS master password
-      tier: Standard""",
-            },
-            "secrets_manager": {
-                "description": "AWS Secrets Manager",
-                "config": {
-                    "name": "Secret name (required)",
-                    "description": "Secret description (optional)",
-                    "kms_key_id": "KMS key ID for encryption (optional)",
-                    "recovery_period": "Recovery period in days for scheduled deletion (default: 7)",
-                    "region": "AWS region override (optional)",
-                    "endpoint_url": "Custom endpoint URL for LocalStack or other AWS-compatible services (optional)",
-                },
-                "example": """targets:
-  - provider: aws
-    kind: secrets_manager
-    config:
-      name: prod/database-credentials
-      description: RDS master credentials
-      kms_key_id: arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012""",
-            },
-        },
-        "azure": {
-            "azure_keyvault": {
-                "description": "Azure Key Vault",
-                "config": {
-                    "vault_url": "Key Vault URL (e.g., https://myvault.vault.azure.net)",
-                    "secret_name": "Secret name in Key Vault (required)",
-                    "tags": "Tags to add to the secret in Key Vault (optional)",
-                },
-                "example": """targets:
-  - provider: azure
-    kind: azure_keyvault
-    config:
-      vault_url: https://prod-vault.vault.azure.net
-      secret_name: database-password""",
-            },
-        },
-        "vault": {
-            "vault_kv": {
-                "description": "HashiCorp Vault KV Secret Engine",
-                "config": {
-                    "path": "Secret path in KV engine (e.g., secret/data/myapp/config)",
-                    "mount_point": "KV mount point (default: secret)",
-                    "version": "KV version: 1 or 2 (default: 2)",
-                },
-                "example": """targets:
-  - provider: vault
-    kind: vault_kv
-    config:
-      path: secret/data/prod/database
-      mount_point: secret
-      version: 2""",
-            },
-        },
-        "github": {
-            "github_secret": {
-                "description": "GitHub Actions Secret",
-                "config": {
-                    "repository": "GitHub repository (owner/repo format)",
-                    "secret_name": "Secret name (optional, uses secret.name if not provided)",
-                },
-                "example": """targets:
-  - provider: github
-    kind: github_secret
-    config:
-      repository: myorg/myrepo
-      secret_name: DATABASE_PASSWORD""",
-            },
-        },
-        "gitlab": {
-            "gitlab_variable": {
-                "description": "GitLab CI/CD Variable",
-                "config": {
-                    "project_id": "GitLab project ID or path",
-                    "variable_name": "Variable name (optional, uses secret.name if not provided)",
-                    "protected": "Whether the variable is protected (default: false)",
-                    "masked": "Whether the variable is masked in logs (default: true)",
-                },
-                "example": """targets:
-  - provider: gitlab
-    kind: gitlab_variable
-    config:
-      project_id: mygroup/myproject
-      variable_name: DATABASE_PASSWORD
-      masked: true""",
-            },
-        },
-        "jenkins": {
-            "jenkins_credential": {
-                "description": "Jenkins Secret Credential",
-                "config": {
-                    "credential_id": "Credential ID in Jenkins",
-                    "credential_type": "Type: secret_text, username_password, or ssh_key (default: secret_text)",
-                    "folder": "Jenkins folder path (optional)",
-                },
-                "example": """targets:
-  - provider: jenkins
-    kind: jenkins_credential
-    config:
-      credential_id: database_password
-      credential_type: secret_text""",
-            },
-        },
-        "kubernetes": {
-            "kubernetes_secret": {
-                "description": "Kubernetes Secret",
-                "config": {
-                    "namespace": "Kubernetes namespace (default: default)",
-                    "name": "Secret name in Kubernetes",
-                    "secret_type": "Secret type: Opaque, docker-json, etc. (default: Opaque)",
-                },
-                "example": """targets:
-  - provider: kubernetes
-    kind: kubernetes_secret
-    config:
-      namespace: production
-      name: database-credentials
-      secret_type: Opaque""",
-            },
-        },
-        "local": {
+    from secretzero.providers.registry import GLOBAL_PROVIDER_REGISTRY
+
+    provider_class = GLOBAL_PROVIDER_REGISTRY.get_provider_class(provider_name)
+
+    # --- Local filesystem fallback (no provider class) ---
+    local_fallback: dict[str, Any] = {
+        "description": "Local filesystem",
+        "auth_methods": {"none": "No authentication required"},
+        "config_options": {"base_path": "Base directory for files (default: .)"},
+        "config_example": "providers:\n  local:\n    kind: local\n    config: {}",
+        "target_details": {
             "file": {
                 "description": "Local File",
                 "config": {
@@ -1586,31 +1721,52 @@ def _show_provider_details(provider_name: str, target_name: str | None, verbose:
                     "merge": "Whether to merge with existing file content (default: true)",
                     "mode": "File permissions as octal (default: 0600)",
                 },
-                "example": """targets:
-  - provider: local
-    kind: file
-    config:
-      path: ./secrets.env
-      format: dotenv
-      mode: '0600'""",
-            },
+                "example": (
+                    "targets:\n"
+                    "  - provider: local\n"
+                    "    kind: file\n"
+                    "    config:\n"
+                    "      path: ./secrets.env\n"
+                    "      format: dotenv\n"
+                    "      mode: '0600'"
+                ),
+            }
         },
     }
 
+    if provider_class is None and provider_name != "local":
+        console.print(f"[red]Unknown provider:[/red] {provider_name}")
+        console.print("\nRun 'secretzero providers' to see available providers")
+        return
+
+    # Resolve metadata from class or local fallback
+    if provider_class is not None:
+        td = provider_class.target_details or {}
+        auth = provider_class.auth_methods or {}
+        config_opts = provider_class.config_options or {}
+        config_ex = provider_class.config_example or ""
+        desc = provider_class.display_name or provider_class.description or provider_name.title()
+    else:
+        td = local_fallback["target_details"]
+        auth = local_fallback["auth_methods"]
+        config_opts = local_fallback["config_options"]
+        config_ex = local_fallback["config_example"]
+        desc = local_fallback["description"]
+
     if target_name:
-        # Show details for specific target type
-        if provider_name in target_details and target_name in target_details[provider_name]:
-            target_info = target_details[provider_name][target_name]
+        # Show details for a specific target type
+        if target_name in td:
+            target_info = td[target_name]
             console.print(f"[bold]Target Type: {target_name}[/bold]\n")
             console.print(f"[cyan]Provider:[/cyan] {provider_name}")
-            console.print(f"[cyan]Description:[/cyan] {target_info['description']}\n")
+            console.print(f"[cyan]Description:[/cyan] {target_info.get('description', '')}\n")
 
             console.print("[cyan]Configuration Options:[/cyan]")
-            for option, desc in target_info["config"].items():
-                console.print(f"  • {option}: {desc}")
+            for option, option_desc in target_info.get("config", {}).items():
+                console.print(f"  • {option}: {option_desc}")
 
             console.print("\n[cyan]Example:[/cyan]")
-            console.print(f"[dim]{target_info['example']}[/dim]")
+            console.print(f"[dim]{target_info.get('example', '')}[/dim]")
         else:
             console.print(
                 f"[red]Unknown target type:[/red] {target_name} for provider {provider_name}"
@@ -1618,203 +1774,30 @@ def _show_provider_details(provider_name: str, target_name: str | None, verbose:
             console.print(
                 f"\nRun [bold]secretzero providers --provider {provider_name}[/bold] to see available targets"
             )
-        return  # Exit early when showing target details
+        return
 
-    # Show provider details (when no target_name specified)
+    # Show provider overview
     console.print(f"[bold]Provider: {provider_name}[/bold]\n")
+    console.print(f"[cyan]Description:[/cyan] {desc}\n")
 
-    provider_details = {
-        "aws": {
-            "description": "Amazon Web Services",
-            "auth_methods": {
-                "ambient": "Use AWS SDK default credential chain (environment, instance profile, etc.)",
-                "token": "Use static AWS access key and secret key",
-                "assume_role": "Assume an IAM role for additional permissions",
-            },
-            "config": {
-                "region": "AWS region (default: us-east-1)",
-                "profile": "AWS profile name from ~/.aws/config",
-            },
-            "example": """providers:
-  aws:
-    kind: aws
-    auth:
-      kind: ambient
-      config:
-        region: us-east-1
-    fallback_generator: static
-    profiles:
-      default:
-        kind: ambient
-      admin:
-        kind: assume_role
-        config:
-          role_arn: arn:aws:iam::123456789012:role/SecretAdmin""",
-        },
-        "azure": {
-            "description": "Microsoft Azure",
-            "auth_methods": {
-                "ambient": "Use Azure SDK default credential chain",
-                "token": "Use static Azure credentials",
-            },
-            "config": {
-                "tenant_id": "Azure tenant ID",
-                "subscription_id": "Azure subscription ID",
-            },
-            "example": """providers:
-  azure:
-    kind: azure
-    auth:
-      kind: ambient
-      config:
-        tenant_id: ${AZURE_TENANT_ID}
-        subscription_id: ${AZURE_SUBSCRIPTION_ID}""",
-        },
-        "vault": {
-            "description": "HashiCorp Vault",
-            "auth_methods": {
-                "token": "Use Vault token authentication",
-                "ambient": "Use Vault ambient authentication (agent)",
-            },
-            "config": {
-                "address": "Vault server address (e.g., https://vault.example.com)",
-                "namespace": "Vault namespace (Enterprise)",
-            },
-            "example": """providers:
-  vault:
-    kind: vault
-    auth:
-      kind: token
-      config:
-        address: https://vault.example.com:8200
-        token: ${VAULT_TOKEN}""",
-        },
-        "github": {
-            "description": "GitHub",
-            "auth_methods": {
-                "token": "Use GitHub personal access token",
-            },
-            "config": {
-                "owner": "GitHub organization or username",
-                "repo": "Repository name",
-            },
-            "example": """providers:
-  github:
-    kind: github
-    auth:
-      kind: token
-      config:
-        token: ${GITHUB_TOKEN}""",
-        },
-        "gitlab": {
-            "description": "GitLab",
-            "auth_methods": {
-                "token": "Use GitLab personal access token",
-            },
-            "config": {
-                "url": "GitLab instance URL (default: https://gitlab.com)",
-                "project_id": "GitLab project ID or path",
-            },
-            "example": """providers:
-  gitlab:
-    kind: gitlab
-    auth:
-      kind: token
-      config:
-        url: https://gitlab.example.com
-        token: ${GITLAB_TOKEN}""",
-        },
-        "jenkins": {
-            "description": "Jenkins",
-            "auth_methods": {
-                "token": "Use Jenkins API token",
-            },
-            "config": {
-                "url": "Jenkins server URL",
-                "username": "Jenkins username",
-            },
-            "example": """providers:
-  jenkins:
-    kind: jenkins
-    auth:
-      kind: token
-      config:
-        url: https://jenkins.example.com
-        username: admin
-        token: ${JENKINS_TOKEN}""",
-        },
-        "kubernetes": {
-            "description": "Kubernetes",
-            "auth_methods": {
-                "ambient": "Use in-cluster service account",
-                "kubeconfig": "Use local kubeconfig file",
-            },
-            "config": {
-                "context": "Kubeconfig context",
-                "namespace": "Default namespace",
-            },
-            "example": """providers:
-  kubernetes:
-    kind: kubernetes
-    auth:
-      kind: ambient
-      config:
-        namespace: default""",
-        },
-        "local": {
-            "description": "Local filesystem",
-            "auth_methods": {
-                "none": "No authentication required",
-            },
-            "config": {
-                "base_path": "Base directory for files (default: .)",
-            },
-            "example": """providers:
-  local:
-    kind: local
-    config: {}""",
-        },
-    }
+    console.print("[cyan]Authentication Methods:[/cyan]")
+    for auth_method, auth_desc in auth.items():
+        console.print(f"  • [green]{auth_method}[/green]: {auth_desc}")
 
-    if provider_name in provider_details:
-        details = provider_details[provider_name]
-        console.print(f"[cyan]Description:[/cyan] {details['description']}\n")
+    console.print("\n[cyan]Configuration Options:[/cyan]")
+    for option, option_desc in config_opts.items():
+        console.print(f"  • {option}: {option_desc}")
 
-        console.print("[cyan]Authentication Methods:[/cyan]")
-        for auth_method, description in details["auth_methods"].items():
-            console.print(f"  • [green]{auth_method}[/green]: {description}")
+    console.print("\n[cyan]Example:[/cyan]")
+    console.print(f"[dim]{config_ex}[/dim]")
 
-        console.print("\n[cyan]Configuration Options:[/cyan]")
-        for option, desc in details["config"].items():
-            console.print(f"  • {option}: {desc}")
-
-        console.print("\n[cyan]Example:[/cyan]")
-        console.print(f"[dim]{details['example']}[/dim]")
-
-        if verbose:
-            console.print("\n[cyan]Target Types for this Provider:[/cyan]")
-
-            # Map providers to target types
-            target_map = {
-                "aws": ["ssm_parameter", "secrets_manager"],
-                "azure": ["azure_keyvault"],
-                "vault": ["vault_kv"],
-                "github": ["github_secret"],
-                "gitlab": ["gitlab_variable"],
-                "jenkins": ["jenkins_credential"],
-                "kubernetes": ["kubernetes_secret"],
-                "local": ["file"],
-            }
-
-            if provider_name in target_map:
-                for target_type in target_map[provider_name]:
-                    console.print(
-                        f"  • [green]{target_type}[/green] - "
-                        f"[dim]use [bold]secretzero providers --provider {provider_name} --target {target_type}[/bold] for details[/dim]"
-                    )
-    else:
-        console.print(f"[red]Unknown provider:[/red] {provider_name}")
-        console.print("\nRun 'secretzero providers' to see available providers")
+    if verbose:
+        console.print("\n[cyan]Target Types for this Provider:[/cyan]")
+        for target_type in td:
+            console.print(
+                f"  • [green]{target_type}[/green] - "
+                f"[dim]use [bold]secretzero providers --provider {provider_name} --target {target_type}[/bold] for details[/dim]"
+            )
 
 
 @main.command()
@@ -1893,6 +1876,9 @@ def sync(
 ) -> None:
     """Generate and synchronize secrets to targets.
 
+    When the global ``--non-interactive`` flag is set, interactive prompts are
+    automatically disabled (equivalent to ``--no-prompt``).
+
     This command generates secret values according to your Secretfile
     configuration and stores them in the specified targets (local files,
     cloud providers, etc.).
@@ -1929,6 +1915,11 @@ def sync(
     # --plan implies --dry-run
     if plan:
         dry_run = True
+
+    # --non-interactive forces prompts off
+    if _is_non_interactive():
+        no_prompt = True
+
     file_path = Path(file)
 
     # Generate default lockfile name from secretfile if not explicitly provided
@@ -3839,6 +3830,8 @@ def agent_sync(
 ) -> None:
     """Agent-aware secret synchronisation with guided instructions.
 
+    The ``--interactive`` flag is rejected when ``--non-interactive`` is set.
+
     Automatically syncs secrets that can be generated without external input
     and provides structured step-by-step instructions for secrets that require
     manual acquisition (sign-ups, OAuth flows, admin approvals, etc.).
@@ -3861,6 +3854,11 @@ def agent_sync(
         secretzero agent sync --var-file dev.szvar
     """
     from secretzero.agent import AgentSecretSynchronizer
+
+    # --non-interactive conflicts with --interactive
+    if interactive and _is_non_interactive():
+        console.print("[red]Error:[/red] --interactive cannot be used with --non-interactive.")
+        sys.exit(EXIT_CONFIG_ERROR)
 
     file_path = Path(file)
 
@@ -4304,6 +4302,426 @@ def discover(
         console.print("  3. Run [cyan]secretzero validate[/cyan] to check the configuration")
     else:
         console.print("\n[dim]No secrets found above the confidence threshold.[/dim]")
+
+
+# ---------------------------------------------------------------------------
+# scaffold-bundle – generate a provider bundle from a template
+# ---------------------------------------------------------------------------
+
+
+@main.command("scaffold-bundle")
+@click.argument("name")
+@click.option(
+    "--output-dir",
+    "-o",
+    type=click.Path(),
+    default=".",
+    help="Parent directory for the generated package (default: current directory)",
+)
+@click.option(
+    "--with-target",
+    "target_kinds",
+    multiple=True,
+    help="Target kind to include (can be repeated, e.g. --with-target my_secret)",
+)
+@click.option(
+    "--with-generator",
+    "generator_kinds",
+    multiple=True,
+    help="Generator kind to include (can be repeated, e.g. --with-generator my_token)",
+)
+@click.option(
+    "--description",
+    "provider_description",
+    default=None,
+    help="Short description for the provider",
+)
+def scaffold_bundle(
+    name: str,
+    output_dir: str,
+    target_kinds: tuple[str, ...],
+    generator_kinds: tuple[str, ...],
+    provider_description: str | None,
+) -> None:
+    """Scaffold a new SecretZero provider bundle package.
+
+    NAME is the provider identifier (e.g. "mycloud"). The command creates a
+    pip-installable package with all the boilerplate needed for a provider,
+    optional targets and generators, a bundle manifest, pyproject.toml, and
+    starter tests.
+
+    \b
+    Examples:
+      secretzero scaffold-bundle mycloud
+      secretzero scaffold-bundle mycloud --with-target mycloud_secret --with-generator mycloud_token
+      secretzero scaffold-bundle mycloud -o ~/projects
+    """  # noqa: D301
+    _scaffold_bundle_impl(name, output_dir, target_kinds, generator_kinds, provider_description)
+
+
+def _scaffold_bundle_impl(
+    name: str,
+    output_dir: str,
+    target_kinds: tuple[str, ...],
+    generator_kinds: tuple[str, ...],
+    provider_description: str | None,
+) -> None:
+    """Implementation of the scaffold-bundle command."""
+    import re
+    import textwrap
+
+    # Validate name
+    if not re.match(r"^[a-z][a-z0-9_]*$", name):
+        console.print(
+            f"[red]Error:[/red] Bundle name must be lowercase alphanumeric with "
+            f"underscores (got '{name}')"
+        )
+        raise SystemExit(1)
+
+    pkg_name = f"secretzero_{name}"
+    class_prefix = name.replace("_", " ").title().replace(" ", "")
+    provider_class_name = f"{class_prefix}Provider"
+    auth_class_name = f"{class_prefix}Auth"
+    desc = provider_description or f"{class_prefix} provider for SecretZero"
+
+    base_dir = Path(output_dir) / pkg_name
+    src_dir = base_dir / "src" / pkg_name
+    tests_dir = base_dir / "tests"
+
+    if base_dir.exists():
+        console.print(f"[red]Error:[/red] Directory already exists: {base_dir}")
+        raise SystemExit(1)
+
+    # Collect file definitions
+    files: dict[str, str] = {}
+
+    # ---- pyproject.toml ----
+    entry_generators = ""
+    entry_targets = ""
+    for gk in generator_kinds:
+        entry_generators += f'  # "{gk}" generator available via bundle manifest\n'
+    for tk in target_kinds:
+        entry_targets += f'  # "{tk}" target available via bundle manifest\n'
+
+    files[str(base_dir / "pyproject.toml")] = textwrap.dedent(f"""\
+        [build-system]
+        requires = ["setuptools>=68.0", "setuptools-scm>=8.0"]
+        build-backend = "setuptools.backends._legacy:_Backend"
+
+        [project]
+        name = "{pkg_name}"
+        version = "0.1.0"
+        description = "{desc}"
+        requires-python = ">=3.12"
+        dependencies = [
+            "secretzero>=0.2",
+        ]
+
+        [project.entry-points."secretzero.providers"]
+        {name} = "{pkg_name}:BUNDLE_MANIFEST"
+    """)
+
+    # ---- src/<pkg>/__init__.py (bundle manifest) ----
+    def _fmt_dict(items: dict[str, str], indent: int = 8) -> str:
+        """Format a dict literal with one entry per line."""
+        if not items:
+            return "{}"
+        pad = " " * indent
+        lines = ["{"]
+        for k, v in items.items():
+            lines.append(f'{pad}"{k}": "{v}",')
+        lines.append(" " * (indent - 4) + "}")
+        return "\n".join(lines)
+
+    def _fmt_list(items: tuple[str, ...], indent: int = 8) -> str:
+        """Format a list literal."""
+        if not items:
+            return "[]"
+        pad = " " * indent
+        lines = ["["]
+        for item in items:
+            lines.append(f'{pad}"{item}",')
+        lines.append(" " * (indent - 4) + "]")
+        return "\n".join(lines)
+
+    gen_map: dict[str, str] = {}
+    for gk in generator_kinds:
+        gc_name = gk.replace("_", " ").title().replace(" ", "") + "Generator"
+        gen_map[gk] = f"{pkg_name}.generators:{gc_name}"
+    target_map: dict[str, str] = {}
+    for tk in target_kinds:
+        tc_name = tk.replace("_", " ").title().replace(" ", "") + "Target"
+        target_map[tk] = f"{pkg_name}.targets:{tc_name}"
+
+    init_lines = [
+        f'"""{desc}."""',
+        "",
+        "from secretzero.bundles.registry import BundleManifest",
+        "",
+        "BUNDLE_MANIFEST = BundleManifest(",
+        f'    name="{name}",',
+        '    version="0.1.0",',
+        f'    provider_class="{pkg_name}.provider:{provider_class_name}",',
+        f"    generators={_fmt_dict(gen_map)},",
+        f"    targets={_fmt_dict(target_map)},",
+        f"    generator_kinds={_fmt_list(generator_kinds)},",
+        f"    target_kinds={_fmt_list(target_kinds)},",
+        ")",
+        "",
+    ]
+    files[str(src_dir / "__init__.py")] = "\n".join(init_lines)
+
+    # ---- src/<pkg>/provider.py ----
+    files[str(src_dir / "provider.py")] = textwrap.dedent(f'''\
+        """{class_prefix} provider implementation."""
+
+        from typing import Any
+
+        from secretzero.providers.base import BaseProvider, ProviderAuth
+
+
+        class {auth_class_name}(ProviderAuth):
+            """Authentication handler for {class_prefix}."""
+
+            ENV_TOKEN: str = "{name.upper()}_TOKEN"
+
+            def authenticate(self) -> bool:
+                """Authenticate with {class_prefix}."""
+                token = self.config.get("token") or __import__("os").environ.get(self.ENV_TOKEN)
+                if not token:
+                    return False
+                self._token = token
+                return True
+
+            def is_authenticated(self) -> bool:
+                """Check if authenticated."""
+                return hasattr(self, "_token") and self._token is not None
+
+            def get_client(self) -> Any:
+                """Return an authenticated API client."""
+                if not self.is_authenticated():
+                    self.authenticate()
+                # TODO: return your SDK client here
+                return None
+
+
+        class {provider_class_name}(BaseProvider):
+            """{class_prefix} provider for SecretZero."""
+
+            display_name = "{desc}"
+            description = "{desc}"
+            required_package: tuple[str, str] | None = None  # e.g. ("my_sdk", "{pkg_name}")
+            auth_class = {auth_class_name}
+
+            auth_methods: dict[str, str] = {{
+                "token": "Use a {class_prefix} API token",
+            }}
+            config_options: dict[str, str] = {{
+                "url": "{class_prefix} API URL (optional)",
+            }}
+            config_example: str = (
+                "providers:\\n"
+                "  {name}:\\n"
+                "    kind: {name}\\n"
+                "    auth:\\n"
+                "      kind: token\\n"
+                "      config:\\n"
+                "        token: ${{{name.upper()}_TOKEN}}"
+            )
+            target_details: dict[str, dict[str, Any]] = {{}}
+
+            def __init__(
+                self,
+                name: str = "{name}",
+                config: dict[str, Any] | None = None,
+                auth: ProviderAuth | None = None,
+            ) -> None:
+                super().__init__(name=name, config=config or {{}}, auth=auth)
+
+            @property
+            def provider_kind(self) -> str:
+                return "{name}"
+
+            def test_connection(self) -> tuple[bool, str | None]:
+                """Test connectivity to {class_prefix}."""
+                # TODO: implement real connectivity test
+                if self.auth and self.auth.is_authenticated():
+                    return True, None
+                return False, "Not authenticated"
+
+            def get_supported_targets(self) -> list[str]:
+                return {[*target_kinds] if target_kinds else []}
+    ''')
+
+    # ---- src/<pkg>/targets.py (if targets requested) ----
+    if target_kinds:
+        target_classes = ""
+        for tk in target_kinds:
+            tc_name = tk.replace("_", " ").title().replace(" ", "") + "Target"
+            target_classes += textwrap.dedent(f'''\
+
+                class {tc_name}(BaseTarget):
+                    """{class_prefix} target: {tk}."""
+
+                    def store(self, secret_name: str, secret_value: str) -> bool:
+                        """Store a secret in {class_prefix}."""
+                        # TODO: implement store
+                        raise NotImplementedError
+
+                    def retrieve(self, secret_name: str) -> str | None:
+                        """Retrieve a secret from {class_prefix}."""
+                        # TODO: implement retrieve
+                        raise NotImplementedError
+
+            ''')
+        files[str(src_dir / "targets.py")] = textwrap.dedent(f'''\
+            """{class_prefix} target implementations."""
+
+            from secretzero.targets.base import BaseTarget
+            {target_classes}
+        ''')
+
+    # ---- src/<pkg>/generators.py (if generators requested) ----
+    if generator_kinds:
+        gen_classes = ""
+        for gk in generator_kinds:
+            gc_name = gk.replace("_", " ").title().replace(" ", "") + "Generator"
+            gen_classes += textwrap.dedent(f'''\
+
+                class {gc_name}(BaseGenerator):
+                    """{class_prefix} generator: {gk}."""
+
+                    def generate(self) -> str:
+                        """Generate a secret value."""
+                        # TODO: implement generation logic
+                        raise NotImplementedError
+
+            ''')
+        files[str(src_dir / "generators.py")] = textwrap.dedent(f'''\
+            """{class_prefix} generator implementations."""
+
+            from secretzero.generators.base import BaseGenerator
+            {gen_classes}
+        ''')
+
+    # ---- tests/__init__.py ----
+    files[str(tests_dir / "__init__.py")] = ""
+
+    # ---- tests/test_provider.py ----
+    files[str(tests_dir / "test_provider.py")] = textwrap.dedent(f'''\
+        """Tests for {class_prefix} provider."""
+
+        from {pkg_name}.provider import {auth_class_name}, {provider_class_name}
+
+
+        def test_provider_kind():
+            """Provider reports correct kind."""
+            provider = {provider_class_name}()
+            assert provider.provider_kind == "{name}"
+
+
+        def test_auth_env_token():
+            """{auth_class_name} declares expected ENV_TOKEN."""
+            assert {auth_class_name}.ENV_TOKEN == "{name.upper()}_TOKEN"
+
+
+        def test_provider_display_name():
+            """Provider has a display_name set."""
+            assert {provider_class_name}.display_name != ""
+    ''')
+
+    # ---- tests/test_bundle.py ----
+    files[str(tests_dir / "test_bundle.py")] = textwrap.dedent(f'''\
+        """Tests for {class_prefix} bundle manifest."""
+
+        from secretzero.bundles.registry import BundleManifest
+
+        from {pkg_name} import BUNDLE_MANIFEST
+
+
+        def test_manifest_is_bundle_manifest():
+            """BUNDLE_MANIFEST is a valid BundleManifest."""
+            assert isinstance(BUNDLE_MANIFEST, BundleManifest)
+
+
+        def test_manifest_name():
+            """Bundle name matches provider name."""
+            assert BUNDLE_MANIFEST.name == "{name}"
+
+
+        def test_manifest_provider_class():
+            """Provider class path is set."""
+            assert BUNDLE_MANIFEST.provider_class is not None
+    ''')
+
+    # ---- README.md ----
+    target_section = ""
+    if target_kinds:
+        kinds_list = ", ".join(f"`{tk}`" for tk in target_kinds)
+        target_section = f"\n**Targets:** {kinds_list}\n"
+    gen_section = ""
+    if generator_kinds:
+        kinds_list = ", ".join(f"`{gk}`" for gk in generator_kinds)
+        gen_section = f"\n**Generators:** {kinds_list}\n"
+
+    files[str(base_dir / "README.md")] = textwrap.dedent(f"""\
+        # {pkg_name}
+
+        {desc}
+
+        ## Installation
+
+        ```bash
+        pip install {pkg_name}
+        ```
+
+        SecretZero discovers the bundle automatically via `entry_points`.
+        {target_section}{gen_section}
+        ## Development
+
+        ```bash
+        pip install -e ".[dev]"
+        pytest
+        ```
+
+        ## Usage
+
+        ```yaml
+        providers:
+          {name}:
+            kind: {name}
+            auth:
+              kind: token
+              config:
+                token: ${{{name.upper()}_TOKEN}}
+        ```
+    """)
+
+    # Write all files
+    for file_path, content in files.items():
+        p = Path(file_path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(content)
+
+    console.print(f"[green]✓[/green] Scaffolded bundle [bold]{pkg_name}[/bold] at {base_dir}\n")
+    console.print("Generated files:")
+    for file_path in sorted(files.keys()):
+        rel = Path(file_path).relative_to(base_dir)
+        console.print(f"  [cyan]{rel}[/cyan]")
+
+    console.print("\nNext steps:")
+    console.print(f"  1. cd {base_dir}")
+    console.print(f"  2. Implement the TODO stubs in [cyan]src/{pkg_name}/provider.py[/cyan]")
+    if target_kinds:
+        console.print(f"  3. Implement target methods in [cyan]src/{pkg_name}/targets.py[/cyan]")
+    if generator_kinds:
+        console.print(
+            f"  {'4' if target_kinds else '3'}. Implement generator in "
+            f"[cyan]src/{pkg_name}/generators.py[/cyan]"
+        )
+    console.print("  • Run [bold]pytest[/bold] to test")
+    console.print(f"  • Run [bold]secretzero validate-bundle src/{pkg_name}[/bold] to validate")
+    console.print("  • Run [bold]pip install -e .[/bold] to register with SecretZero")
 
 
 @main.command("validate-bundle")

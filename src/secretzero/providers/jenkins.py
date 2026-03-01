@@ -90,6 +90,38 @@ class JenkinsProvider(BaseProvider):
     description = "Jenkins credentials and secrets"
     required_package = ("jenkins", "secretzero[jenkins]")
     auth_class = JenkinsAuth
+    auth_methods = {
+        "token": "Use Jenkins API token",
+    }
+    config_options = {
+        "url": "Jenkins server URL",
+        "username": "Jenkins username",
+    }
+    config_example = """providers:
+  jenkins:
+    kind: jenkins
+    auth:
+      kind: token
+      config:
+        url: https://jenkins.example.com
+        username: admin
+        token: ${JENKINS_TOKEN}"""
+    target_details = {
+        "jenkins_credential": {
+            "description": "Jenkins Secret Credential",
+            "config": {
+                "credential_id": "Credential ID in Jenkins",
+                "credential_type": "Type: secret_text, username_password, or ssh_key (default: secret_text)",
+                "folder": "Jenkins folder path (optional)",
+            },
+            "example": """targets:
+  - provider: jenkins
+    kind: jenkins_credential
+    config:
+      credential_id: database_password
+      credential_type: secret_text""",
+        },
+    }
 
     def __init__(
         self,
@@ -349,3 +381,28 @@ class JenkinsProvider(BaseProvider):
 
         except Exception as e:
             raise ValueError(f"Failed to delete credential from Jenkins: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Bundle manifest – makes this provider extractable as a standalone package.
+# When extracted, expose this via entry_points:
+#   [project.entry-points."secretzero.providers"]
+#   jenkins = "secretzero_jenkins:BUNDLE_MANIFEST"
+# ---------------------------------------------------------------------------
+
+
+def _get_bundle_manifest() -> "BundleManifest":  # noqa: F821
+    """Lazily construct the Jenkins bundle manifest."""
+    from secretzero.bundles.registry import BundleManifest
+
+    return BundleManifest(
+        name="jenkins",
+        version="1.0.0",
+        provider_class="secretzero.providers.jenkins:JenkinsProvider",
+        generators={},
+        targets={
+            "jenkins_credential": "secretzero.targets.jenkins:JenkinsCredentialTarget",
+        },
+        generator_kinds=[],
+        target_kinds=["jenkins_credential"],
+    )

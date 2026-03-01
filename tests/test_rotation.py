@@ -1,12 +1,13 @@
 """Tests for secret rotation functionality."""
 
-import pytest
 from datetime import UTC, datetime, timedelta
 
+import pytest
+
 from secretzero.rotation import (
+    format_rotation_status,
     parse_rotation_period,
     should_rotate_secret,
-    format_rotation_status,
 )
 
 

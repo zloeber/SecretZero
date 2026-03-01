@@ -109,6 +109,38 @@ class KubernetesProvider(BaseProvider):
     description = "Kubernetes cluster secret management"
     required_package = ("kubernetes", "secretzero[kubernetes]")
     auth_class = KubernetesAuth
+    auth_methods = {
+        "ambient": "Use in-cluster service account",
+        "kubeconfig": "Use local kubeconfig file",
+    }
+    config_options = {
+        "context": "Kubeconfig context",
+        "namespace": "Default namespace",
+    }
+    config_example = """providers:
+  kubernetes:
+    kind: kubernetes
+    auth:
+      kind: ambient
+      config:
+        namespace: default"""
+    target_details = {
+        "kubernetes_secret": {
+            "description": "Kubernetes Secret",
+            "config": {
+                "namespace": "Kubernetes namespace (default: default)",
+                "name": "Secret name in Kubernetes",
+                "secret_type": "Secret type: Opaque, docker-json, etc. (default: Opaque)",
+            },
+            "example": """targets:
+  - provider: kubernetes
+    kind: kubernetes_secret
+    config:
+      namespace: production
+      name: database-credentials
+      secret_type: Opaque""",
+        },
+    }
 
     def __init__(
         self,
@@ -384,3 +416,29 @@ class KubernetesProvider(BaseProvider):
 
         except Exception as e:
             raise ValueError(f"Failed to delete secret from Kubernetes: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Bundle manifest – makes this provider extractable as a standalone package.
+# When extracted, expose this via entry_points:
+#   [project.entry-points."secretzero.providers"]
+#   kubernetes = "secretzero_kubernetes:BUNDLE_MANIFEST"
+# ---------------------------------------------------------------------------
+
+
+def _get_bundle_manifest() -> "BundleManifest":  # noqa: F821
+    """Lazily construct the Kubernetes bundle manifest."""
+    from secretzero.bundles.registry import BundleManifest
+
+    return BundleManifest(
+        name="kubernetes",
+        version="1.0.0",
+        provider_class="secretzero.providers.kubernetes:KubernetesProvider",
+        generators={},
+        targets={
+            "kubernetes_secret": "secretzero.targets.kubernetes:KubernetesSecretTarget",
+            "external_secret": "secretzero.targets.kubernetes:ExternalSecretTarget",
+        },
+        generator_kinds=[],
+        target_kinds=["kubernetes_secret", "external_secret"],
+    )

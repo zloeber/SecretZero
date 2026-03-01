@@ -104,6 +104,40 @@ class BaseProvider(IProviderWithCapabilities):
     #: auth-level metadata (e.g. ``ENV_TOKEN``) without instantiation.
     auth_class: type[ProviderAuth] = ProviderAuth
 
+    #: Supported authentication method names and descriptions, e.g.
+    #: ``{"token": "Use a personal access token", "ambient": "SDK chain"}``.
+    auth_methods: dict[str, str] = {}
+
+    #: Configuration options shown in CLI help, e.g.
+    #: ``{"region": "AWS region (default: us-east-1)"}``.
+    config_options: dict[str, str] = {}
+
+    #: Example YAML snippet shown in ``secretzero providers --provider <kind>``.
+    config_example: str = ""
+
+    #: Mapping of target kind → detail dict for CLI display.
+    #: Each value has ``description``, ``config`` (dict[str, str]), and ``example`` (str).
+    target_details: dict[str, dict[str, Any]] = {}
+
+    @classmethod
+    def get_provider_detail(cls) -> dict[str, Any]:
+        """Return a self-describing detail dict used by CLI ``providers`` commands.
+
+        The returned dict has keys ``description``, ``auth_methods``,
+        ``config``, ``example``, ``target_details`` — all sourced from
+        class-level attributes so bundles self-register their docs.
+
+        Returns:
+            Provider detail dictionary.
+        """
+        return {
+            "description": cls.display_name or cls.description,
+            "auth_methods": dict(cls.auth_methods),
+            "config": dict(cls.config_options),
+            "example": cls.config_example,
+            "target_details": dict(cls.target_details),
+        }
+
     def __init__(
         self,
         name: str,

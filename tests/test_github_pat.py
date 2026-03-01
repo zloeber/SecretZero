@@ -2,16 +2,16 @@
 
 import json
 import time
-from unittest.mock import MagicMock, patch, mock_open
+from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
 
+from secretzero.generators.github_pat import GitHubPATGenerator
 from secretzero.providers.github import (
-    GitHubProvider,
     GITHUB_PAT_PERMISSIONS,
+    GitHubProvider,
     validate_pat_permissions,
 )
-from secretzero.generators.github_pat import GitHubPATGenerator
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Permission validation

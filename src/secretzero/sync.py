@@ -634,12 +634,14 @@ class SyncEngine:
         # Inject provider instance for generators that require one
         resolved_config = self._resolve_provider_in_config(generator_class, config)
 
-        # For github_pat, validate that the provider was actually found
-        if kind == "github_pat" and resolved_config.get("_provider_instance") is None:
-            provider_name = config.get("provider", "github")
+        # Validate that provider-backed generators received their provider
+        injection_key: str | None = getattr(generator_class, "PROVIDER_INJECTION_KEY", None)
+        if injection_key and resolved_config.get(injection_key) is None:
+            config_key: str = getattr(generator_class, "PROVIDER_CONFIG_KEY", "provider")
+            provider_name = config.get(config_key, kind)
             if self._get_provider(provider_name) is None:
                 raise ValueError(
-                    f"github_pat generator requires provider '{provider_name}' "
+                    f"'{kind}' generator requires provider '{provider_name}' "
                     f"to be configured in the Secretfile providers section."
                 )
 

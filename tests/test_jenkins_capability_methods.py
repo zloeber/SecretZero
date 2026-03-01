@@ -1,7 +1,9 @@
 """Test Jenkins provider capability methods."""
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
+
 from secretzero.providers.jenkins import JenkinsProvider
 
 

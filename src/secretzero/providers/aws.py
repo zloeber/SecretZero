@@ -134,6 +134,71 @@ class AWSProvider(BaseProvider):
     description = "AWS Secrets Manager and other services"
     required_package = ("boto3", "secretzero[aws]")
     auth_class = AWSAuth
+    auth_methods = {
+        "ambient": "Use AWS SDK default credential chain (environment, instance profile, etc.)",
+        "token": "Use static AWS access key and secret key",
+        "assume_role": "Assume an IAM role for additional permissions",
+    }
+    config_options = {
+        "region": "AWS region (default: us-east-1)",
+        "profile": "AWS profile name from ~/.aws/config",
+    }
+    config_example = """providers:
+  aws:
+    kind: aws
+    auth:
+      kind: ambient
+      config:
+        region: us-east-1
+    fallback_generator: static
+    profiles:
+      default:
+        kind: ambient
+      admin:
+        kind: assume_role
+        config:
+          role_arn: arn:aws:iam::123456789012:role/SecretAdmin"""
+    target_details = {
+        "ssm_parameter": {
+            "description": "AWS Systems Manager Parameter Store",
+            "config": {
+                "name": "Parameter name/path (required)",
+                "type": "Parameter type: String, SecureString, or StringList (default: SecureString)",
+                "overwrite": "Whether to overwrite existing parameter (default: true)",
+                "description": "Parameter description (optional)",
+                "tier": "Parameter tier: Standard, Advanced, or Intelligent-Tiering (default: Standard)",
+                "region": "AWS region override (optional)",
+                "endpoint_url": "Custom endpoint URL for LocalStack or other AWS-compatible services (optional)",
+            },
+            "example": """targets:
+  - provider: aws
+    kind: ssm_parameter
+    config:
+      name: /prod/database/password
+      type: SecureString
+      overwrite: true
+      description: RDS master password
+      tier: Standard""",
+        },
+        "secrets_manager": {
+            "description": "AWS Secrets Manager",
+            "config": {
+                "name": "Secret name (required)",
+                "description": "Secret description (optional)",
+                "kms_key_id": "KMS key ID for encryption (optional)",
+                "recovery_period": "Recovery period in days for scheduled deletion (default: 7)",
+                "region": "AWS region override (optional)",
+                "endpoint_url": "Custom endpoint URL for LocalStack or other AWS-compatible services (optional)",
+            },
+            "example": """targets:
+  - provider: aws
+    kind: secrets_manager
+    config:
+      name: prod/database-credentials
+      description: RDS master credentials
+      kms_key_id: arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012""",
+        },
+    }
 
     def __init__(
         self,
@@ -422,3 +487,29 @@ class AWSProvider(BaseProvider):
 
         except Exception as e:
             raise ValueError(f"Failed to delete secret from AWS: {str(e)}")
+
+
+# ---------------------------------------------------------------------------
+# Bundle manifest – makes this provider extractable as a standalone package.
+# When extracted, expose this via entry_points:
+#   [project.entry-points."secretzero.providers"]
+#   aws = "secretzero_aws:BUNDLE_MANIFEST"
+# ---------------------------------------------------------------------------
+
+
+def _get_bundle_manifest() -> "BundleManifest":  # noqa: F821
+    """Lazily construct the AWS bundle manifest."""
+    from secretzero.bundles.registry import BundleManifest
+
+    return BundleManifest(
+        name="aws",
+        version="1.0.0",
+        provider_class="secretzero.providers.aws:AWSProvider",
+        generators={},
+        targets={
+            "ssm_parameter": "secretzero.targets.aws:SSMParameterTarget",
+            "secrets_manager": "secretzero.targets.aws:SecretsManagerTarget",
+        },
+        generator_kinds=[],
+        target_kinds=["ssm_parameter", "secrets_manager"],
+    )

@@ -98,33 +98,9 @@ def get_registry() -> ProviderRegistry:
 _global_registry = ProviderRegistry()
 
 # Import providers after registry creation to avoid circular imports
-try:
-    from secretzero.providers.ansible_vault import AnsibleVaultProvider
-    from secretzero.providers.aws import AWSProvider
-    from secretzero.providers.azure import AzureProvider
-    from secretzero.providers.github import GitHubProvider
-    from secretzero.providers.gitlab import GitLabProvider
-    from secretzero.providers.infisical import InfisicalProvider
-    from secretzero.providers.jenkins import JenkinsProvider
-    from secretzero.providers.kubernetes import KubernetesProvider
-    from secretzero.providers.vault import VaultProvider
-
-    _global_registry.register_provider_class("ansible_vault", AnsibleVaultProvider)
-    _global_registry.register_provider_class("aws", AWSProvider)
-    _global_registry.register_provider_class("azure", AzureProvider)
-    _global_registry.register_provider_class("github", GitHubProvider)
-    _global_registry.register_provider_class("gitlab", GitLabProvider)
-    _global_registry.register_provider_class("infisical", InfisicalProvider)
-    _global_registry.register_provider_class("jenkins", JenkinsProvider)
-    _global_registry.register_provider_class("kubernetes", KubernetesProvider)
-    _global_registry.register_provider_class("vault", VaultProvider)
-except (ImportError, ValueError):
-    # Allow graceful degradation if imports fail
-    pass
-
-# Sync third-party providers discovered via bundle entry points into the
-# legacy ProviderRegistry so that code still using get_registry() can
-# access bundle-provided providers without modification.
+# All providers are now registered via BundleManifests in the BundleRegistry.
+# Sync them into this legacy ProviderRegistry so that code using
+# GLOBAL_PROVIDER_REGISTRY / get_registry() still works.
 try:
     from secretzero.bundles import get_bundle_registry as _get_bundle_registry
 

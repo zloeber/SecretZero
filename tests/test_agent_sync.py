@@ -1,6 +1,7 @@
 """Tests for agent-guided secret synchronisation."""
 
 import json
+from datetime import UTC
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -261,7 +262,7 @@ class TestAgentSecretSynchronizer:
 
         # Create lockfile with existing entry
         lock = Lockfile()
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         lock.secrets["existing_secret"] = SecretLockEntry(
             hash="abc123",
             created_at=now,

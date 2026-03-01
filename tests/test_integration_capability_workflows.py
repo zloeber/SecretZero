@@ -1,10 +1,12 @@
 """Integration tests for provider capability workflows."""
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
+
+from secretzero.generators.provider_backed import ProviderBackedGenerator
 from secretzero.providers.aws import AWSProvider
 from secretzero.providers.vault import VaultProvider
-from secretzero.generators.provider_backed import ProviderBackedGenerator
 
 
 class TestProviderBackedGeneratorIntegration:

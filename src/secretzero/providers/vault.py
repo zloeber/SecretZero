@@ -114,6 +114,39 @@ class VaultProvider(BaseProvider):
     description = "Secret storage and management"
     required_package = ("hvac", "secretzero[vault]")
     auth_class = VaultAuth
+    auth_methods = {
+        "token": "Use Vault token authentication",
+        "ambient": "Use Vault ambient authentication (agent)",
+    }
+    config_options = {
+        "address": "Vault server address (e.g., https://vault.example.com)",
+        "namespace": "Vault namespace (Enterprise)",
+    }
+    config_example = """providers:
+  vault:
+    kind: vault
+    auth:
+      kind: token
+      config:
+        address: https://vault.example.com:8200
+        token: ${VAULT_TOKEN}"""
+    target_details = {
+        "vault_kv": {
+            "description": "HashiCorp Vault KV Secret Engine",
+            "config": {
+                "path": "Secret path in KV engine (e.g., secret/data/myapp/config)",
+                "mount_point": "KV mount point (default: secret)",
+                "version": "KV version: 1 or 2 (default: 2)",
+            },
+            "example": """targets:
+  - provider: vault
+    kind: vault_kv
+    config:
+      path: secret/data/prod/database
+      mount_point: secret
+      version: 2""",
+        },
+    }
 
     def __init__(
         self,
@@ -445,3 +478,29 @@ class VaultProvider(BaseProvider):
 
         except Exception as e:
             raise ValueError(f"Failed to delete secret from Vault: {str(e)}")
+
+
+# ---------------------------------------------------------------------------
+# Bundle manifest – makes this provider extractable as a standalone package.
+# When extracted, expose this via entry_points:
+#   [project.entry-points."secretzero.providers"]
+#   vault = "secretzero_vault:BUNDLE_MANIFEST"
+# ---------------------------------------------------------------------------
+
+
+def _get_bundle_manifest() -> "BundleManifest":  # noqa: F821
+    """Lazily construct the Vault bundle manifest."""
+    from secretzero.bundles.registry import BundleManifest
+
+    return BundleManifest(
+        name="vault",
+        version="1.0.0",
+        provider_class="secretzero.providers.vault:VaultProvider",
+        generators={},
+        targets={
+            "vault_kv": "secretzero.targets.vault:VaultKVTarget",
+            "kv": "secretzero.targets.vault:VaultKVTarget",
+        },
+        generator_kinds=[],
+        target_kinds=["vault_kv", "kv"],
+    )

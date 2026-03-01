@@ -302,8 +302,9 @@ secrets:
 """)
 
         # Create lockfile with current_secret and orphaned entries
+        from datetime import UTC, datetime
+
         from secretzero.lockfile import Lockfile, SecretLockEntry
-        from datetime import datetime, UTC
 
         lock = Lockfile()
         now = datetime.now(UTC).isoformat()
@@ -376,8 +377,9 @@ secrets:
 """)
 
         # Create lockfile with orphaned entries
+        from datetime import UTC, datetime
+
         from secretzero.lockfile import Lockfile, SecretLockEntry
-        from datetime import datetime, UTC
 
         lock = Lockfile()
         now = datetime.now(UTC).isoformat()

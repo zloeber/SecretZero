@@ -344,6 +344,7 @@ def get_bundle_registry() -> BundleRegistry:
         _register_builtin_generators(_bundle_registry)
         _register_builtin_targets(_bundle_registry)
         _register_builtin_providers(_bundle_registry)
+        _register_builtin_bundles(_bundle_registry)
         _bundle_registry.discover_and_register()
     return _bundle_registry
 
@@ -378,7 +379,7 @@ def _register_builtin_generators(registry: BundleRegistry) -> None:
         ("static", "secretzero.generators.static", "StaticGenerator"),
         ("script", "secretzero.generators.script", "ScriptGenerator"),
         ("provider_backed", "secretzero.generators.provider_backed", "ProviderBackedGenerator"),
-        ("github_pat", "secretzero.generators.github_pat", "GitHubPATGenerator"),
+        # github_pat is registered via the GitHub BundleManifest
     ]
     for kind, module_path, class_name in _builtin_generators:
         try:
@@ -394,26 +395,10 @@ def _register_builtin_generators(registry: BundleRegistry) -> None:
 def _register_builtin_targets(registry: BundleRegistry) -> None:
     """Populate *registry* with all built-in target classes."""
     _builtin_targets: list[tuple[str, str, str]] = [
+        # Core targets (not tied to a specific provider)
         ("file", "secretzero.targets.file", "FileTarget"),
         ("template", "secretzero.targets.template", "TemplateTarget"),
-        # AWS
-        ("ssm_parameter", "secretzero.targets.aws", "SSMParameterTarget"),
-        ("secrets_manager", "secretzero.targets.aws", "SecretsManagerTarget"),
-        # Azure
-        ("azure_keyvault", "secretzero.targets.azure", "KeyVaultTarget"),
-        ("key_vault", "secretzero.targets.azure", "KeyVaultTarget"),
-        # Vault
-        ("vault_kv", "secretzero.targets.vault", "VaultKVTarget"),
-        ("kv", "secretzero.targets.vault", "VaultKVTarget"),
-        # GitHub
-        ("github_secret", "secretzero.targets.github", "GitHubSecretTarget"),
-        # GitLab
-        ("gitlab_variable", "secretzero.targets.gitlab", "GitLabVariableTarget"),
-        # Jenkins
-        ("jenkins_credential", "secretzero.targets.jenkins", "JenkinsCredentialTarget"),
-        # Kubernetes
-        ("kubernetes_secret", "secretzero.targets.kubernetes", "KubernetesSecretTarget"),
-        ("external_secret", "secretzero.targets.kubernetes", "ExternalSecretTarget"),
+        # All provider-specific targets are registered via BundleManifests
     ]
     for kind, module_path, class_name in _builtin_targets:
         try:
@@ -429,15 +414,7 @@ def _register_builtin_targets(registry: BundleRegistry) -> None:
 def _register_builtin_providers(registry: BundleRegistry) -> None:
     """Populate *registry* with all built-in provider classes."""
     _builtin_providers: list[tuple[str, str, str]] = [
-        ("aws", "secretzero.providers.aws", "AWSProvider"),
-        ("azure", "secretzero.providers.azure", "AzureProvider"),
-        ("vault", "secretzero.providers.vault", "VaultProvider"),
-        ("github", "secretzero.providers.github", "GitHubProvider"),
-        ("gitlab", "secretzero.providers.gitlab", "GitLabProvider"),
-        ("jenkins", "secretzero.providers.jenkins", "JenkinsProvider"),
-        ("kubernetes", "secretzero.providers.kubernetes", "KubernetesProvider"),
-        ("ansible_vault", "secretzero.providers.ansible_vault", "AnsibleVaultProvider"),
-        ("infisical", "secretzero.providers.infisical", "InfisicalProvider"),
+        # All providers are now registered via BundleManifests
     ]
     for kind, module_path, class_name in _builtin_providers:
         try:
@@ -446,6 +423,36 @@ def _register_builtin_providers(registry: BundleRegistry) -> None:
             mod = _importlib.import_module(module_path)
             cls = getattr(mod, class_name)
             registry.register_provider(kind, cls)
+        except (ImportError, AttributeError):
+            pass
+
+
+def _register_builtin_bundles(registry: BundleRegistry) -> None:
+    """Register built-in providers that ship as self-contained bundle manifests.
+
+    These providers can be extracted into standalone pip-installable packages
+    by simply moving the code and registering via ``entry_points`` instead.
+    """
+    _manifest_factories: list[tuple[str, str]] = [
+        # (module_path, factory_function_name)
+        ("secretzero.providers.aws", "_get_bundle_manifest"),
+        ("secretzero.providers.azure", "_get_bundle_manifest"),
+        ("secretzero.providers.vault", "_get_bundle_manifest"),
+        ("secretzero.providers.github", "_get_bundle_manifest"),
+        ("secretzero.providers.gitlab", "_get_bundle_manifest"),
+        ("secretzero.providers.jenkins", "_get_bundle_manifest"),
+        ("secretzero.providers.kubernetes", "_get_bundle_manifest"),
+        ("secretzero.providers.ansible_vault", "_get_bundle_manifest"),
+        ("secretzero.providers.infisical", "_get_bundle_manifest"),
+    ]
+    for module_path, factory_name in _manifest_factories:
+        try:
+            import importlib as _importlib
+
+            mod = _importlib.import_module(module_path)
+            factory = getattr(mod, factory_name)
+            manifest: BundleManifest = factory()
+            registry.register_bundle(manifest)
         except (ImportError, AttributeError):
             pass
 

@@ -26,6 +26,13 @@ SecretZero supports the following providers:
 | [Jenkins](jenkins.md) | Jenkins | `jenkins_credential` | Build automation, deployment pipelines |
 | [Kubernetes](kubernetes.md) | Kubernetes | `kubernetes_secret`, `external_secret` | Container orchestration, microservices |
 
+!!! tip "Custom providers via bundles"
+    Need a provider that isn't listed? SecretZero's [provider bundle system](../bundles/index.md) lets you create and install third-party providers as pip packages — no core changes required.
+
+    ```bash
+    secretzero scaffold-bundle mycloud --with-target mycloud_secret
+    ```
+
 ## Common Authentication Patterns
 
 ### Ambient Authentication

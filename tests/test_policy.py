@@ -1,18 +1,19 @@
 """Tests for policy enforcement."""
 
-import pytest
 from datetime import UTC, datetime, timedelta
 
+import pytest
+
+from secretzero.lockfile import SecretLockEntry
 from secretzero.models import Metadata, Secret, Secretfile, TargetConfig
 from secretzero.policy import (
+    AccessPolicy,
+    CompliancePolicy,
     PolicyEngine,
     PolicyKind,
     PolicySeverity,
     RotationPolicy,
-    CompliancePolicy,
-    AccessPolicy,
 )
-from secretzero.lockfile import SecretLockEntry
 
 
 class TestRotationPolicy:

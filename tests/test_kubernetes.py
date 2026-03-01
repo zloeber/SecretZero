@@ -11,7 +11,7 @@ class TestKubernetesProvider:
 
     def test_import_kubernetes_provider(self):
         """Test importing Kubernetes provider."""
-        from secretzero.providers.kubernetes import KubernetesProvider, KubernetesAuth
+        from secretzero.providers.kubernetes import KubernetesAuth, KubernetesProvider
 
         assert KubernetesProvider is not None
         assert KubernetesAuth is not None
@@ -300,6 +300,7 @@ class TestExternalSecretTarget:
     def test_generate_manifest(self, tmp_path):
         """Test generating ExternalSecret manifest."""
         import yaml
+
         from secretzero.targets.kubernetes import ExternalSecretTarget
 
         provider = Mock()

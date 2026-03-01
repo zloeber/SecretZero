@@ -1,10 +1,11 @@
 """Tests for lockfile rotation tracking."""
 
-import pytest
+import json
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
-import tempfile
-import json
+
+import pytest
 
 from secretzero.lockfile import Lockfile, SecretLockEntry
 

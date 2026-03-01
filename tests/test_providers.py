@@ -210,6 +210,7 @@ def test_aws_auth_ambient():
     """Test AWS ambient authentication (mocked)."""
     try:
         import boto3
+
         from secretzero.providers.aws import AWSAuth
 
         with patch("boto3.Session") as mock_session:
@@ -232,6 +233,7 @@ def test_aws_provider_test_connection():
     """Test AWS provider connectivity test (mocked)."""
     try:
         import boto3
+
         from secretzero.providers.aws import AWSAuth, AWSProvider
 
         with patch("boto3.Session") as mock_session:
@@ -307,6 +309,7 @@ def test_vault_auth_token():
     """Test Vault token authentication (mocked)."""
     try:
         import hvac
+
         from secretzero.providers.vault import VaultAuth
 
         with patch("hvac.Client") as mock_client:

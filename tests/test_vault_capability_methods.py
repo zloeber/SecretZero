@@ -1,7 +1,8 @@
 """Tests for Vault provider capability methods."""
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from secretzero.providers.vault import VaultProvider
 

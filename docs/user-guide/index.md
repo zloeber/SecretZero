@@ -34,6 +34,14 @@ This guide is organized into three main sections covering configuration, CLI com
     
     [API Documentation →](api/index.md)
 
+-   :material-puzzle: **Provider Bundles**
+
+    ---
+
+    Extend SecretZero with custom providers, generators, and targets via pip-installable bundles
+    
+    [Bundle Guide →](bundles/index.md)
+
 </div>
 
 ## Core Concepts

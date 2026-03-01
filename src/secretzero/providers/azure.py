@@ -132,6 +132,38 @@ class AzureProvider(BaseProvider):
     description = "Azure Key Vault and services"
     required_package = ("azure.identity", "secretzero[azure]")
     auth_class = AzureAuth
+    auth_methods = {
+        "ambient": "Use Azure SDK default credential chain",
+        "token": "Use static Azure credentials",
+    }
+    config_options = {
+        "tenant_id": "Azure tenant ID",
+        "subscription_id": "Azure subscription ID",
+    }
+    config_example = """providers:
+  azure:
+    kind: azure
+    auth:
+      kind: ambient
+      config:
+        tenant_id: ${AZURE_TENANT_ID}
+        subscription_id: ${AZURE_SUBSCRIPTION_ID}"""
+    target_details = {
+        "azure_keyvault": {
+            "description": "Azure Key Vault",
+            "config": {
+                "vault_url": "Key Vault URL (e.g., https://myvault.vault.azure.net)",
+                "secret_name": "Secret name in Key Vault (required)",
+                "tags": "Tags to add to the secret in Key Vault (optional)",
+            },
+            "example": """targets:
+  - provider: azure
+    kind: azure_keyvault
+    config:
+      vault_url: https://prod-vault.vault.azure.net
+      secret_name: database-password""",
+        },
+    }
 
     def __init__(
         self,
@@ -371,3 +403,29 @@ class AzureProvider(BaseProvider):
             return True
         except Exception as e:
             raise ValueError(f"Failed to delete secret from Azure Key Vault: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Bundle manifest – makes this provider extractable as a standalone package.
+# When extracted, expose this via entry_points:
+#   [project.entry-points."secretzero.providers"]
+#   azure = "secretzero_azure:BUNDLE_MANIFEST"
+# ---------------------------------------------------------------------------
+
+
+def _get_bundle_manifest() -> "BundleManifest":  # noqa: F821
+    """Lazily construct the Azure bundle manifest."""
+    from secretzero.bundles.registry import BundleManifest
+
+    return BundleManifest(
+        name="azure",
+        version="1.0.0",
+        provider_class="secretzero.providers.azure:AzureProvider",
+        generators={},
+        targets={
+            "azure_keyvault": "secretzero.targets.azure:KeyVaultTarget",
+            "key_vault": "secretzero.targets.azure:KeyVaultTarget",
+        },
+        generator_kinds=[],
+        target_kinds=["azure_keyvault", "key_vault"],
+    )

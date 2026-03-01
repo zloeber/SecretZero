@@ -1,0 +1,75 @@
+# Custom Provider Bundle Example
+#
+# This Secretfile demonstrates using a third-party provider bundle
+# installed via pip (e.g. `pip install secretzero-mycloud`).
+#
+# The provider, generator, and target kinds become available automatically
+# once the bundle package is installed — no configuration needed.
+#
+# See: https://secret0.com/extending/
+
+version: "1.0"
+
+# ---------------------------------------------------------------------------
+# Providers — "mycloud" comes from the secretzero-mycloud bundle
+# ---------------------------------------------------------------------------
+providers:
+  mycloud:
+    kind: mycloud                       # matches BundleManifest.name
+    auth:
+      kind: token
+      config:
+        token: ${MYCLOUD_TOKEN}         # resolved from environment
+    config:
+      region: us-east-1
+      endpoint: https://api.mycloud.example.com
+
+# ---------------------------------------------------------------------------
+# Secrets
+# ---------------------------------------------------------------------------
+secrets:
+  # Use a bundle-provided generator
+  api_key:
+    description: "MyCloud API key for the application"
+    generator: mycloud_token            # from the bundle's generators map
+    generator_config:
+      length: 48
+      prefix: "mc_live_"
+    targets:
+      # Store in MyCloud (bundle-provided target)
+      - provider: mycloud
+        kind: mycloud_secret            # from the bundle's targets map
+        config:
+          path: /production/api_key
+      # Also store locally for dev use
+      - kind: file
+        config:
+          path: .env
+          format: dotenv
+
+  # Use a built-in generator with a bundle-provided target
+  db_password:
+    description: "Database password"
+    generator: random_password
+    generator_config:
+      length: 32
+      include_symbols: true
+    targets:
+      - provider: mycloud
+        kind: mycloud_secret
+        config:
+          path: /production/db_password
+
+  # Multiple bundles can coexist
+  # (assuming secretzero-certgen is also installed)
+  tls_cert:
+    description: "TLS certificate for the app domain"
+    generator: x509_cert                # from the certgen bundle
+    generator_config:
+      common_name: "app.example.com"
+      validity_days: 365
+    targets:
+      - kind: file
+        config:
+          path: certs/app.pem
+          format: raw

@@ -1,7 +1,8 @@
 """Tests for CI/CD provider implementations (GitHub, GitLab, Jenkins)."""
 
-from unittest.mock import MagicMock, Mock, patch
 import os
+from unittest.mock import MagicMock, Mock, patch
+
 import pytest
 
 
@@ -11,7 +12,7 @@ class TestGitHubProvider:
     def test_import_github_provider(self):
         """Test importing GitHub provider."""
         try:
-            from secretzero.providers.github import GitHubProvider, GitHubAuth
+            from secretzero.providers.github import GitHubAuth, GitHubProvider
 
             assert GitHubProvider is not None
             assert GitHubAuth is not None
@@ -131,7 +132,7 @@ class TestGitLabProvider:
     def test_import_gitlab_provider(self):
         """Test importing GitLab provider."""
         try:
-            from secretzero.providers.gitlab import GitLabProvider, GitLabAuth
+            from secretzero.providers.gitlab import GitLabAuth, GitLabProvider
 
             assert GitLabProvider is not None
             assert GitLabAuth is not None
@@ -219,10 +220,8 @@ class TestGitLabProvider:
     def test_gitlab_provider_test_connection_failure(self):
         """Test GitLab connection test failure."""
         try:
-            from secretzero.providers.gitlab import GitLabProvider
-
             # Clear env vars if they exist
-            from secretzero.providers.gitlab import GitLabAuth
+            from secretzero.providers.gitlab import GitLabAuth, GitLabProvider
 
             os.environ.pop(GitLabAuth.ENV_TOKEN, None)
 
@@ -255,7 +254,7 @@ class TestJenkinsProvider:
     def test_import_jenkins_provider(self):
         """Test importing Jenkins provider."""
         try:
-            from secretzero.providers.jenkins import JenkinsProvider, JenkinsAuth
+            from secretzero.providers.jenkins import JenkinsAuth, JenkinsProvider
 
             assert JenkinsProvider is not None
             assert JenkinsAuth is not None
