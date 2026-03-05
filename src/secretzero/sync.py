@@ -4,8 +4,9 @@ from pathlib import Path
 from typing import Any
 
 from secretzero.bundles import get_bundle_registry
+from secretzero.generators.base import BaseGenerator
 from secretzero.lockfile import Lockfile
-from secretzero.models import Secret, Secretfile, Template
+from secretzero.models import AgentInstructions, Secret, Secretfile, Template
 
 # Import providers
 
@@ -363,7 +364,11 @@ class SyncEngine:
         if not secret_value:
             env_var_name = secret.name.upper()
             secret_value = self._generate_secret_value(
-                secret.kind, secret.config, env_var_name, field_description=f"Secret: {secret.name}"
+                secret.kind,
+                secret.config,
+                env_var_name,
+                field_description=f"Secret: {secret.name}",
+                agent_instructions=secret.agent_instructions,
             )
             result["generated"] = True
 
@@ -604,6 +609,7 @@ class SyncEngine:
         config: dict[str, Any],
         env_var_name: str,
         field_description: str | None = None,
+        agent_instructions: AgentInstructions | None = None,
     ) -> str:
         """Generate a secret value using the bundle registry.
 
@@ -612,11 +618,19 @@ class SyncEngine:
         declare ``PROVIDER_CONFIG_KEY`` / ``PROVIDER_INJECTION_KEY``), and
         delegates to :meth:`~secretzero.generators.base.BaseGenerator.generate_with_fallback`.
 
+        When *agent_instructions* are provided (from the Secretfile
+        ``agent_instructions`` block) they are attached to the generator so
+        they take precedence over any built-in instructions.  If generation
+        fails, the effective instructions (user-defined or built-in) are
+        printed to the console before the exception is re-raised.
+
         Args:
             kind: Generator kind string (e.g. ``"random_password"``).
             config: Generator configuration dict from the Secretfile.
             env_var_name: Environment variable name checked before generation.
             field_description: Optional human-readable label for user prompts.
+            agent_instructions: Optional Secretfile-defined retrieval instructions
+                that override the generator's built-in manual instructions.
 
         Returns:
             Generated secret value string.
@@ -634,12 +648,28 @@ class SyncEngine:
         # Inject provider instance for generators that require one
         resolved_config = self._resolve_provider_in_config(generator_class, config)
 
-        # Validate that provider-backed generators received their provider
+        # Validate that provider-backed generators received their provider.
+        # When the provider is missing, try to show manual instructions before
+        # raising so the user knows how to obtain the secret value by hand.
         injection_key: str | None = getattr(generator_class, "PROVIDER_INJECTION_KEY", None)
         if injection_key and resolved_config.get(injection_key) is None:
             config_key: str = getattr(generator_class, "PROVIDER_CONFIG_KEY", "provider")
             provider_name = config.get(config_key, kind)
             if self._get_provider(provider_name) is None:
+                # Attempt to instantiate the generator without its provider so we
+                # can call get_manual_instructions().  Some generators (e.g.
+                # github_pat) can be created without a resolved provider instance;
+                # others (e.g. provider_backed) cannot, in which case we simply
+                # skip the instructions display.
+                effective_instructions: AgentInstructions | None = agent_instructions
+                if effective_instructions is None:
+                    try:
+                        _tmp_gen = generator_class(resolved_config)
+                        effective_instructions = _tmp_gen.get_manual_instructions()
+                    except Exception:
+                        pass  # Generator cannot be instantiated without its provider
+                if effective_instructions is not None:
+                    BaseGenerator._display_manual_instructions(effective_instructions)
                 raise ValueError(
                     f"'{kind}' generator requires provider '{provider_name}' "
                     f"to be configured in the Secretfile providers section."
@@ -653,7 +683,20 @@ class SyncEngine:
         if hasattr(generator, "prompt_on_empty"):
             generator.prompt_on_empty = self.prompt_on_empty
 
-        return generator.generate_with_fallback(env_var_name, field_description=field_description)
+        # Attach Secretfile-defined instructions so they take precedence over
+        # the generator's built-in defaults when prompting or on failure.
+        if agent_instructions is not None:
+            generator.manual_instructions = agent_instructions
+
+        try:
+            return generator.generate_with_fallback(env_var_name, field_description=field_description)
+        except Exception:
+            # Display manual retrieval instructions before propagating the error
+            # so the user understands how to obtain the value by hand.
+            instructions = generator.get_manual_instructions()
+            if instructions is not None:
+                BaseGenerator._display_manual_instructions(instructions)
+            raise
 
     def _retrieve_from_target(self, secret_name: str, target_config: Any) -> str | None:
         """Retrieve a secret value from a target using the bundle registry.

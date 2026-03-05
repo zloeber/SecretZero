@@ -25,6 +25,7 @@ Example Secretfile usage::
 from typing import Any
 
 from secretzero.generators.base import BaseGenerator
+from secretzero.models import AgentInstructions, AgentInstructionStep
 
 
 class GitHubPATGenerator(BaseGenerator):
@@ -126,3 +127,83 @@ class GitHubPATGenerator(BaseGenerator):
                 return False, "; ".join(errors)
 
         return True, None
+
+    def get_manual_instructions(self) -> AgentInstructions:
+        """Return step-by-step instructions for manually creating a GitHub PAT.
+
+        These instructions are displayed when automatic token generation fails
+        (e.g. no GitHub App configured) or when manual input is prompted.
+
+        Returns:
+            AgentInstructions with GitHub-specific PAT creation steps.
+        """
+        if self.manual_instructions is not None:
+            return self.manual_instructions
+
+        permissions = self.config.get("permissions", {})
+        repos = self.config.get("repositories") or (
+            [self.config["repository"]] if self.config.get("repository") else []
+        )
+        token_name = self.config.get("token_name", "secretzero-token")
+
+        if permissions:
+            perm_lines = "; ".join(f"{k}: {v}" for k, v in permissions.items())
+            perm_desc = f"Required permissions: {perm_lines}"
+        else:
+            perm_desc = "Grant the minimum permissions needed for your use case"
+
+        repo_desc = (
+            f"Limit token to repositories: {', '.join(repos)}"
+            if repos
+            else "Select the repositories this token should access"
+        )
+
+        steps = [
+            AgentInstructionStep(
+                action="https://github.com/settings/tokens?type=beta",
+                description="Open GitHub Settings → Developer settings → Personal access tokens → Fine-grained tokens",
+            ),
+            AgentInstructionStep(
+                action="Click 'Generate new token'",
+                description="Start creating a new fine-grained personal access token",
+            ),
+            AgentInstructionStep(
+                action=f"Set token name to '{token_name}' (or any descriptive name)",
+                description="Enter a name that identifies the token's purpose",
+            ),
+            AgentInstructionStep(
+                action=repo_desc,
+                description="Choose which repositories the token can access",
+            ),
+            AgentInstructionStep(
+                action=perm_desc,
+                description="Set the required repository and/or organization permissions",
+            ),
+            AgentInstructionStep(
+                action="Click 'Generate token' and immediately copy the displayed token value",
+                description="Generate the token — it will only be shown once",
+            ),
+        ]
+
+        return AgentInstructions(
+            summary=(
+                "Automatic GitHub token generation failed. "
+                "Follow these steps to create a Personal Access Token (PAT) manually."
+            ),
+            steps=steps,
+            prerequisites=[
+                "A GitHub account with access to the target repositories or organization",
+            ],
+            estimated_time="5 minutes",
+            automation_hint=(
+                "Token generation can be automated by configuring a GitHub App with the required "
+                "permissions in the Secretfile providers section."
+            ),
+            fallback=(
+                "Contact your GitHub organization admin to create a token with the required permissions."
+            ),
+            documentation_url=(
+                "https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/"
+                "managing-your-personal-access-tokens"
+            ),
+        )
