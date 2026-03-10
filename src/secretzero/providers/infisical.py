@@ -2,7 +2,7 @@
 
 import logging
 import os
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
@@ -48,6 +48,19 @@ class InfisicalProvider(BaseProvider):
     def provider_kind(self) -> str:
         """Return provider type identifier."""
         return "infisical"
+
+    def get_actor_info(self) -> dict[str, Any]:
+        """Return information about the current Infisical workspace/context."""
+        info = super().get_actor_info()
+
+        workspace_id = getattr(self.config, "workspace_id", None)
+        api_url = getattr(self.config, "api_url", None)
+        if workspace_id:
+            info.setdefault("workspace_id", workspace_id)
+        if api_url:
+            info.setdefault("api_url", api_url)
+
+        return info
 
     def _get_client(self) -> object:
         """Get or create HTTP client with authentication.
@@ -302,4 +315,5 @@ def _get_bundle_manifest() -> "BundleManifest":  # noqa: F821
         targets={},
         generator_kinds=[],
         target_kinds=[],
+        terraform_provider=None,
     )

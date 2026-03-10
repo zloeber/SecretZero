@@ -123,3 +123,8 @@ Each built-in provider exposes a `_get_bundle_manifest()` factory function that 
 | Kubernetes | `secretzero.providers.kubernetes:_get_bundle_manifest` |
 | Ansible Vault | `secretzero.providers.ansible_vault:_get_bundle_manifest` |
 | Infisical | `secretzero.providers.infisical:_get_bundle_manifest` |
+
+Built-in manifests that set the optional ``terraform_provider`` field
+also participate in the :mod:`secretzero.terraform_export` pipeline,
+allowing :command:`secretzero terraform` to automatically declare
+matching Terraform providers and resource blocks where supported.

@@ -9,6 +9,16 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
+class TargetUpdate(BaseModel):
+    """Provenance information for a single target update."""
+
+    updated_at: str = Field(description="ISO 8601 timestamp of the update")
+    actor: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Information about the actor/user that performed the update",
+    )
+
+
 class SecretLockEntry(BaseModel):
     """Lockfile entry for a single secret."""
 
@@ -18,14 +28,26 @@ class SecretLockEntry(BaseModel):
     last_rotated: str | None = None
     rotation_count: int = 0
     targets: dict[str, str] = Field(default_factory=dict)  # target_id -> hash
+    target_provenance: dict[str, list[TargetUpdate]] = Field(
+        default_factory=dict,
+        description="Per-target provenance history (up to last 3 updates per target)",
+    )
 
 
 class SecretfileMetadata(BaseModel):
-    """Metadata about the source Secretfile."""
+    """Metadata about the source Secretfile and variable context."""
 
     filename: str = Field(description="Relative filename of the Secretfile")
     hash: str = Field(description="SHA-256 hash of the Secretfile content")
     synced_at: str = Field(description="ISO 8601 timestamp of last sync")
+    var_files: list[str] = Field(
+        default_factory=list,
+        description="Ordered list of .szvar variable file basenames used on last sync",
+    )
+    variables_hash: str | None = Field(
+        default=None,
+        description="SHA-256 hash of merged variables dict used on last sync",
+    )
 
 
 class Lockfile(BaseModel):
@@ -157,11 +179,17 @@ class Lockfile(BaseModel):
         content_hash = self._hash_value(secretfile_content)
         now = datetime.now(UTC).isoformat()
 
-        self.secretfile = SecretfileMetadata(
-            filename=relative_filename,
-            hash=content_hash,
-            synced_at=now,
-        )
+        if self.secretfile is None:
+            self.secretfile = SecretfileMetadata(
+                filename=relative_filename,
+                hash=content_hash,
+                synced_at=now,
+            )
+        else:
+            # Preserve any existing variable context fields
+            self.secretfile.filename = relative_filename
+            self.secretfile.hash = content_hash
+            self.secretfile.synced_at = now
 
     def secretfile_changed(self, secretfile_path: Path, secretfile_content: str) -> bool:
         """Check if the Secretfile has changed since the last sync.
@@ -200,6 +228,81 @@ class Lockfile(BaseModel):
             "hash": self.secretfile.hash,
             "synced_at": self.secretfile.synced_at,
         }
+
+    def track_variable_context(self, var_files: list[Path], variables: dict[str, Any]) -> None:
+        """Track the variable context (.szvar files and merged variables) used for sync.
+
+        Args:
+            var_files: List of .szvar variable file paths used for this run.
+            variables: Final merged variables dict from the Secretfile and var_files.
+        """
+        if self.secretfile is None:
+            # Initialize a minimal metadata record if none exists yet
+            now = datetime.now(UTC).isoformat()
+            self.secretfile = SecretfileMetadata(
+                filename="",
+                hash="",
+                synced_at=now,
+            )
+
+        # Store only basenames to keep the lockfile stable across machines
+        self.secretfile.var_files = [vf.name for vf in var_files]
+
+        # Hash of the merged variables dict (order independent)
+        variables_json = json.dumps(variables, sort_keys=True, default=str)
+        self.secretfile.variables_hash = self._hash_value(variables_json)
+
+    def variable_context_changed(self, var_files: list[Path], variables: dict[str, Any]) -> bool:
+        """Return True if the active variable context differs from the tracked one.
+
+        Args:
+            var_files: .szvar files for the current run.
+            variables: Final merged variables dict for the current run.
+        """
+        if self.secretfile is None:
+            # No prior context recorded, treat as changed
+            return True
+
+        # Compare var_files by basename
+        current_var_files = [vf.name for vf in var_files]
+        if self.secretfile.var_files != current_var_files:
+            return True
+
+        # Compare variables hash
+        variables_json = json.dumps(variables, sort_keys=True, default=str)
+        current_hash = self._hash_value(variables_json)
+        if self.secretfile.variables_hash != current_hash:
+            return True
+
+        return False
+
+    def record_target_update(
+        self,
+        secret_name: str,
+        target_id: str,
+        actor: dict[str, Any] | None = None,
+    ) -> None:
+        """Record provenance for an update to a specific target.
+
+        Keeps only the last three updates per target to avoid unbounded
+        growth of the lockfile.
+
+        Args:
+            secret_name: Name of the secret being updated.
+            target_id: Fully-qualified target identifier.
+            actor: Optional actor information dictionary.
+        """
+        entry = self.secrets.get(secret_name)
+        if entry is None:
+            return
+
+        now = datetime.now(UTC).isoformat()
+        history = entry.target_provenance.setdefault(target_id, [])
+        history.append(TargetUpdate(updated_at=now, actor=actor or {}))
+
+        # Keep only the last three updates for this target
+        if len(history) > 3:
+            entry.target_provenance[target_id] = history[-3:]
 
     @staticmethod
     def _hash_value(value: str) -> str:

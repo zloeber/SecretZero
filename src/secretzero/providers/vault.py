@@ -172,6 +172,20 @@ class VaultProvider(BaseProvider):
         """Return provider type identifier."""
         return "vault"
 
+    def get_actor_info(self) -> dict[str, Any]:
+        """Return information about the current Vault client/context."""
+        info = super().get_actor_info()
+
+        # Enrich with Vault address/namespace when available
+        url = (self.config or {}).get("url") or os.environ.get(VaultAuth.ENV_ADDR)
+        namespace = (self.config or {}).get("namespace") or os.environ.get(VaultAuth.ENV_NAMESPACE)
+        if url:
+            info.setdefault("url", url)
+        if namespace:
+            info.setdefault("namespace", namespace)
+
+        return info
+
     def test_connection(self) -> tuple[bool, str | None]:
         """Test Vault connectivity.
 
@@ -503,4 +517,10 @@ def _get_bundle_manifest() -> "BundleManifest":  # noqa: F821
         },
         generator_kinds=[],
         target_kinds=["vault_kv", "kv"],
+        terraform_provider={
+            "name": "vault",
+            "source": "hashicorp/vault",
+            "version": "~> 4.0",
+            "default_config": {},
+        },
     )

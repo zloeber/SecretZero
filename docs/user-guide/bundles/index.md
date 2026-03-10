@@ -70,8 +70,15 @@ Every bundle provides a `BundleManifest` that declares:
 | **Provider** | Auth + connectivity to an external service | No |
 | **Generators** | Create secret values (tokens, passwords, certs) | No |
 | **Targets** | Store secrets in external systems | No |
+| **Terraform provider metadata** | Describes how this bundle maps to a Terraform provider for `secretzero terraform` export | No |
 
 You can ship any combination. A generator-only bundle is perfectly valid.
+
+When adding Terraform support for your bundle, set the optional
+`terraform_provider` field on `BundleManifest`. This metadata declares the
+Terraform provider name, registry source, version constraint, and any
+default provider configuration that should be emitted when users run
+`secretzero terraform`.
 
 ## Guides
 

@@ -560,3 +560,61 @@ def test_audit_command_filter_by_action(runner: CliRunner) -> None:
         data = json.loads(result.output)
         assert data["count"] == 1
         assert data["entries"][0]["action"] == "sync"
+
+
+def test_terraform_command_dry_run(runner: CliRunner) -> None:
+    """Test terraform command in dry-run mode."""
+    with TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir)
+        secretfile_src = Path(__file__).resolve().parents[1] / "Secretfile.test.yml"
+        secretfile_dest = tmp_path / "Secretfile.yml"
+        secretfile_dest.write_text(secretfile_src.read_text())
+
+        output_dir = tmp_path / "tf-out"
+
+        result = runner.invoke(
+            main,
+            [
+                "terraform",
+                "--file",
+                str(secretfile_dest),
+                "--output-dir",
+                str(output_dir),
+                "--format",
+                "json",
+                "--dry-run",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "Terraform generation plan" in result.output
+
+
+def test_terraform_command_writes_files(runner: CliRunner) -> None:
+    """Test terraform command writes configuration files."""
+    with TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir)
+        secretfile_src = Path(__file__).resolve().parents[1] / "Secretfile.test.yml"
+        secretfile_dest = tmp_path / "Secretfile.yml"
+        secretfile_dest.write_text(secretfile_src.read_text())
+
+        output_dir = tmp_path / "tf-out"
+
+        result = runner.invoke(
+            main,
+            [
+                "terraform",
+                "--file",
+                str(secretfile_dest),
+                "--output-dir",
+                str(output_dir),
+                "--format",
+                "json",
+            ],
+        )
+
+        assert result.exit_code == 0
+        main_tf_json = output_dir / "main.tf.json"
+        assert main_tf_json.exists()
+        data = json.loads(main_tf_json.read_text())
+        assert "terraform" in data or "resource" in data
