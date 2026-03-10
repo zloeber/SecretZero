@@ -144,6 +144,11 @@ class AnsibleVaultProvider(BaseProvider):
         """Return provider type identifier."""
         return "ansible_vault"
 
+    def get_actor_info(self) -> dict[str, Any]:
+        """Return information about the local actor using Ansible Vault."""
+        # Ansible Vault operates locally; rely on base local actor info.
+        return super().get_actor_info()
+
     def test_connection(self) -> tuple[bool, str | None]:
         """Verify provider configuration and vault file accessibility.
 
@@ -468,4 +473,5 @@ def _get_bundle_manifest() -> "BundleManifest":  # noqa: F821
         targets={},
         generator_kinds=[],
         target_kinds=[],
+        terraform_provider=None,
     )

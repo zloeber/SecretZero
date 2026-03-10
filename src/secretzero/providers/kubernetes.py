@@ -165,6 +165,20 @@ class KubernetesProvider(BaseProvider):
         """Return provider type identifier."""
         return "kubernetes"
 
+    def get_actor_info(self) -> dict[str, Any]:
+        """Return information about the current Kubernetes context."""
+        info = super().get_actor_info()
+
+        # Enrich with namespace/context when available
+        namespace = (self.config or {}).get("namespace")
+        context = (self.config or {}).get("context")
+        if namespace:
+            info.setdefault("namespace", namespace)
+        if context:
+            info.setdefault("context", context)
+
+        return info
+
     def test_connection(self) -> tuple[bool, str | None]:
         """Test Kubernetes cluster connectivity.
 
@@ -441,4 +455,10 @@ def _get_bundle_manifest() -> "BundleManifest":  # noqa: F821
         },
         generator_kinds=[],
         target_kinds=["kubernetes_secret", "external_secret"],
+        terraform_provider={
+            "name": "kubernetes",
+            "source": "hashicorp/kubernetes",
+            "version": "~> 2.0",
+            "default_config": {},
+        },
     )

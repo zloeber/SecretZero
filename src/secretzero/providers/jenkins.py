@@ -150,6 +150,23 @@ class JenkinsProvider(BaseProvider):
         """Return provider type identifier."""
         return "jenkins"
 
+    def get_actor_info(self) -> dict[str, Any]:
+        """Return information about the current Jenkins user/context."""
+        info = super().get_actor_info()
+
+        # Jenkins typically authenticates as a user; config may carry username.
+        username = (self.config or {}).get("username") or (
+            self.auth.config.get("username") if self.auth else None
+        )
+        url = (self.config or {}).get("url") or (self.auth.config.get("url") if self.auth else None)
+
+        if username:
+            info.setdefault("user", username)
+        if url:
+            info.setdefault("url", url)
+
+        return info
+
     def test_connection(self) -> tuple[bool, str | None]:
         """Test Jenkins API connectivity.
 
@@ -405,4 +422,5 @@ def _get_bundle_manifest() -> "BundleManifest":  # noqa: F821
         },
         generator_kinds=[],
         target_kinds=["jenkins_credential"],
+        terraform_provider=None,
     )

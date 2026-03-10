@@ -189,6 +189,20 @@ class AzureProvider(BaseProvider):
         """Return provider type identifier."""
         return "azure"
 
+    def get_actor_info(self) -> dict[str, Any]:
+        """Return information about the current Azure identity/context."""
+        info = super().get_actor_info()
+
+        # Enrich with tenant/subscription when available
+        tenant_id = (self.config or {}).get("tenant_id")
+        subscription_id = (self.config or {}).get("subscription_id")
+        if tenant_id:
+            info.setdefault("tenant_id", tenant_id)
+        if subscription_id:
+            info.setdefault("subscription_id", subscription_id)
+
+        return info
+
     def test_connection(self) -> tuple[bool, str | None]:
         """Test Azure connectivity.
 
@@ -428,4 +442,10 @@ def _get_bundle_manifest() -> "BundleManifest":  # noqa: F821
         },
         generator_kinds=[],
         target_kinds=["azure_keyvault", "key_vault"],
+        terraform_provider={
+            "name": "azurerm",
+            "source": "hashicorp/azurerm",
+            "version": "~> 3.0",
+            "default_config": {},
+        },
     )

@@ -13,6 +13,7 @@ from rich.table import Table
 
 from secretzero import __version__
 from secretzero.api.audit import AuditLogger
+from secretzero.bundles import get_bundle_registry
 from secretzero.cli_providers import providers_group
 from secretzero.config import ConfigLoader
 from secretzero.drift import DriftDetector
@@ -22,6 +23,11 @@ from secretzero.models import Secretfile
 from secretzero.policy import PolicyEngine
 from secretzero.rotation import should_rotate_secret
 from secretzero.sync import SyncEngine
+from secretzero.terraform_export import (
+    TerraformGeneratorOptions,
+    TerraformOutputFormat,
+    generate_terraform,
+)
 
 console = Console()
 
@@ -1953,6 +1959,15 @@ def sync(
     # Load lockfile
     lock = Lockfile.load(lockfile_path)
 
+    # Determine active variable context
+    active_var_files = var_file_paths or []
+    active_variables = dict(config.variables or {})
+
+    # Detect variable context changes relative to lockfile
+    variable_context_changed = False
+    if active_var_files or active_variables:
+        variable_context_changed = lock.variable_context_changed(active_var_files, active_variables)
+
     # Check for orphaned lockfile entries and warn if found
     orphaned_entries = _find_lockfile_orphans(config, lock)
     if orphaned_entries and output_format == "text":
@@ -1967,6 +1982,22 @@ def sync(
                 console.print(f"  - {entry}")
             console.print(f"  ... and {len(orphaned_entries) - 10} more")
         console.print("  Use [cyan]secretzero sync --clean[/cyan] to remove orphaned entries\n")
+
+    # Warn if the variable context changed compared to the last sync
+    if variable_context_changed and output_format == "text":
+        console.print(
+            "[yellow]⚠ Variable context has changed since the last sync for this lockfile.[/yellow]"
+        )
+        if lock.secretfile and lock.secretfile.var_files:
+            prev_files = ", ".join(lock.secretfile.var_files)
+            current_files = ", ".join(vf.name for vf in active_var_files) or "[none]"
+            console.print(f"  Previous var files: {prev_files}")
+            console.print(f"  Current  var files: {current_files}")
+        console.print(
+            "  Existing lockfile entries from previous contexts will not block syncing new targets.\n"
+            "  Consider using [cyan]--lockfile[/cyan] per environment or [cyan]secretzero sync --clean[/cyan] "
+            "to remove unused entries."
+        )
 
     # Clean orphaned lockfile entries if requested
     cleaned_entries = []
@@ -1999,7 +2030,11 @@ def sync(
         console.print("[bold]Synchronizing secrets...[/bold]\n")
 
     try:
-        results = engine.sync(dry_run=dry_run, secret_names=secret_names)
+        results = engine.sync(
+            dry_run=dry_run,
+            secret_names=secret_names,
+            ignore_foreign_context_targets=variable_context_changed,
+        )
 
         if output_format == "json":
             # Build plan data when --plan flag used
@@ -2034,6 +2069,7 @@ def sync(
                 "secrets_skipped": results["secrets_skipped"],
                 "errors": results.get("errors", []),
                 "details": results.get("details", []),
+                "variable_context_changed": variable_context_changed,
             }
             if plan_details is not None:
                 json_result["plan_details"] = plan_details
@@ -2100,6 +2136,11 @@ def sync(
         # Show if secretfile changed
         if results.get("secretfile_changed"):
             console.print("\n[yellow]⚠ Secretfile has changed since last sync[/yellow]")
+        # Show variable context change (text mode) if not already warned above
+        if variable_context_changed and output_format == "text":
+            console.print(
+                "[yellow]⚠ Variable context for this Secretfile has changed since last sync.[/yellow]"
+            )
 
         # Show cleaned entries
         if cleaned_entries:
@@ -4722,6 +4763,113 @@ def _scaffold_bundle_impl(
     console.print("  • Run [bold]pytest[/bold] to test")
     console.print(f"  • Run [bold]secretzero validate-bundle src/{pkg_name}[/bold] to validate")
     console.print("  • Run [bold]pip install -e .[/bold] to register with SecretZero")
+
+
+@main.command("terraform")
+@click.option(
+    "--file",
+    "-f",
+    type=click.Path(exists=True),
+    default="Secretfile.yml",
+    help="Path to Secretfile",
+)
+@click.option(
+    "--var-file",
+    "-v",
+    "var_files",
+    type=click.Path(exists=True),
+    multiple=True,
+    help="Path to .szvar variable file(s) (can be specified multiple times)",
+)
+@click.option(
+    "--output-dir",
+    "-o",
+    type=click.Path(),
+    default="terraform-out",
+    help="Directory to write generated Terraform files",
+)
+@click.option(
+    "--format",
+    "tf_format",
+    type=click.Choice(["hcl", "json"]),
+    default="hcl",
+    help="Terraform output format (hcl or json)",
+)
+@click.option(
+    "--include-static-secrets/--no-include-static-secrets",
+    default=False,
+    help="Include static secret values directly in Terraform (may embed secrets in code).",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Show a summary of what would be generated without writing files",
+)
+def terraform(
+    file: str,
+    var_files: tuple[str, ...],
+    output_dir: str,
+    tf_format: str,
+    include_static_secrets: bool,
+    dry_run: bool,
+) -> None:
+    """Generate Terraform manifests from a Secretfile.
+
+    This command translates your Secretfile configuration into Terraform
+    resources, using bundle-provided Terraform provider metadata where
+    available. Generated configuration can be emitted as HCL (``.tf``)
+    or Terraform JSON (``.tf.json``).
+    """
+    file_path = Path(file)
+    var_file_paths = [Path(vf) for vf in var_files] if var_files else None
+    output_path = Path(output_dir)
+
+    loader = ConfigLoader()
+
+    try:
+        secretfile = loader.load_file(file_path, var_files=var_file_paths)
+    except Exception as e:
+        console.print(f"[red]Error loading Secretfile:[/red] {e}")
+        sys.exit(EXIT_CONFIG_ERROR)
+
+    registry = get_bundle_registry()
+
+    options = TerraformGeneratorOptions(
+        output_dir=output_path,
+        format=TerraformOutputFormat(tf_format),
+        include_static_secrets=include_static_secrets,
+    )
+
+    project = generate_terraform(secretfile, options, registry=registry)
+
+    if dry_run:
+        console.print("[bold]Terraform generation plan (dry run)[/bold]\n")
+        console.print(f"  Secrets: {len(secretfile.secrets)}")
+        console.print(f"  Providers: {len(project.required_providers)}")
+        console.print(f"  Resources: {len(project.resources)}")
+        if project.required_providers:
+            console.print("\n[bold]Required providers:[/bold]")
+            for rp in project.required_providers.values():
+                src = f" (source: {rp.source})" if rp.source else ""
+                ver = f" (version: {rp.version})" if rp.version else ""
+                console.print(f"  • {rp.name}{src}{ver}")
+        console.print(
+            "\n[dim]Use --format hcl|json and remove --dry-run to write Terraform files.[/dim]"
+        )
+        return
+
+    written_paths = project.write_files(options.output_dir, options.format)
+
+    console.print("[green]✓[/green] Generated Terraform configuration\n")
+    console.print("[bold]Files written:[/bold]")
+    for p in written_paths:
+        console.print(f"  [cyan]{p}[/cyan]")
+
+    console.print("\nNext steps:")
+    console.print(f"  1. cd {output_path}")
+    console.print("  2. terraform init")
+    console.print("  3. terraform plan")
+    console.print("  4. terraform apply")
 
 
 @main.command("validate-bundle")
