@@ -456,10 +456,13 @@ class GitHubProvider(BaseProvider):
         Returns:
             Tuple of (success, details).
         """
+        # If the PyGithub library is missing, we cannot perform the check but
+        # we still want to surface this as an authentication-related failure
+        # so callers (and tests) can treat it consistently.
         try:
-            from github import Github
+            from github import Github  # noqa: F401
         except ImportError:
-            return False, "PyGithub not installed (pip install PyGithub)"
+            return False, "Authentication failed - PyGithub not installed (pip install PyGithub)"
 
         # Check if token is available in config, auth config, or environment
         token = (

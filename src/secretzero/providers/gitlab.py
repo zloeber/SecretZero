@@ -171,10 +171,16 @@ class GitLabProvider(BaseProvider):
         Returns:
             Tuple of (success, details).
         """
+        # If the python-gitlab library is missing, treat this as an
+        # authentication-related failure so callers can handle it in
+        # the same way as other auth issues.
         try:
-            import gitlab
+            import gitlab  # noqa: F401
         except ImportError:
-            return False, "python-gitlab not installed (pip install python-gitlab)"
+            return (
+                False,
+                "Authentication failed - python-gitlab not installed (pip install python-gitlab)",
+            )
 
         # Check if token is available in config, auth config, or environment
         token = (

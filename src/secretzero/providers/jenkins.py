@@ -173,10 +173,15 @@ class JenkinsProvider(BaseProvider):
         Returns:
             Tuple of (success, details).
         """
+        # If python-jenkins is missing, treat this as an authentication-
+        # style failure so callers can handle it consistently.
         try:
-            import jenkins
+            import jenkins  # noqa: F401
         except ImportError:
-            return False, "python-jenkins not installed (pip install python-jenkins)"
+            return (
+                False,
+                "Authentication failed - python-jenkins not installed (pip install python-jenkins)",
+            )
 
         # Check if all required credentials are available in config, auth config, or environment
         url = (
