@@ -8,15 +8,18 @@ import yaml
 
 from secretzero.cli_config import (
     AnthropicConfig,
+    AppConfig,
     AzureOpenAIConfig,
     CliConfig,
     CliConfigLoader,
     DiscoveryConfig,
+    EffectiveConfigResult,
     LLMConfig,
     LLMProviders,
     OllamaConfig,
     OpenAIConfig,
     OutputConfig,
+    get_effective_config,
 )
 
 # ---------------------------------------------------------------------------
@@ -247,3 +250,88 @@ class TestCliConfigLoader:
             assert cfg.output.verbosity == 3
         finally:
             os.chdir(original_cwd)
+
+
+# ---------------------------------------------------------------------------
+# get_effective_config (defaults ← config.yml ← Secretfile.config)
+# ---------------------------------------------------------------------------
+
+
+class TestAppConfig:
+    """Tests for AppConfig model."""
+
+    def test_defaults(self) -> None:
+        cfg = AppConfig()
+        assert isinstance(cfg.llm, LLMConfig)
+        assert cfg.llm.default_provider == "ollama"
+
+    def test_partial_llm_override(self) -> None:
+        cfg = AppConfig(llm=LLMConfig(default_provider="openai"))
+        assert cfg.llm.default_provider == "openai"
+
+
+class TestGetEffectiveConfig:
+    """Tests for get_effective_config resolution."""
+
+    def test_returns_defaults_when_no_files(self, tmp_path: Path) -> None:
+        """With no config.yml and no Secretfile, returns defaults and sources=['defaults']."""
+        result = get_effective_config(secretfile_path=tmp_path / "Secretfile.yml")
+        assert isinstance(result, EffectiveConfigResult)
+        assert result.sources == ["defaults"]
+        assert result.config.llm.default_provider == "ollama"
+
+    def test_secretfile_config_block_overrides_defaults(self, tmp_path: Path) -> None:
+        """Secretfile with config block is merged and source includes 'secretfile'."""
+        secretfile = tmp_path / "Secretfile.yml"
+        secretfile.write_text(
+            "version: '1.0'\n"
+            "variables: {}\n"
+            "providers: {}\n"
+            "secrets: []\n"
+            "config:\n"
+            "  llm:\n"
+            "    default_provider: openai\n"
+            "    providers:\n"
+            "      openai:\n"
+            "        model: gpt-4\n"
+        )
+        result = get_effective_config(secretfile_path=secretfile)
+        assert "secretfile" in result.sources
+        assert result.config.llm.default_provider == "openai"
+        assert result.config.llm.providers.openai.model == "gpt-4"
+
+    def test_config_yml_override(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """When config.yml exists under a custom path, it is merged."""
+        config_yml = tmp_path / "config.yml"
+        config_yml.write_text(
+            yaml.dump(
+                {
+                    "llm": {"default_provider": "anthropic"},
+                    "discovery": {"confidence_threshold": 0.9},
+                }
+            )
+        )
+        result = get_effective_config(config_yml_path=config_yml)
+        assert "config_yml" in result.sources
+        assert result.config.llm.default_provider == "anthropic"
+        assert result.config.discovery.confidence_threshold == 0.9
+
+    def test_secretfile_overrides_config_yml(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Secretfile.config takes precedence over config.yml."""
+        config_yml = tmp_path / "config.yml"
+        config_yml.write_text(yaml.dump({"llm": {"default_provider": "anthropic"}}))
+        secretfile = tmp_path / "Secretfile.yml"
+        secretfile.write_text(
+            "version: '1.0'\n"
+            "variables: {}\n"
+            "providers: {}\n"
+            "secrets: []\n"
+            "config:\n"
+            "  llm:\n"
+            "    default_provider: openai\n"
+        )
+        result = get_effective_config(secretfile_path=secretfile, config_yml_path=config_yml)
+        assert result.sources == ["defaults", "config_yml", "secretfile"]
+        assert result.config.llm.default_provider == "openai"

@@ -82,6 +82,11 @@ class DiscoveryResult:
     files_scanned: int = 0
     output_path: Path | None = None
     dry_run: bool = False
+    llm_provider: str | None = None
+    llm_model: str | None = None
+    # Optional trace of LLM interactions when verbose mode is enabled.
+    # Each entry contains the full prompt and raw response.
+    llm_interactions: list[dict[str, str]] = field(default_factory=list)
 
     @property
     def total_secrets(self) -> int:
@@ -273,6 +278,7 @@ class DiscoveryAgent:
         local_only: bool = False,
         provider: str | None = None,
         model: str | None = None,
+        verbose: bool = False,
     ) -> DiscoveryResult:
         """Run the full discovery pipeline.
 
@@ -305,15 +311,23 @@ class DiscoveryAgent:
             candidates.extend(self._scan_file(file_path, root))
 
         # 3. Optionally enhance with LLM
+        llm_provider: str | None = None
+        llm_model: str | None = None
+        llm_interactions: list[dict[str, str]] = []
+
         if use_llm:
-            effective_provider = provider or self.config.llm.default_provider
-            if local_only and effective_provider not in ("ollama",):
-                effective_provider = "ollama"
+            llm_provider = provider or self.config.llm.default_provider
+            if local_only and llm_provider not in ("ollama",):
+                llm_provider = "ollama"
+
+            llm_model = model
             llm_candidates = self._llm_enhance(
                 files=files,
                 root=root,
-                provider=effective_provider,
-                model=model,
+                provider=llm_provider,
+                model=llm_model,
+                verbose=verbose,
+                interactions=llm_interactions,
             )
             candidates = self._merge_candidates(candidates, llm_candidates)
 
@@ -329,6 +343,9 @@ class DiscoveryAgent:
             files_scanned=len(files),
             output_path=out,
             dry_run=dry_run,
+            llm_provider=llm_provider,
+            llm_model=llm_model,
+            llm_interactions=llm_interactions if verbose else [],
         )
 
         # 6. Write output unless dry-run
@@ -534,6 +551,8 @@ class DiscoveryAgent:
         root: Path,
         provider: str,
         model: str | None,
+        verbose: bool = False,
+        interactions: list[dict[str, str]] | None = None,
     ) -> list[SecretCandidate]:
         """Attempt LLM-based discovery enhancement.
 
@@ -562,7 +581,11 @@ class DiscoveryAgent:
                 snippet = self._build_file_snippet(file_path, root)
                 if not snippet:
                     continue
-                llm_result = self._call_llm(llm, snippet)
+                llm_result = self._call_llm(
+                    llm,
+                    snippet,
+                    interactions=interactions if verbose else None,
+                )
                 candidates.extend(self._parse_llm_result(llm_result, file_path, root))
             except Exception:  # noqa: BLE001 – graceful degradation
                 continue
@@ -668,7 +691,12 @@ class DiscoveryAgent:
         except OSError:
             return ""
 
-    def _call_llm(self, llm: Any, prompt_context: str) -> str:
+    def _call_llm(
+        self,
+        llm: Any,
+        prompt_context: str,
+        interactions: list[dict[str, str]] | None = None,
+    ) -> str:
         """Invoke the LLM with a discovery prompt.
 
         Args:
@@ -694,7 +722,10 @@ class DiscoveryAgent:
             f"{prompt_context}"
         )
         try:
-            return str(llm.invoke(prompt))
+            response = str(llm.invoke(prompt))
+            if interactions is not None:
+                interactions.append({"prompt": prompt, "response": response})
+            return response
         except Exception:  # noqa: BLE001
             return ""
 

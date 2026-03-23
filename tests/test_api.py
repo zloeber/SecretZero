@@ -207,6 +207,27 @@ class TestConfigValidation:
         assert "secrets" in str(data["errors"])
 
 
+class TestAppConfigEndpoint:
+    """Tests for GET /config (effective app config)."""
+
+    def test_get_config_returns_effective_config(self, authenticated_client):
+        """GET /config returns merged config and sources."""
+        response = authenticated_client.get("/config")
+        assert response.status_code == 200
+        data = response.json()
+        assert "config" in data
+        assert "sources" in data
+        assert isinstance(data["sources"], list)
+        assert "defaults" in data["sources"]
+        assert "llm" in data["config"]
+        assert data["config"]["llm"]["default_provider"] in (
+            "ollama",
+            "openai",
+            "anthropic",
+            "azure_openai",
+        )
+
+
 class TestSecretsEndpoints:
     """Tests for secrets endpoints."""
 

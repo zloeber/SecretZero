@@ -1,9 +1,13 @@
 """Pydantic models for SecretZero configuration."""
 
+from __future__ import annotations
+
 from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
+
+from secretzero.cli_config import AppConfig
 
 
 class AutomationLevel(str, Enum):
@@ -74,7 +78,7 @@ class GeneratorKind(str, Enum):
     GITHUB_PAT = "github_pat"
 
     @classmethod
-    def _missing_(cls, value: object) -> "GeneratorKind | None":
+    def _missing_(cls, value: object) -> GeneratorKind | None:
         """Accept unknown generator kinds registered by third-party bundles.
 
         Args:
@@ -113,7 +117,7 @@ class TargetKind(str, Enum):
     JENKINS_CREDENTIAL = "jenkins_credential"
 
     @classmethod
-    def _missing_(cls, value: object) -> "TargetKind | None":
+    def _missing_(cls, value: object) -> TargetKind | None:
         """Accept unknown target kinds registered by third-party bundles.
 
         Args:
@@ -233,6 +237,10 @@ class Secretfile(BaseModel):
     policies: dict[str, Any] = Field(default_factory=dict)
     labels: dict[str, Any] = Field(default_factory=dict)
     annotations: dict[str, Any] = Field(default_factory=dict)
+    config: AppConfig | None = Field(
+        default=None,
+        description="Optional centralized app config (LLM, discovery, output); overrides config.yml and defaults",
+    )
 
     @field_validator("version")
     @classmethod

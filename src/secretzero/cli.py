@@ -14,6 +14,8 @@ from rich.table import Table
 from secretzero import __version__
 from secretzero.api.audit import AuditLogger
 from secretzero.bundles import get_bundle_registry
+from secretzero.cli_config_cmd import config_group
+from secretzero.cli_format import format_command
 from secretzero.cli_providers import providers_group
 from secretzero.config import ConfigLoader
 from secretzero.drift import DriftDetector
@@ -3590,30 +3592,54 @@ def detect(directory: str, output_format: str, output: str | None) -> None:
         (re.compile(rf"^([A-Z_][A-Z0-9_]*_{secret_prefixes})\s*=", re.M), "dotenv"),
     ]
 
-    env_file_patterns = ["**/.env*", "**/secrets*", "**/credentials*", "**/*.env"]
+    # Directories that should be ignored when recursively scanning for env-style files.
+    ignored_dir_parts = {
+        ".git",
+        "__pycache__",
+        "venv",
+        ".venv",
+        "node_modules",
+        ".terraform",
+        "dist",
+        "build",
+    }
+
+    def _should_ignore(path: Path) -> bool:
+        """Return True if the path is inside an ignored directory."""
+        try:
+            parts = path.relative_to(dir_path).parts
+        except ValueError:
+            parts = path.parts
+        return any(part in ignored_dir_parts for part in parts)
 
     found: dict[str, dict] = {}
 
-    # Scan env-style files
-    for glob_pattern in env_file_patterns:
-        for path in dir_path.glob(glob_pattern):
-            if path.is_file() and not any(
-                p in str(path) for p in [".git", "__pycache__", ".venv", "node_modules"]
-            ):
-                try:
-                    content = path.read_text(errors="ignore")
-                    for pattern, file_type in secret_patterns:
-                        for m in pattern.finditer(content):
-                            var_name = m.group(1).lower()
-                            if var_name not in found:
-                                found[var_name] = {
-                                    "name": var_name,
-                                    "env_var": m.group(1),
-                                    "file": str(path.relative_to(dir_path)),
-                                    "file_type": file_type,
-                                }
-                except (OSError, UnicodeDecodeError):
-                    pass
+    # Recursively scan for env-style files and secret-related config files.
+    for path in dir_path.rglob("*"):
+        if not path.is_file() or _should_ignore(path):
+            continue
+
+        name_lower = path.name.lower()
+        is_env_file = name_lower.startswith(".env") or name_lower.endswith(".env")
+        is_secret_file = name_lower.startswith(("secrets", "credentials"))
+
+        if not (is_env_file or is_secret_file):
+            continue
+
+        try:
+            content = path.read_text(errors="ignore")
+            for pattern, file_type in secret_patterns:
+                for m in pattern.finditer(content):
+                    var_name = m.group(1).lower()
+                    if var_name not in found:
+                        found[var_name] = {
+                            "name": var_name,
+                            "env_var": m.group(1),
+                            "file": str(path.relative_to(dir_path)),
+                            "file_type": file_type,
+                        }
+        except (OSError, UnicodeDecodeError):
+            continue
 
     # Build suggestions
     suggestions = []
@@ -3686,7 +3712,9 @@ def detect(directory: str, output_format: str, output: str | None) -> None:
         console.print(f"[dim]{fragment}[/dim]")
 
 
-# Register provider CLI group
+# Register config, format, and provider CLI groups/commands
+main.add_command(config_group)
+main.add_command(format_command)
 main.add_command(providers_group)
 
 
@@ -4178,6 +4206,12 @@ def _display_agent_sync_results(
     default=None,
     help="Confidence threshold (0.0\u20131.0) for including secrets (default from config)",
 )
+@click.option(
+    "--verbose",
+    "-v",
+    is_flag=True,
+    help="Show detailed LLM prompts and responses (text/json output only)",
+)
 def discover(
     path: str,
     output: str | None,
@@ -4189,6 +4223,7 @@ def discover(
     config_file: str | None,
     output_format: str,
     threshold: float | None,
+    verbose: bool,
 ) -> None:
     """AI-powered secret discovery.
 
@@ -4211,13 +4246,14 @@ def discover(
       # Dry-run to preview without writing
       secretzero discover --dry-run
     """
-    from secretzero.cli_config import CliConfigLoader
+    from secretzero.cli_config import get_effective_config
     from secretzero.discovery import DiscoveryAgent
 
-    # Load CLI configuration
-    loader = CliConfigLoader()
+    # Resolve effective config: defaults ← config.yml ← Secretfile config block
+    secretfile_path = Path(path) / "Secretfile.yml"
     try:
-        cli_cfg = loader.load(config_path=config_file)
+        effective = get_effective_config(secretfile_path=secretfile_path)
+        cli_cfg = effective.config
     except ValueError as exc:
         console.print(f"[red]Error loading config:[/red] {exc}")
         raise click.Abort()
@@ -4231,12 +4267,27 @@ def discover(
         console.print(f"  Project root : [cyan]{Path(path).resolve()}[/cyan]")
 
         effective_provider = provider or cli_cfg.llm.default_provider
+        effective_model: str | None = model
+        if effective_model is None:
+            llm_cfg = cli_cfg.llm.providers
+            if effective_provider == "ollama":
+                effective_model = llm_cfg.ollama.model
+            elif effective_provider == "openai":
+                effective_model = llm_cfg.openai.model
+            elif effective_provider == "anthropic":
+                effective_model = llm_cfg.anthropic.model
+            elif effective_provider == "azure_openai":
+                effective_model = llm_cfg.azure_openai.deployment or None
+
         if no_llm:
             console.print("  LLM analysis : [yellow]disabled (--no-llm)[/yellow]")
-        elif local_only:
-            console.print(f"  LLM provider : [cyan]{effective_provider}[/cyan] (local-only)")
         else:
-            console.print(f"  LLM provider : [cyan]{effective_provider}[/cyan]")
+            if local_only:
+                console.print(f"  LLM provider : [cyan]{effective_provider}[/cyan] (local-only)")
+            else:
+                console.print(f"  LLM provider : [cyan]{effective_provider}[/cyan]")
+            if effective_model:
+                console.print(f"  LLM model    : [cyan]{effective_model}[/cyan]")
 
         if dry_run:
             console.print("  Mode         : [yellow]dry-run (no files written)[/yellow]")
@@ -4254,6 +4305,7 @@ def discover(
             local_only=local_only,
             provider=provider,
             model=model,
+            verbose=verbose,
         )
     except Exception as exc:
         console.print(f"[red]Discovery failed:[/red] {exc}")
@@ -4266,6 +4318,9 @@ def discover(
             "total_secrets": result.total_secrets,
             "dry_run": result.dry_run,
             "output_path": str(result.output_path) if result.output_path else None,
+            "llm_used": result.llm_provider is not None and not no_llm,
+            "llm_provider": result.llm_provider,
+            "llm_model": result.llm_model,
             "secrets": [
                 {
                     "name": c.name,
@@ -4279,6 +4334,8 @@ def discover(
                 for c in result.candidates
             ],
         }
+        if verbose and result.llm_interactions:
+            data["llm_interactions"] = result.llm_interactions
         click.echo(json.dumps(data, indent=2))
         return
 
