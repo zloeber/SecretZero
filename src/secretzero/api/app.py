@@ -8,6 +8,7 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+import os
 from secretzero import __version__, generators, targets
 from secretzero.api.audit import get_audit_logger
 from secretzero.api.auth import RequireAuth
@@ -94,7 +95,7 @@ def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
     # allow_origins=["https://yourdomain.com"]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # ⚠️ SECURITY WARNING: Allow all origins (development only)
+        allow_origins=os.environ.get("SECRETZERO_ALLOWED_ORIGINS", "http://localhost:8000").split(","),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
