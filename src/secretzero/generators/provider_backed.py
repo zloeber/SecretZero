@@ -8,6 +8,7 @@ credential generation, etc.).
 from typing import Any
 
 from secretzero.generators.base import BaseGenerator
+from secretzero.models import AgentInstructions, AgentInstructionStep
 from secretzero.providers.base import BaseProvider
 from secretzero.providers.capabilities import CapabilityType, IProviderWithCapabilities
 
@@ -170,3 +171,194 @@ class ProviderBackedGenerator(BaseGenerator):
             return True, None
         except Exception as e:
             return False, str(e)
+
+    def get_manual_instructions(self) -> AgentInstructions:
+        """Return step-by-step instructions for manually obtaining the provider-backed secret.
+
+        These instructions are displayed when the provider method call fails or
+        when the provider is unavailable and manual input is required.
+
+        The guidance is tailored to the configured provider kind where possible.
+
+        Returns:
+            AgentInstructions with provider-specific manual retrieval steps.
+        """
+        if self.manual_instructions is not None:
+            return self.manual_instructions
+
+        provider = self.gen_config.provider
+        method = self.gen_config.method
+
+        # Determine provider kind for tailored instructions
+        provider_kind: str = "unknown"
+        provider_name: str = ""
+        if isinstance(provider, BaseProvider):
+            provider_kind = provider.provider_kind
+            provider_name = getattr(provider, "name", "") or provider_kind
+
+        # Build provider-specific steps
+        steps = _build_provider_manual_steps(provider_kind, method, provider_name)
+
+        return AgentInstructions(
+            summary=(
+                f"Automatic secret generation via '{provider_kind}' provider failed "
+                f"(method: {method}). Follow these steps to obtain the secret manually."
+            ),
+            steps=steps,
+            prerequisites=[
+                f"Access credentials for the '{provider_kind}' provider",
+                "Sufficient permissions to read or generate the required secret",
+            ],
+            automation_hint=(
+                f"This secret can be generated automatically when the '{provider_kind}' "
+                "provider is properly authenticated and accessible."
+            ),
+            fallback=(
+                "Contact your infrastructure or security team to obtain the required secret value."
+            ),
+        )
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+_PROVIDER_MANUAL_STEPS: dict[str, list[AgentInstructionStep]] = {
+    "aws": [
+        AgentInstructionStep(
+            action="https://console.aws.amazon.com",
+            description="Log in to the AWS Management Console",
+        ),
+        AgentInstructionStep(
+            action="Navigate to the relevant service (Secrets Manager, SSM Parameter Store, IAM, etc.)",
+            description="Open the service that holds or can generate the required secret",
+        ),
+        AgentInstructionStep(
+            action="Locate or create the secret / credential",
+            description="Find the existing secret or use the service's generate feature",
+        ),
+        AgentInstructionStep(
+            action="Copy the secret value",
+            description="Retrieve and copy the plaintext secret value",
+        ),
+    ],
+    "azure": [
+        AgentInstructionStep(
+            action="https://portal.azure.com",
+            description="Log in to the Azure Portal",
+        ),
+        AgentInstructionStep(
+            action="Navigate to Key Vault → Secrets",
+            description="Open the Azure Key Vault that holds the required secret",
+        ),
+        AgentInstructionStep(
+            action="Select the secret and click 'Show Secret Value'",
+            description="Retrieve the current version of the secret",
+        ),
+        AgentInstructionStep(
+            action="Copy the secret value",
+            description="Copy the plaintext secret value",
+        ),
+    ],
+    "vault": [
+        AgentInstructionStep(
+            action="Export VAULT_ADDR and VAULT_TOKEN environment variables, then run: vault kv get <path>",
+            description="Authenticate with HashiCorp Vault and retrieve the secret",
+        ),
+        AgentInstructionStep(
+            action="vault kv get -field=<field> <secret-path>",
+            description="Read the specific field value from the Vault KV secret",
+        ),
+        AgentInstructionStep(
+            action="Copy the output value",
+            description="Copy the plaintext secret value",
+        ),
+    ],
+    "github": [
+        AgentInstructionStep(
+            action="https://github.com/settings/tokens",
+            description="Navigate to GitHub Settings → Developer settings → Personal access tokens",
+        ),
+        AgentInstructionStep(
+            action="Generate a new token with the required permissions",
+            description="Create or retrieve the GitHub token",
+        ),
+        AgentInstructionStep(
+            action="Copy the token value immediately after generation",
+            description="Copy the plaintext token value — it is only shown once",
+        ),
+    ],
+    "gitlab": [
+        AgentInstructionStep(
+            action="https://gitlab.com/-/profile/personal_access_tokens",
+            description="Navigate to GitLab → User Settings → Access Tokens",
+        ),
+        AgentInstructionStep(
+            action="Create a token with the required scopes",
+            description="Generate a new personal access token",
+        ),
+        AgentInstructionStep(
+            action="Copy the token value immediately after creation",
+            description="Copy the plaintext token — it is only displayed once",
+        ),
+    ],
+    "jenkins": [
+        AgentInstructionStep(
+            action="Open Jenkins → Manage Jenkins → Manage Credentials",
+            description="Navigate to the Jenkins credential store",
+        ),
+        AgentInstructionStep(
+            action="Locate or create the required credential",
+            description="Find the existing credential or add a new one",
+        ),
+        AgentInstructionStep(
+            action="Copy the credential value from the credential configuration page",
+            description="Retrieve the plaintext credential value",
+        ),
+    ],
+    "kubernetes": [
+        AgentInstructionStep(
+            action="kubectl get secret <secret-name> -n <namespace> -o jsonpath='{.data.<key>}' | base64 -d",
+            description="Retrieve the secret value from Kubernetes using kubectl",
+            required_tools=["kubectl"],
+        ),
+        AgentInstructionStep(
+            action="Copy the decoded secret value",
+            description="Copy the plaintext secret value",
+        ),
+    ],
+}
+
+
+def _build_provider_manual_steps(
+    provider_kind: str, method: str, provider_name: str
+) -> list[AgentInstructionStep]:
+    """Build manual retrieval steps tailored to the given provider kind.
+
+    Args:
+        provider_kind: Provider kind string (e.g. 'aws', 'vault').
+        method: The capability method that was called (e.g. 'generate_password').
+        provider_name: Configured provider name for display purposes.
+
+    Returns:
+        List of AgentInstructionStep objects describing the manual process.
+    """
+    provider_steps = _PROVIDER_MANUAL_STEPS.get(provider_kind)
+    if provider_steps:
+        return list(provider_steps)
+
+    # Generic fallback steps
+    return [
+        AgentInstructionStep(
+            action=f"Log in to the '{provider_name or provider_kind}' provider",
+            description="Authenticate with the provider using your credentials",
+        ),
+        AgentInstructionStep(
+            action=f"Locate the secret generated by '{method}'",
+            description="Navigate to the section of the provider that holds the required secret",
+        ),
+        AgentInstructionStep(
+            action="Copy the secret value",
+            description="Retrieve and copy the plaintext secret value",
+        ),
+    ]

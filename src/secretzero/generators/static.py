@@ -85,6 +85,10 @@ class StaticGenerator(BaseGenerator):
     def _prompt_for_value(self) -> str:
         """Prompt user for a value interactively.
 
+        If manual instructions are available (from ``manual_instructions`` or
+        ``get_manual_instructions()``), they are displayed before the prompt so
+        the user knows where to find the secret value.
+
         Returns:
             User-provided value
 
@@ -94,6 +98,11 @@ class StaticGenerator(BaseGenerator):
         import getpass
 
         max_retries = 3
+
+        # Display manual instructions before prompting, if available
+        instructions = self.get_manual_instructions()
+        if instructions:
+            self._display_manual_instructions(instructions)
 
         # Build prompt with field description if available
         prompt = "Enter value: "

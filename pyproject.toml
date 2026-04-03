@@ -23,6 +23,7 @@ dependencies = [
     "ruamel-yaml>=0.18.0",
     "click>=8.0.0",
     "jinja2>=3.0.0",
+    "pygments>=2.20.0",
     "rich>=13.0.0",
     "setuptools-scm>=8.3.1",
 ]
@@ -32,6 +33,19 @@ Homepage = "https://github.com/zloeber/SecretZero"
 Documentation = "https://secret0.com"
 Issues = "https://github.com/zloeber/SecretZero/issues"
 CI = "https://github.com/zloeber/SecretZero/actions"
+
+[tool.uv]
+exclude-newer = "7 days"
+# CVE-2026-4539: pygments fix is often newer than the exclude-newer window.
+exclude-newer-package = { pygments = false }
+# Pin transitive minimums when pip-audit fix releases are newer than exclude-newer allows.
+override-dependencies = [
+    "black>=26.3.1",
+    "cryptography>=46.0.6",
+    "langgraph>=1.0.10",
+    "pyjwt>=2.12.0",
+    "requests>=2.33.0",
+]
 
 [project.optional-dependencies]
 dev = [

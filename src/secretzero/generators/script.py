@@ -5,6 +5,7 @@ import subprocess
 from typing import Any
 
 from secretzero.generators.base import BaseGenerator
+from secretzero.models import AgentInstructions, AgentInstructionStep
 
 
 class ScriptGenerator(BaseGenerator):
@@ -70,3 +71,58 @@ class ScriptGenerator(BaseGenerator):
             ) from e
         except Exception as e:
             raise RuntimeError(f"Script execution error: {e}") from e
+
+    def get_manual_instructions(self) -> AgentInstructions:
+        """Return step-by-step instructions for manually running the script.
+
+        These instructions are displayed when the script fails or cannot be
+        executed in the current environment.
+
+        Returns:
+            AgentInstructions describing how to run the script manually.
+        """
+        if self.manual_instructions is not None:
+            return self.manual_instructions
+
+        command = self.command
+        args_str = " ".join(str(a) for a in self.args) if self.args else ""
+        full_command = f"{command} {args_str}".strip() if args_str else command
+
+        steps = [
+            AgentInstructionStep(
+                action=f"Run the command: {full_command}",
+                description="Execute the script in a terminal with appropriate permissions",
+            ),
+            AgentInstructionStep(
+                action="Capture the standard output of the command",
+                description="The secret value is the trimmed stdout of the script",
+            ),
+            AgentInstructionStep(
+                action="Copy the output value",
+                description="Paste the script output as the secret value when prompted",
+            ),
+        ]
+
+        prerequisites = []
+        if self.use_shell:
+            prerequisites.append("A POSIX-compatible shell (/bin/sh) or cmd.exe on Windows")
+        else:
+            prerequisites.append(f"The executable '{command}' available in PATH")
+
+        return AgentInstructions(
+            summary=(
+                f"Script-based secret generation failed (command: '{full_command}'). "
+                "Follow these steps to run the script manually and obtain the secret value."
+            ),
+            steps=steps,
+            prerequisites=prerequisites,
+            estimated_time="1–5 minutes",
+            automation_hint=(
+                f"Secret generation can be automated by ensuring '{command}' is executable "
+                "and returns the expected output on stdout."
+            ),
+            fallback=(
+                "If the script cannot be run, contact the person who configured this secret "
+                "to obtain the value or an alternative."
+            ),
+        )
