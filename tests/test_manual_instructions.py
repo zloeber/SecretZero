@@ -163,9 +163,7 @@ class TestGitHubPATGeneratorManualInstructions:
 
     def test_repositories_included_in_instructions(self):
         """Configured repositories are reflected in the instructions."""
-        gen = GitHubPATGenerator(
-            {"provider": "github", "repositories": ["my-org/my-repo"]}
-        )
+        gen = GitHubPATGenerator({"provider": "github", "repositories": ["my-org/my-repo"]})
         instructions = gen.get_manual_instructions()
         text = " ".join(s.action or "" for s in instructions.steps)
         assert "my-org/my-repo" in text
@@ -214,7 +212,9 @@ class TestBuildProviderManualSteps:
 
     def test_unknown_provider_returns_generic_steps(self):
         """Unknown provider kinds return generic fallback steps."""
-        steps = _build_provider_manual_steps("my_custom_provider", "generate_key", "my_custom_provider")
+        steps = _build_provider_manual_steps(
+            "my_custom_provider", "generate_key", "my_custom_provider"
+        )
         assert len(steps) > 0
 
     def test_aws_steps_mention_console(self):

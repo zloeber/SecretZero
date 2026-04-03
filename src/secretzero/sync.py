@@ -689,7 +689,9 @@ class SyncEngine:
             generator.manual_instructions = agent_instructions
 
         try:
-            return generator.generate_with_fallback(env_var_name, field_description=field_description)
+            return generator.generate_with_fallback(
+                env_var_name, field_description=field_description
+            )
         except Exception:
             # Display manual retrieval instructions before propagating the error
             # so the user understands how to obtain the value by hand.
