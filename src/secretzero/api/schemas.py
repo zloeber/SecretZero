@@ -222,3 +222,15 @@ class GraphResponse(BaseModel):
 
     nodes: list[dict[str, Any]]
     edges: list[dict[str, Any]]
+
+
+class AppConfigResponse(BaseModel):
+    """Effective application configuration (defaults ← config.yml ← Secretfile.config)."""
+
+    config: dict[str, Any] = Field(
+        description="Merged app config (llm, discovery, output) as JSON-serializable dict",
+    )
+    sources: list[str] = Field(
+        default_factory=list,
+        description="Config sources applied in order (e.g. defaults, config_yml, secretfile)",
+    )

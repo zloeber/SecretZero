@@ -7,9 +7,13 @@ Configuration loading priority:
 1. ``SECRETZERO_CONFIG`` environment variable (absolute path)
 2. ``./secretzero.yml`` (local project)
 3. ``~/.config/secretzero/secretzero.yml`` (user home)
+
+Centralized app config (LLM, discovery, output) resolution order:
+  defaults ← ~/.config/secretzero/config.yml ← Secretfile ``config`` block.
 """
 
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -149,6 +153,7 @@ class DiscoveryConfig(BaseModel):
             "**/node_modules/**",
             "**/venv/**",
             "**/.venv/**",
+            "**/.terraform/**",
             "**/dist/**",
             "**/build/**",
             "**/.git/**",
@@ -184,6 +189,23 @@ class OutputConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# App config block (Secretfile config key / config.yml)
+# ---------------------------------------------------------------------------
+
+
+class AppConfig(BaseModel):
+    """Application config block: Secretfile root ``config`` key or ``~/.config/secretzero/config.yml``.
+
+    Same shape as the mergeable app config (llm, discovery, output). Used for
+    centralized configuration resolution: defaults ← config.yml ← Secretfile.config.
+    """
+
+    llm: LLMConfig = Field(default_factory=LLMConfig)
+    discovery: DiscoveryConfig = Field(default_factory=DiscoveryConfig)
+    output: OutputConfig = Field(default_factory=OutputConfig)
+
+
+# ---------------------------------------------------------------------------
 # Top-level CLI config
 # ---------------------------------------------------------------------------
 
@@ -205,6 +227,72 @@ _DEFAULT_PATHS: list[Path] = [
     Path("secretzero.yml"),
     Path.home() / ".config" / "secretzero" / "secretzero.yml",
 ]
+
+# User-level app config (same shape as Secretfile ``config`` block).
+DEFAULT_CONFIG_YML_PATH: Path = Path.home() / ".config" / "secretzero" / "config.yml"
+
+
+def _deep_merge_dict(base: dict[str, Any], overlay: dict[str, Any]) -> None:
+    """Merge overlay into base in place. Nested dicts are merged; other values are replaced."""
+    for key, value in overlay.items():
+        if key in base and isinstance(base[key], dict) and isinstance(value, dict):
+            _deep_merge_dict(base[key], value)
+        else:
+            base[key] = value
+
+
+@dataclass
+class EffectiveConfigResult:
+    """Result of resolving effective app config (defaults ← config.yml ← Secretfile.config)."""
+
+    config: CliConfig
+    sources: list[str]  # e.g. ["defaults", "config_yml", "secretfile"]
+
+
+def get_effective_config(
+    secretfile_path: Path | None = None,
+    config_yml_path: Path | None = None,
+) -> EffectiveConfigResult:
+    """Resolve effective app config from defaults, config.yml, and optional Secretfile config block.
+
+    Merge order: defaults ← config.yml ← Secretfile.config (later overrides earlier).
+
+    Args:
+        secretfile_path: Path to Secretfile.yml; if present and contains a ``config`` key, it is
+            merged last (highest precedence).
+        config_yml_path: Path to user config YAML; defaults to ``~/.config/secretzero/config.yml``
+            if None.
+
+    Returns:
+        EffectiveConfigResult with merged CliConfig and list of source names applied.
+    """
+    sources: list[str] = ["defaults"]
+    base = CliConfig().model_dump()
+    config_yml = config_yml_path if config_yml_path is not None else DEFAULT_CONFIG_YML_PATH
+
+    if config_yml.exists():
+        try:
+            raw = yaml.safe_load(config_yml.read_text(encoding="utf-8"))
+            if isinstance(raw, dict) and raw:
+                raw = _expand_env_vars(raw)
+                overlay = AppConfig(**raw).model_dump(exclude_none=True)
+                _deep_merge_dict(base, overlay)
+                sources.append("config_yml")
+        except (yaml.YAMLError, ValueError):
+            pass
+
+    if secretfile_path is not None and secretfile_path.exists():
+        try:
+            raw = yaml.safe_load(secretfile_path.read_text(encoding="utf-8"))
+            if isinstance(raw, dict) and "config" in raw and isinstance(raw["config"], dict):
+                raw_config = _expand_env_vars(raw["config"])
+                overlay = AppConfig(**raw_config).model_dump(exclude_none=True)
+                _deep_merge_dict(base, overlay)
+                sources.append("secretfile")
+        except (yaml.YAMLError, ValueError):
+            pass
+
+    return EffectiveConfigResult(config=CliConfig(**base), sources=sources)
 
 
 def _expand_env_vars(value: Any) -> Any:  # noqa: ANN401

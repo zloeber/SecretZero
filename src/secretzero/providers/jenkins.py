@@ -150,16 +150,38 @@ class JenkinsProvider(BaseProvider):
         """Return provider type identifier."""
         return "jenkins"
 
+    def get_actor_info(self) -> dict[str, Any]:
+        """Return information about the current Jenkins user/context."""
+        info = super().get_actor_info()
+
+        # Jenkins typically authenticates as a user; config may carry username.
+        username = (self.config or {}).get("username") or (
+            self.auth.config.get("username") if self.auth else None
+        )
+        url = (self.config or {}).get("url") or (self.auth.config.get("url") if self.auth else None)
+
+        if username:
+            info.setdefault("user", username)
+        if url:
+            info.setdefault("url", url)
+
+        return info
+
     def test_connection(self) -> tuple[bool, str | None]:
         """Test Jenkins API connectivity.
 
         Returns:
             Tuple of (success, details).
         """
+        # If python-jenkins is missing, treat this as an authentication-
+        # style failure so callers can handle it consistently.
         try:
-            import jenkins
+            import jenkins  # noqa: F401
         except ImportError:
-            return False, "python-jenkins not installed (pip install python-jenkins)"
+            return (
+                False,
+                "Authentication failed - python-jenkins not installed (pip install python-jenkins)",
+            )
 
         # Check if all required credentials are available in config, auth config, or environment
         url = (
@@ -405,4 +427,5 @@ def _get_bundle_manifest() -> "BundleManifest":  # noqa: F821
         },
         generator_kinds=[],
         target_kinds=["jenkins_credential"],
+        terraform_provider=None,
     )

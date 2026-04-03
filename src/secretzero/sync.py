@@ -165,6 +165,7 @@ class SyncEngine:
         dry_run: bool = False,
         force_rotation: bool = False,
         secret_names: list[str] | None = None,
+        ignore_foreign_context_targets: bool = False,
     ) -> dict[str, Any]:
         """Synchronize all secrets to their targets.
 
@@ -231,7 +232,12 @@ class SyncEngine:
 
         for secret in secrets_to_sync:
             try:
-                result = self._sync_secret(secret, dry_run, force_rotation)
+                result = self._sync_secret(
+                    secret,
+                    dry_run,
+                    force_rotation,
+                    ignore_foreign_context_targets=ignore_foreign_context_targets,
+                )
                 results["secrets_processed"] += 1
                 results["details"].append(result)
 
@@ -257,7 +263,11 @@ class SyncEngine:
         return results
 
     def _sync_secret(
-        self, secret: Secret, dry_run: bool, force_rotation: bool = False
+        self,
+        secret: Secret,
+        dry_run: bool,
+        force_rotation: bool = False,
+        ignore_foreign_context_targets: bool = False,
     ) -> dict[str, Any]:
         """Sync a single secret.
 
@@ -284,7 +294,13 @@ class SyncEngine:
             template_name = secret.kind.replace("templates.", "")
             template = self.secretfile.templates.get(template_name)
             if template:
-                return self._sync_template_secret(secret, template, dry_run, force_rotation)
+                return self._sync_template_secret(
+                    secret,
+                    template,
+                    dry_run,
+                    force_rotation,
+                    ignore_foreign_context_targets=ignore_foreign_context_targets,
+                )
 
         # Check if secret needs generation (one_time check)
         if secret.one_time and self.lockfile.has_secret(secret.name) and not force_rotation:
@@ -297,11 +313,11 @@ class SyncEngine:
         lockfile_entry = self.lockfile.get_secret_info(secret.name) if secret_exists else None
 
         # Determine which targets need syncing
-        tracked_targets = (
-            set(lockfile_entry.targets.keys())
-            if lockfile_entry and lockfile_entry.targets
-            else set()
-        )
+        if lockfile_entry and lockfile_entry.targets and not ignore_foreign_context_targets:
+            tracked_targets = set(lockfile_entry.targets.keys())
+        else:
+            # When ignoring foreign contexts, treat as if no targets have been synced yet
+            tracked_targets = set()
         targets_to_sync = []
 
         for target_config in secret.targets:
@@ -417,7 +433,12 @@ class SyncEngine:
         return result
 
     def _sync_template_secret(
-        self, secret: Secret, template: Template, dry_run: bool, force_rotation: bool = False
+        self,
+        secret: Secret,
+        template: Template,
+        dry_run: bool,
+        force_rotation: bool = False,
+        ignore_foreign_context_targets: bool = False,
     ) -> dict[str, Any]:
         """Sync a template-based secret with multiple fields.
 
@@ -462,11 +483,10 @@ class SyncEngine:
             )
 
             # Determine which targets need syncing
-            tracked_targets = (
-                set(lockfile_entry.targets.keys())
-                if lockfile_entry and lockfile_entry.targets
-                else set()
-            )
+            if lockfile_entry and lockfile_entry.targets and not ignore_foreign_context_targets:
+                tracked_targets = set(lockfile_entry.targets.keys())
+            else:
+                tracked_targets = set()
             targets_to_sync = []
 
             for target_config in all_targets:
@@ -739,6 +759,43 @@ class SyncEngine:
         except Exception:
             return None
 
+    def _get_local_actor_info(self) -> dict[str, Any]:
+        """Return actor information for local (non-provider) operations."""
+        import getpass
+        import os
+
+        username = None
+        full_name = None
+        uid: int | None = None
+
+        try:
+            username = getpass.getuser()
+        except Exception:
+            try:
+                username = os.getenv("USER") or os.getenv("USERNAME")
+            except Exception:
+                username = None
+
+        try:
+            uid = os.getuid()
+            try:
+                import pwd  # type: ignore[import]
+
+                pw = pwd.getpwuid(uid)
+                gecos = pw.pw_gecos or ""
+                full_name = (gecos.split(",")[0] or None) if gecos else None
+            except Exception:
+                full_name = None
+        except Exception:
+            uid = None
+
+        return {
+            "provider": "local",
+            "username": username,
+            "uid": uid,
+            "full_name": full_name,
+        }
+
     def _store_in_target(
         self, secret_name: str, secret_value: str, target_config: Any
     ) -> dict[str, Any]:
@@ -773,6 +830,7 @@ class SyncEngine:
 
             # Resolve provider for non-local targets
             provider = None
+            actor_info: dict[str, Any] | None = None
             if target_config.provider != "local":
                 provider = self._get_provider(target_config.provider)
                 if provider is None:
@@ -786,6 +844,14 @@ class SyncEngine:
                         result["status"] = "error"
                         result["message"] = f"{target_config.provider} authentication failed"
                         return result
+
+                try:
+                    actor_info = provider.get_actor_info()
+                except Exception:
+                    actor_info = None
+            else:
+                # Local targets: use OS user information
+                actor_info = self._get_local_actor_info()
 
             # Instantiate the target
             if target_config.provider == "local":
@@ -817,6 +883,9 @@ class SyncEngine:
             # Generic store
             success = target.store(secret_name, secret_value)
             result["status"] = "stored" if success else "failed"
+
+            if actor_info is not None:
+                result["actor"] = actor_info
 
         except ImportError as exc:
             result["status"] = "error"

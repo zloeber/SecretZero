@@ -224,6 +224,28 @@ class AWSProvider(BaseProvider):
         """Return provider type identifier."""
         return "aws"
 
+    def get_actor_info(self) -> dict[str, Any]:
+        """Return information about the current AWS identity."""
+        info = super().get_actor_info()
+
+        # Attempt to call STS GetCallerIdentity to enrich actor info
+        try:
+            if isinstance(self.auth, AWSAuth):
+                sts_client = self.auth.get_client("sts")
+            else:
+                sts_client = None
+
+            if sts_client is not None:
+                identity = sts_client.get_caller_identity()
+                info.setdefault("account", identity.get("Account"))
+                info.setdefault("arn", identity.get("Arn"))
+                info.setdefault("user_id", identity.get("UserId"))
+        except Exception:
+            # Best-effort enrichment; fall back to base info on failure
+            pass
+
+        return info
+
     def test_connection(self) -> tuple[bool, str | None]:
         """Test AWS connectivity.
 
@@ -512,4 +534,10 @@ def _get_bundle_manifest() -> "BundleManifest":  # noqa: F821
         },
         generator_kinds=[],
         target_kinds=["ssm_parameter", "secrets_manager"],
+        terraform_provider={
+            "name": "aws",
+            "source": "hashicorp/aws",
+            "version": "~> 5.0",
+            "default_config": {},
+        },
     )

@@ -1,6 +1,7 @@
 """FastAPI application for SecretZero API."""
 
 import inspect
+import os
 import re
 from pathlib import Path
 
@@ -12,6 +13,7 @@ from secretzero import __version__, generators, targets
 from secretzero.api.audit import get_audit_logger
 from secretzero.api.auth import RequireAuth
 from secretzero.api.schemas import (
+    AppConfigResponse,
     AuditLogResponse,
     ConfigRenderResponse,
     ConfigValidationRequest,
@@ -37,6 +39,7 @@ from secretzero.api.schemas import (
     TargetListResponse,
     VariableListResponse,
 )
+from secretzero.cli_config import get_effective_config
 from secretzero.config import ConfigLoader
 from secretzero.drift import DriftDetector
 from secretzero.lockfile import Lockfile
@@ -92,7 +95,9 @@ def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
     # allow_origins=["https://yourdomain.com"]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # ⚠️ SECURITY WARNING: Allow all origins (development only)
+        allow_origins=os.environ.get("SECRETZERO_ALLOWED_ORIGINS", "http://localhost:8000").split(
+            ","
+        ),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -856,6 +861,16 @@ def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to render config: {str(e)}",
             )
+
+    @app.get("/config", response_model=AppConfigResponse)
+    async def get_app_config(_auth: str = RequireAuth):
+        """Return effective application config (defaults ← config.yml ← Secretfile.config)."""
+        config_path = Path(app.state.secretfile_path)
+        result = get_effective_config(secretfile_path=config_path)
+        return AppConfigResponse(
+            config=result.config.model_dump(),
+            sources=result.sources,
+        )
 
     @app.get("/schema")
     async def get_schema():

@@ -205,6 +205,42 @@ class BaseProvider(IProviderWithCapabilities):
         """
         pass
 
+    def get_actor_info(self) -> dict[str, Any]:
+        """Return information about the currently authenticated actor/user.
+
+        Default implementation returns a minimal structure based on the
+        provider kind and, when available, the authentication token info.
+        Provider implementations are encouraged to override this method
+        to return richer identity data (usernames, emails, account IDs,
+        etc.) where the underlying API supports it.
+
+        Returns:
+            Dictionary containing at least:
+                - provider: Provider kind string (e.g. ``\"aws\"``, ``\"github\"``)
+                - provider_name: Configured provider instance name
+            Additional keys may be included by subclasses.
+        """
+        info: dict[str, Any] = {
+            "provider": self.provider_kind,
+            "provider_name": getattr(self, "name", None),
+        }
+
+        if self.auth is not None:
+            try:
+                token_info = self.auth.get_token_info()
+            except NotImplementedError:
+                token_info = None
+            except Exception:
+                token_info = None
+
+            if isinstance(token_info, dict):
+                # Do not overwrite core keys unless explicitly provided
+                for key, value in token_info.items():
+                    if key not in info:
+                        info[key] = value
+
+        return info
+
     @classmethod
     def get_capabilities(cls) -> ProviderCapabilities:
         """Declare all capabilities this provider offers.

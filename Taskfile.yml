@@ -238,7 +238,7 @@ tasks:
     desc: Run the tests
     cmds:
       - |
-        uv pip install -e ".[all]"
+        uv sync --all-extras
         uv run pytest --maxfail=1 --disable-warnings -v tests
 
   format:

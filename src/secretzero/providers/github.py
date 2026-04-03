@@ -434,16 +434,35 @@ class GitHubProvider(BaseProvider):
         """Return provider type identifier."""
         return "github"
 
+    def get_actor_info(self) -> dict[str, Any]:
+        """Return information about the current GitHub identity."""
+        info = super().get_actor_info()
+
+        # If we have an authenticated client, try to fetch user login
+        try:
+            client = self.auth.get_client() if self.auth else None
+            if client is not None:
+                user = client.get_user()
+                info.setdefault("user", getattr(user, "login", None))
+                info.setdefault("name", getattr(user, "name", None))
+        except Exception:
+            pass
+
+        return info
+
     def test_connection(self) -> tuple[bool, str | None]:
         """Test GitHub API connectivity.
 
         Returns:
             Tuple of (success, details).
         """
+        # If the PyGithub library is missing, we cannot perform the check but
+        # we still want to surface this as an authentication-related failure
+        # so callers (and tests) can treat it consistently.
         try:
-            from github import Github
+            from github import Github  # noqa: F401
         except ImportError:
-            return False, "PyGithub not installed (pip install PyGithub)"
+            return False, "Authentication failed - PyGithub not installed (pip install PyGithub)"
 
         # Check if token is available in config, auth config, or environment
         token = (
@@ -900,4 +919,10 @@ def _get_bundle_manifest() -> "BundleManifest":  # noqa: F821
         },
         generator_kinds=["github_pat"],
         target_kinds=["github_secret"],
+        terraform_provider={
+            "name": "github",
+            "source": "integrations/github",
+            "version": "~> 6.0",
+            "default_config": {},
+        },
     )

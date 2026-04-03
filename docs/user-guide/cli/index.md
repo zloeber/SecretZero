@@ -51,6 +51,7 @@ These options work with all commands:
 | Command | Description |
 |---------|-------------|
 | `secret-types` | List supported secret types and generators |
+| [`terraform`](terraform.md) | Generate Terraform manifests from a Secretfile |
 
 ## Command Quick Reference
 

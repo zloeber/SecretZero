@@ -38,6 +38,40 @@ from pydantic import BaseModel, Field
 from secretzero.bundles.loader import load_class_safe
 
 
+class TerraformProviderConfig(BaseModel):
+    """Terraform provider configuration metadata for a bundle.
+
+    This describes how a SecretZero provider maps to a Terraform provider
+    block and required_providers entry.
+
+    Attributes:
+        name: Terraform provider name used in configuration blocks
+            (e.g. ``"aws"``, ``"azurerm"``, ``"vault"``, ``"kubernetes"``).
+        source: Optional Terraform Registry source string
+            (e.g. ``"hashicorp/aws"``).
+        version: Optional version constraint string
+            (e.g. ``"~> 5.0"``).
+        default_config: Optional default configuration arguments that
+            should be emitted in the provider block. These can be
+            overridden or extended by the Terraform generator based on
+            the Secretfile configuration.
+    """
+
+    name: str = Field(description="Terraform provider name (e.g. 'aws', 'azurerm', 'vault')")
+    source: str | None = Field(
+        default=None,
+        description="Terraform Registry source (e.g. 'hashicorp/aws')",
+    )
+    version: str | None = Field(
+        default=None,
+        description="Terraform provider version constraint (e.g. '~> 5.0')",
+    )
+    default_config: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Default configuration arguments for the provider block",
+    )
+
+
 class BundleManifest(BaseModel):
     """Manifest describing a SecretZero provider bundle.
 
@@ -60,6 +94,9 @@ class BundleManifest(BaseModel):
             this bundle declares (informational; enums are open by default).
         target_kinds: Optional list of new ``TargetKind`` enum values this
             bundle declares (informational; enums are open by default).
+        terraform_provider: Optional Terraform provider configuration
+            metadata used by the Terraform export feature to generate
+            ``terraform.required_providers`` and ``provider`` blocks.
     """
 
     name: str = Field(description="Unique bundle identifier (e.g. 'github', 'aws')")
@@ -83,6 +120,14 @@ class BundleManifest(BaseModel):
     target_kinds: list[str] = Field(
         default_factory=list,
         description="New TargetKind enum values declared by this bundle",
+    )
+    terraform_provider: TerraformProviderConfig | None = Field(
+        default=None,
+        description=(
+            "Optional Terraform provider metadata for this bundle. When set, "
+            "the Terraform exporter can automatically declare required_providers "
+            "and provider blocks for this bundle."
+        ),
     )
 
 
@@ -469,6 +514,7 @@ def reset_bundle_registry() -> None:
 
 # Re-export public API
 __all__ = [
+    "TerraformProviderConfig",
     "BundleManifest",
     "BundleRegistry",
     "get_bundle_registry",

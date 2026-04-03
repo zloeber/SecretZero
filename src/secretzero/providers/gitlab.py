@@ -149,16 +149,38 @@ class GitLabProvider(BaseProvider):
         """Return provider type identifier."""
         return "gitlab"
 
+    def get_actor_info(self) -> dict[str, Any]:
+        """Return information about the current GitLab user."""
+        info = super().get_actor_info()
+
+        try:
+            client = self.auth.get_client() if self.auth else None
+            if client is not None and getattr(client, "user", None) is not None:
+                user = client.user
+                info.setdefault("user", getattr(user, "username", None))
+                info.setdefault("name", getattr(user, "name", None))
+                info.setdefault("email", getattr(user, "email", None))
+        except Exception:
+            pass
+
+        return info
+
     def test_connection(self) -> tuple[bool, str | None]:
         """Test GitLab API connectivity.
 
         Returns:
             Tuple of (success, details).
         """
+        # If the python-gitlab library is missing, treat this as an
+        # authentication-related failure so callers can handle it in
+        # the same way as other auth issues.
         try:
-            import gitlab
+            import gitlab  # noqa: F401
         except ImportError:
-            return False, "python-gitlab not installed (pip install python-gitlab)"
+            return (
+                False,
+                "Authentication failed - python-gitlab not installed (pip install python-gitlab)",
+            )
 
         # Check if token is available in config, auth config, or environment
         token = (
@@ -442,4 +464,10 @@ def _get_bundle_manifest() -> "BundleManifest":  # noqa: F821
         },
         generator_kinds=[],
         target_kinds=["gitlab_variable"],
+        terraform_provider={
+            "name": "gitlab",
+            "source": "gitlabhq/gitlab",
+            "version": "~> 16.0",
+            "default_config": {},
+        },
     )
