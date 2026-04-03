@@ -1,6 +1,7 @@
 """FastAPI application for SecretZero API."""
 
 import inspect
+import os
 import re
 from pathlib import Path
 
@@ -94,7 +95,9 @@ def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
     # allow_origins=["https://yourdomain.com"]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # ⚠️ SECURITY WARNING: Allow all origins (development only)
+        allow_origins=os.environ.get("SECRETZERO_ALLOWED_ORIGINS", "http://localhost:8000").split(
+            ","
+        ),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
