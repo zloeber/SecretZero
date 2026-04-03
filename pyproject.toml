@@ -32,6 +32,9 @@ Documentation = "https://secret0.com"
 Issues = "https://github.com/zloeber/SecretZero/issues"
 CI = "https://github.com/zloeber/SecretZero/actions"
 
+[tool.uv]
+exclude-newer = "7 days"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0.0",
