@@ -1,0 +1,56 @@
+---
+name: agents
+description: Always-loaded project anchor. Read this first. Contains project identity, non-negotiables, commands, and pointer to ROUTER.md for full context.
+last_updated: 2026-04-09
+---
+
+# SecretZero
+
+## What This Is
+A secrets-as-code management tool that validates, generates, syncs, and tracks project secrets through declarative `Secretfile.yml` manifests.
+
+## Non-Negotiables
+- Never commit plaintext secrets, API keys, or credentials.
+- Never log or persist secret values outside approved providers/targets and lockfile metadata hashes.
+- Use Pydantic v2 APIs only (`model_dump()` / `model_dump_json()`), not v1 methods.
+- Use Rich console output for CLI UX (`Console.print()`), not raw `print`.
+- Register new provider/generator/target capabilities through bundle manifests and the bundle registry.
+
+## Commands
+- Dev setup: `uv sync --all-extras && source .venv/bin/activate`
+- Validate config: `secretzero validate`
+- Run tests: `task test`
+- Lint (fix): `task lint:fix`
+- Format: `task format`
+- Build artifacts/schema update: `task schema:update`
+- Security scan: `task security:scan`
+- Integration validations: `task test:validations`
+
+## Pre-push Checklist
+
+Run from repository root before any `git push`:
+
+```bash
+task lint:fix && task format && task schema:update
+task test
+task security:scan
+task test:validations
+```
+
+If `schema:update` or `lint:fix` modifies files, commit those changes and rerun at least `task test` and `task security:scan` before pushing.
+
+## Merge Requests
+
+After a clean pre-push run, push the branch and open or update the merge request.
+
+## Notes
+
+- Tasks assume `uv` and the project `.venv` as configured in `Taskfile.yml`.
+- If `schema:update` produces no diff, there is nothing to commit for schema.
+
+## After Every Task
+After completing any task: update `.mex/ROUTER.md` project state and any `.mex/` files that are now out of date. If no pattern existed for the task you just completed, create one in `.mex/patterns/`.
+
+## Navigation
+At the start of every session, read `.mex/ROUTER.md` before doing anything else.
+For full project context, patterns, and task guidance — everything is there.
