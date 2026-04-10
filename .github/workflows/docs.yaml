@@ -34,6 +34,10 @@ jobs:
           uv venv
           uv sync --all-extras
 
+      - name: Export Secretfile schema for docs
+        run: |
+          uv run secretzero schema export --output docs/Secretfile.schema.json
+
       - name: Build docs
         run: |
           uv run mkdocs build --clean

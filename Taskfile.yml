@@ -150,12 +150,14 @@ tasks:
     desc: Build the MkDocs site into ./site
     cmds:
       - uv sync --all-extras
+      - uv run secretzero schema export --output docs/Secretfile.schema.json
       - uv run mkdocs build --clean
 
   docs:serve:
     desc: Serve MkDocs locally with live reload
     cmds:
       - uv sync --all-extras
+      - uv run secretzero schema export --output docs/Secretfile.schema.json
       - uv run mkdocs serve --dev-addr 127.0.0.1:8001
 
   docker:build:

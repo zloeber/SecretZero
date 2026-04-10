@@ -85,6 +85,9 @@ markdown_extensions:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
   - pymdownx.highlight:
+      # Pygments 2.19+ rejects filename=None; pymdownx passes title as filename when
+      # use_pygments is on. auto_title ensures title is a non-empty string.
+      auto_title: true
       anchor_linenums: true
       line_spans: __span
       pygments_lang_class: true

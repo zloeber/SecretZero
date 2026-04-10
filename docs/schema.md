@@ -2,6 +2,14 @@
 
 This document describes the complete schema for `Secretfile.yml`, the configuration file that defines secrets, providers, and targets for SecretZero.
 
+## Raw JSON Schema
+
+Download or reference the published JSON Schema directly:
+
+- [`Secretfile.schema.json`](Secretfile.schema.json) (same path on the deployed site as `/Secretfile.schema.json`)
+
+This file is generated during docs builds from `secretzero schema export`.
+
 ## Root Structure
 
 ```yaml

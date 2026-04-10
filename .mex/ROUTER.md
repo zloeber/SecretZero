@@ -26,6 +26,7 @@ Then read this file fully before doing anything else in this session.
 ## Current Project State
 
 **Working:**
+- Docs pipeline exports and publishes a raw `Secretfile.schema.json` at site root (`/Secretfile.schema.json`); `task docs:build` / `docs:serve` run the same export; generated `docs/Secretfile.schema.json` is gitignored
 - Agent anchors aligned: `CLAUDE.md` and `.cursorrules` now mirror `AGENTS.md` pre-push workflow and operational checklist
 - Core sync pipeline: Secretfile.yml → ConfigLoader → SyncEngine → generators → targets → lockfile
 - Built-in generators: `random_password`, `random_string`, `static`, `script`, `provider_backed`, `github_pat`
@@ -44,6 +45,7 @@ Then read this file fully before doing anything else in this session.
 - Native CI/CD pipeline integrations (e.g., GitHub Actions action, GitLab CI template)
 
 **Known issues:**
+- MkDocs + pymdownx + Pygments 2.19+: `pymdownx.highlight` must set `auto_title: true` (or equivalent) so Pygments never receives `filename=None` (would break builds on pages like `api-getting-started.md`)
 - Jinja2 variable typos silently produce empty strings (SilentUndefined); always run `secretzero render` to catch before sync
 - Partial sync fails gracefully when an existing secret's value cannot be retrieved from tracked targets — requires `--force-rotation` to recover
 - `.szvar` shell-style `${VAR}` resolves from the `variables:` dict, NOT the OS environment — this surprises users expecting OS env var injection
