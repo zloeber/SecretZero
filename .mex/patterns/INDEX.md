@@ -4,10 +4,9 @@ Lookup table for all pattern files in this directory. Check here before starting
 
 | Pattern | Use when |
 |---------|----------|
-| [add-bundle.md#task-add-a-new-provider](add-bundle.md#task-add-a-new-provider) | Adding a new provider to SecretZero |
-| [add-bundle.md#task-add-a-new-generator](add-bundle.md#task-add-a-new-generator) | Adding a new generator kind |
-| [add-bundle.md#task-add-a-new-target](add-bundle.md#task-add-a-new-target) | Adding a new target storage kind |
-| [add-secret.md#task-add-a-simple-secret](add-secret.md#task-add-a-simple-secret) | Adding a single secret to a Secretfile |
-| [add-secret.md#task-add-a-template-secret](add-secret.md#task-add-a-template-secret) | Adding a multi-field template secret |
-| [debug-sync.md](debug-sync.md) | Diagnosing any sync failure — config, provider, generation, or storage |
-| [secretfile-authoring.md](secretfile-authoring.md) | Writing or editing a Secretfile.yml — variables, multi-env setup, provider config |
+| [add-bundle.md](add-bundle.md) | Adding a provider/generator/target through bundle manifest registration |
+| [add-cli-command.md](add-cli-command.md) | Adding or changing `secretzero` CLI commands/options |
+| [add-secret.md#task-add-a-simple-secret](add-secret.md#task-add-a-simple-secret) | Adding a standard secret definition to `Secretfile.yml` |
+| [add-secret.md#task-add-a-template-secret](add-secret.md#task-add-a-template-secret) | Adding a template-backed multi-field secret |
+| [debug-sync.md](debug-sync.md) | Diagnosing sync failures across config/provider/generator/target boundaries |
+| [secretfile-authoring.md](secretfile-authoring.md) | Editing Secretfile structure, variables, provider mappings, and interpolation usage |

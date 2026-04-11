@@ -14,7 +14,7 @@ edges:
     condition: when setting up the dev environment or running the project for the first time
   - target: patterns/INDEX.md
     condition: when starting a task — check the pattern index for a matching pattern file
-last_updated: 2026-04-09
+last_updated: 2026-04-10
 ---
 
 # Session Bootstrap
@@ -24,31 +24,23 @@ If you haven't already read `AGENTS.md`, read it now — it contains the project
 Then read this file fully before doing anything else in this session.
 
 ## Current Project State
-
 **Working:**
-- Docs pipeline exports and publishes a raw `Secretfile.schema.json` at site root (`/Secretfile.schema.json`); `task docs:build` / `docs:serve` run the same export; generated `docs/Secretfile.schema.json` is gitignored
-- Agent anchors aligned: `CLAUDE.md` and `.cursorrules` now mirror `AGENTS.md` pre-push workflow and operational checklist
-- Core sync pipeline: Secretfile.yml → ConfigLoader → SyncEngine → generators → targets → lockfile
-- Built-in generators: `random_password`, `random_string`, `static`, `script`, `provider_backed`, `github_pat`
-- Built-in targets: `file`, `template` (local); `ssm_parameter`, `secrets_manager`, `vault_kv`, `azure_keyvault`, `kubernetes_secret`, `github_secret`, `gitlab_variable`, `jenkins_credential` (via provider bundles)
-- All built-in providers: AWS, Azure, Vault, GitHub, GitLab, Jenkins, Kubernetes, AnsibleVault, Infisical
-- Variable interpolation (Jinja2 + shell-style) and `.szvar` multi-environment override files
-- Lockfile tracking: SHA-256 hashes, rotation history, per-target provenance
-- Policy engine: rotation / compliance / access policies
-- CLI: `create`, `init`, `validate`, `render`, `sync`, `status`, `check`, `drift`, `graph`, `format`, `terraform`, `providers`
-- Optional FastAPI REST API (`secretzero-api`)
-- Bundle extension system via Python entry_points
+- End-to-end secrets pipeline: `Secretfile.yml` -> `ConfigLoader` -> `SyncEngine` -> targets -> `.gitsecrets.lock`.
+- Bundle extensibility for providers/generators/targets via `BundleRegistry` and manifest factories.
+- Built-in generators (`random_password`, `random_string`, `static`, `script`, `provider_backed`) and provider-backed targets across AWS/Azure/Vault/GitHub/GitLab/Jenkins/Kubernetes/Infisical.
+- Policy/status/drift/terraform command families and comprehensive pytest suite.
+- Task-based verification workflow (`lint:fix`, `format`, `schema:update`, `test`, `security:scan`, `test:validations`).
 
 **Not yet built:**
-- Automatic/scheduled rotation (rotation period only triggers warnings via `check`; actual rotation requires manual `--force-rotation`)
-- Web UI (API server exists, but no browser frontend)
-- Native CI/CD pipeline integrations (e.g., GitHub Actions action, GitLab CI template)
+- Autonomous/scheduled secret rotation service (rotation is operator-invoked).
+- Browser UI for secret management workflows.
+- Fully automated release/deployment orchestration from scaffold itself.
 
 **Known issues:**
-- MkDocs + pymdownx + Pygments 2.19+: `pymdownx.highlight` must set `auto_title: true` (or equivalent) so Pygments never receives `filename=None` (would break builds on pages like `api-getting-started.md`)
-- Jinja2 variable typos silently produce empty strings (SilentUndefined); always run `secretzero render` to catch before sync
-- Partial sync fails gracefully when an existing secret's value cannot be retrieved from tracked targets — requires `--force-rotation` to recover
-- `.szvar` shell-style `${VAR}` resolves from the `variables:` dict, NOT the OS environment — this surprises users expecting OS env var injection
+- Interpolation mistakes can appear as empty rendered values and require `secretzero render` to diagnose.
+- Missing provider extras cause runtime unknown-kind/missing-dependency errors.
+- Partial sync can skip if previous value retrieval from existing targets fails.
+- Docs/schema/build workflows rely on keeping generated schema in sync.
 
 ## Routing Table
 
@@ -61,10 +53,11 @@ Load the relevant file based on the current task. Always load `context/architect
 | Writing or reviewing code | `context/conventions.md` |
 | Making a design decision | `context/decisions.md` |
 | Setting up or running the project | `context/setup.md` |
-| Adding a secret to a Secretfile | `patterns/add-secret.md` |
-| Writing or editing a Secretfile.yml | `patterns/secretfile-authoring.md` |
-| Adding a provider, generator, or target | `patterns/add-bundle.md` |
-| Diagnosing a sync failure | `patterns/debug-sync.md` |
+| Adding or modifying secrets in manifests | `patterns/add-secret.md` |
+| Editing Secretfile structure/variables/providers | `patterns/secretfile-authoring.md` |
+| Adding providers/generators/targets | `patterns/add-bundle.md` |
+| Adding CLI commands/options | `patterns/add-cli-command.md` |
+| Debugging sync failures | `patterns/debug-sync.md` |
 | Any specific task | Check `patterns/INDEX.md` for a matching pattern |
 
 ## Behavioural Contract

@@ -1,40 +1,36 @@
 ---
 name: agents
 description: Always-loaded project anchor. Read this first. Contains project identity, non-negotiables, commands, and pointer to ROUTER.md for full context.
-last_updated: 2026-04-09
+last_updated: 2026-04-10
 ---
 
 # SecretZero
 
 ## What This Is
-
-A Python CLI tool that automates the creation, seeding, rotation, and lifecycle management of project secrets via declarative `Secretfile.yml` manifests, storing generated values in cloud secret stores (Vault, AWS, Azure, GitHub, etc.) and tracking provenance in a committed lockfile.
+A Python CLI and optional API for declarative secrets-as-code workflows that validate, generate, sync, and audit secrets from `Secretfile.yml` into local and provider-backed targets using a hash-only lockfile.
 
 ## Non-Negotiables
-
-- Never store plaintext secret values in the lockfile, logs, exception messages, or anywhere on disk — only SHA-256 hashes
-- All provider, generator, and target dispatch goes through `BundleRegistry`; never add `if provider_kind == "X"` chains in `SyncEngine`
-- Use Pydantic v2 API: `model_dump()` / `model_dump_json()`, never `.dict()` / `.json()`
-- New providers/generators/targets must register via `_get_bundle_manifest()` factory and be listed in `_register_builtin_bundles()` in `bundles/registry.py`
-- All user-facing CLI output uses `rich.console.Console`, never bare `print()`
+- Never store plaintext secret values in files, logs, or lockfile entries; only SHA-256 hashes are persisted.
+- Keep provider/generator/target dispatch in `BundleRegistry`; do not add provider-kind conditional chains in `SyncEngine`.
+- Use Pydantic v2 APIs only (`model_dump()` / `model_dump_json()`), never v1-style `.dict()` / `.json()`.
+- Register new providers/generators/targets through `_get_bundle_manifest()` and `_register_builtin_bundles()` (or entry points), not ad-hoc imports.
+- Use Rich console output for user-facing CLI output (`Console.print()`), not raw `print()`.
 
 ## Commands
-
+- Setup: `uv sync --all-extras && source .venv/bin/activate`
 - Validate: `secretzero validate -f Secretfile.yml`
-- Dry-run sync: `secretzero sync --dry-run`
+- Dry run: `secretzero sync --dry-run`
 - Sync: `secretzero sync`
-- Force rotate: `secretzero sync --force-rotation`
-- Status: `secretzero status`
-- Policy check: `secretzero check`
-- Test: `pytest`
-- Lint: `ruff check src/`
-- Format: `black src/`
+- Tests: `task test`
+- Lint fix: `task lint:fix`
+- Format: `task format`
+- Schema: `task schema:update`
+- Security: `task security:scan`
+- Validation suite: `task test:validations`
 
 ## Scaffold Growth
-
 After every task: if no pattern exists for the task type you just completed, create one. If a pattern or context file is now out of date, update it. The scaffold grows from real work, not just setup. See the GROW step in `ROUTER.md` for details.
 
 ## Navigation
-
 At the start of every session, read `ROUTER.md` before doing anything else.
 For full project context, patterns, and task guidance — everything is there.

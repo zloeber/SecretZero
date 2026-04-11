@@ -11,94 +11,62 @@ triggers:
 edges:
   - target: context/architecture.md
     condition: when a convention depends on understanding the system structure
-  - target: context/stack.md
-    condition: when a convention relates to a specific library or tool
   - target: patterns/add-bundle.md
-    condition: when writing a new provider, generator, or target
-last_updated: 2026-04-09
+    condition: when implementing new provider/generator/target classes
+  - target: patterns/add-cli-command.md
+    condition: when extending `secretzero` CLI commands and options
+last_updated: 2026-04-10
 ---
 
 # Conventions
 
 ## Naming
-
-- **Files**: `snake_case` (`sync.py`, `cli_format.py`, `terraform_export.py`, `random_password.py`)
-- **Classes**: `PascalCase` (`SyncEngine`, `BundleRegistry`, `BaseProvider`, `RandomPasswordGenerator`)
-- **Tests**: `test_<module_or_feature>.py` in `tests/` directory (e.g., `test_sync_by_name.py`)
-- **Provider capability methods**: prefixed with `generate_`, `retrieve_`, `store_`, `rotate_`, or `delete_` — this is how `BaseProvider.get_capabilities()` discovers them via introspection
-- **Bundle factory function**: every provider module exposes `_get_bundle_manifest() -> BundleManifest` (underscore prefix = private, not exported via `__all__`)
-- **Generator/target kind strings**: `snake_case` matching the enum value (`"random_password"`, `"vault_kv"`, `"github_secret"`)
+- Files and modules use `snake_case` (`provider_backed.py`, `terraform_export.py`).
+- Classes use `PascalCase` (`SyncEngine`, `BundleRegistry`, `BaseTarget`).
+- Test modules use `test_*.py` under `tests/`.
+- Provider capability methods are prefix-based (`generate_`, `retrieve_`, `store_`, `rotate_`, `delete_`).
+- Bundle factory naming is `_get_bundle_manifest()` in provider modules.
 
 ## Structure
-
-- `src/secretzero/` — all library code; one concern per file
-- `src/secretzero/providers/` — one file per provider (`aws.py`, `vault.py`, etc.); each exports `_get_bundle_manifest()`
-- `src/secretzero/generators/` — one file per generator kind; each subclasses `BaseGenerator`
-- `src/secretzero/targets/` — one file per target kind or provider's target collection; each subclasses `BaseTarget`
-- `src/secretzero/bundles/` — `registry.py` (BundleRegistry singleton + bootstrap), `loader.py` (dotted-path class loader), `__init__.py` (re-exports)
-- `tests/` — test files only, not co-located with source; `pythonpath = ["src"]` in pytest config means imports work as `from secretzero.X import Y`
-- `examples/` — example `Secretfile.yml` files; not executable, documentation only
+- Core code is under `src/secretzero/`; tests are centralized in `tests/`.
+- Provider modules live in `src/secretzero/providers/`; generators and targets in sibling folders.
+- Registration/bootstrap logic is centralized in `src/secretzero/bundles/registry.py`.
+- CLI command implementations are in `src/secretzero/cli.py` on the `main` Click group.
+- Task automation and verification commands are in `Taskfile.yml` and should be used for project-wide checks.
 
 ## Patterns
-
-**1. Registering a new provider/generator/target via BundleManifest:**
+Always dispatch through `BundleRegistry`, not ad-hoc conditionals:
 ```python
-# In src/secretzero/providers/myprovider.py
-def _get_bundle_manifest() -> BundleManifest:
-    return BundleManifest(
-        name="myprovider",
-        version="1.0.0",
-        provider_class="secretzero.providers.myprovider:MyProvider",
-        generators={"my_generator": "secretzero.generators.my_gen:MyGenerator"},
-        targets={"my_target": "secretzero.targets.my_target:MyTarget"},
-    )
+# Correct
+generator_class = registry.get_generator_class(kind)
 
-# Register in bundles/registry.py _register_builtin_bundles():
-("secretzero.providers.myprovider", "_get_bundle_manifest"),
+# Wrong
+if kind == "random_password":
+    ...
 ```
 
-**2. Pydantic v2 API — always use v2 methods:**
+Always use Pydantic v2 model serialization APIs:
 ```python
-# Correct (Pydantic v2)
-data = model.model_dump()
-json_str = model.model_dump_json(indent=2)
+# Correct
+config_dict = provider_config.model_dump()
 
-# Wrong (Pydantic v1 — will raise AttributeError)
-data = model.dict()
-json_str = model.json()
+# Wrong
+config_dict = provider_config.dict()
 ```
 
-**3. Generator env-var fallback — always call `generate_with_fallback`, never `generate` directly:**
+Always use generator fallback wrapper when generating values:
 ```python
-# Correct — checks env var first, then generates
-value = generator.generate_with_fallback(env_var_name="MY_SECRET")
+# Correct
+value = generator.generate_with_fallback(env_var_name)
 
-# Wrong — skips env var check
+# Wrong
 value = generator.generate()
 ```
 
-**4. Template secret naming — field secrets in lockfile use dot notation:**
-```
-# Secret named "app_creds" with template "db_credentials"
-# Field "password" is tracked in lockfile as:
-"app_creds.password"
-```
-
-**5. CLI output — always use Rich Console, never plain print:**
-```python
-from rich.console import Console
-console = Console()
-console.print("[green]✓[/green] Success message")
-console.print("[red]✗[/red] Error message")
-```
-
 ## Verify Checklist
-
-Before presenting any code change:
-- [ ] Uses `model_dump()` / `model_dump_json()` not `.dict()` / `.json()` (Pydantic v2)
-- [ ] New provider/generator/target registers via `_get_bundle_manifest()` factory and is listed in `_register_builtin_bundles()` in `bundles/registry.py`
-- [ ] No secret plaintext values in logs, lockfile, or exception messages — only hashes
-- [ ] New CLI commands added to `main` group in `cli.py`; output uses `Console.print()` with Rich markup
-- [ ] Tests live in `tests/` directory using pytest style; no `self.assert*` patterns
-- [ ] Line length ≤ 100 characters (ruff/black config)
-- [ ] Provider capability methods use the correct prefix (`generate_`, `retrieve_`, `store_`, `rotate_`, `delete_`) so auto-introspection discovers them
+- [ ] No plaintext secret values are logged, surfaced, or written to versioned artifacts.
+- [ ] Any new provider/generator/target is registered via bundle manifest + registry path.
+- [ ] New serialization calls use Pydantic v2 methods (`model_dump*`).
+- [ ] CLI output paths use Rich (`Console.print`) and integrate with existing command patterns.
+- [ ] Formatting/lint expectations remain compatible with Ruff/Black (line length 100).
+- [ ] Relevant tests under `tests/` are added or updated for behavior changes.
