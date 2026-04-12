@@ -26,6 +26,9 @@ dependencies = [
     "pygments>=2.20.0",
     "rich>=13.0.0",
     "setuptools-scm>=8.3.1",
+    "fastapi>=0.129.0",
+    "uvicorn[standard]>=0.41.0",
+    "python-multipart>=0.0.22",
 ]
 
 [project.urls]
@@ -50,6 +53,7 @@ override-dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0.0",
+    "tavern>=2.0.0",
     "pytest-cov>=4.0.0",
     "black>=23.0.0",
     "ruff>=0.1.0",
@@ -157,8 +161,9 @@ packages = ["src/secretzero"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "tests"]
 addopts = "-v --cov=secretzero --cov-report=term-missing"
+# Tavern HTTP tests (tests/e2e) register via the pytest plugin; run `task test:e2e` for those only.
 
 [tool.black]
 line-length = 100

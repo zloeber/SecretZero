@@ -5,9 +5,45 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from secretzero.cli_config import AppConfig
+
+
+class AgentMode(str, Enum):
+    """How the unified ``agent sync`` workflow should obtain manual secrets."""
+
+    AUTO = "auto"
+    HUMAN = "human"
+    WEB = "web"
+
+
+class AgentConfig(BaseModel):
+    """Top-level defaults for ``secretzero agent sync`` (CLI and API)."""
+
+    mode: AgentMode = Field(
+        default=AgentMode.AUTO,
+        description="Preferred workflow: auto (best effort), human (instructions only), or web (local form)",
+    )
+    web_port_min: int = Field(
+        default=49152,
+        ge=1024,
+        le=65535,
+        description="Lower bound (inclusive) for the temporary localhost web UI",
+    )
+    web_port_max: int = Field(
+        default=65535,
+        ge=1024,
+        le=65535,
+        description="Upper bound (inclusive) for the temporary localhost web UI",
+    )
+
+    @model_validator(mode="after")
+    def _validate_port_range(self) -> AgentConfig:
+        """Ensure web port range is ordered."""
+        if self.web_port_min > self.web_port_max:
+            raise ValueError("web_port_min must be <= web_port_max")
+        return self
 
 
 class AutomationLevel(str, Enum):
@@ -49,6 +85,71 @@ class AgentInstructions(BaseModel):
     documentation_url: str | None = Field(
         default=None, description="Link to official documentation"
     )
+
+    def render_for_secret(
+        self,
+        *,
+        variables: dict[str, Any],
+        secret_name: str,
+        secret: Secret,
+    ) -> AgentInstructions:
+        """Return a copy with string fields rendered using Secretfile variables and secret context.
+
+        Templates may use ``{{ var.name }}`` (same as the Secretfile), ``{{ secret_name }}``,
+        and ``{{ target.kind }}`` / keys from the first target's ``config`` (exposed as
+        ``target`` in the template context).
+        """
+        from secretzero.config import render_template_with_agent_context
+
+        def _rt(text: str | None) -> str | None:
+            if text is None:
+                return None
+            return render_template_with_agent_context(
+                text,
+                variables=variables,
+                secret_name=secret_name,
+                secret=secret,
+            )
+
+        new_steps: list[AgentInstructionStep] = []
+        for step in self.steps:
+            new_params = step.params
+            if step.params:
+                new_params = {
+                    k: (
+                        render_template_with_agent_context(
+                            str(v), variables=variables, secret_name=secret_name, secret=secret
+                        )
+                        if isinstance(v, str)
+                        else v
+                    )
+                    for k, v in step.params.items()
+                }
+            new_steps.append(
+                AgentInstructionStep(
+                    action=_rt(step.action) or step.action,
+                    description=_rt(step.description) or step.description,
+                    params=new_params,
+                    required=step.required,
+                )
+            )
+        new_prereq = (
+            [_rt(p) or "" for p in self.prerequisites] if self.prerequisites is not None else None
+        )
+        return AgentInstructions(
+            summary=_rt(self.summary) or self.summary,
+            steps=new_steps,
+            prerequisites=new_prereq,
+            automation_hint=_rt(self.automation_hint),
+            estimated_time=_rt(self.estimated_time),
+            fallback=_rt(self.fallback),
+            required_tools=(
+                [_rt(t) or "" for t in self.required_tools]
+                if self.required_tools is not None
+                else None
+            ),
+            documentation_url=_rt(self.documentation_url),
+        )
 
 
 class AuthKind(str, Enum):
@@ -241,6 +342,10 @@ class Secretfile(BaseModel):
         default=None,
         description="Optional centralized app config (LLM, discovery, output); overrides config.yml and defaults",
     )
+    agent: AgentConfig | None = Field(
+        default=None,
+        description="Defaults for unified agent sync (CLI and API): mode and optional web UI port range",
+    )
 
     @field_validator("version")
     @classmethod
@@ -249,3 +354,7 @@ class Secretfile(BaseModel):
         if not v:
             raise ValueError("version is required")
         return v
+
+    def effective_agent_config(self) -> AgentConfig:
+        """Return top-level agent settings with defaults when omitted."""
+        return self.agent if self.agent is not None else AgentConfig()

@@ -1,0 +1,17 @@
+---
+test_name: agent vector3 sz_agent fails manual secrets without pending
+
+stages:
+  - name: sz_agent request moves manual secrets to failed_secrets
+    request:
+      url: "{tavern.env_vars.SECRETZERO_E2E_BASE}/agent/sync"
+      method: POST
+      headers:
+        Content-Type: application/json
+      json:
+        dry_run: true
+        sz_agent: true
+    response:
+      status_code: 200
+      verify_response_with:
+        - function: e2e.tavern_helpers:assert_vector3_sz_agent

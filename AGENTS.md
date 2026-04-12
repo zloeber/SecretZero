@@ -28,7 +28,7 @@ secretzero agent sync --json [--web] [--dry-run] [--verbose]
 ```
 
 Equivalent API usage (when the REST API is deployed):
-- `POST /agent/sync` (or similar proxy/metadata endpoint) with appropriate payload.
+- `POST /agent/sync` with JSON body `{ "dry_run", "web", "lockfile?", "sz_agent?" }` (same semantics as the CLI); poll `GET /agent/sync/web/{session_id}` after Vector 2.
 
 ### The Three Agentic Vectors
 

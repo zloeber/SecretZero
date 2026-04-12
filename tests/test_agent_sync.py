@@ -16,6 +16,8 @@ from secretzero.models import (
     AutomationLevel,
     Secret,
     Secretfile,
+    TargetConfig,
+    TargetKind,
 )
 
 # ---------------------------------------------------------------------------
@@ -210,6 +212,51 @@ class TestAgentSecretSynchronizer:
         result = AgentSecretSynchronizer(sf, lock, dry_run=True).sync()
         assert "api_key" in result.pending_secrets
         assert result.pending_secrets["api_key"].summary == "Manual setup required"
+
+    def test_sz_agent_moves_manual_to_failed(self) -> None:
+        """SZ_AGENT semantics report manual secrets as failed, not pending."""
+        from secretzero.lockfile import Lockfile
+
+        instructions = AgentInstructions(
+            summary="Manual setup required",
+            steps=[AgentInstructionStep(action="Visit site", description="Sign up")],
+        )
+        sf = _make_secretfile([_make_secret("api_key", "static", agent_instructions=instructions)])
+        lock = Lockfile()
+        result = AgentSecretSynchronizer(sf, lock, dry_run=True).sync(sz_agent=True)
+        assert "api_key" in result.failed_secrets
+        assert "api_key" not in result.pending_secrets
+        assert result.status == "failed"
+
+    def test_agent_instructions_render_for_secret(self) -> None:
+        """render_for_secret injects secret_name, var, and target context."""
+        instructions = AgentInstructions(
+            summary="Configure {{ secret_name }} for {{ var.project }}",
+            steps=[
+                AgentInstructionStep(
+                    action="sync",
+                    description="kind={{ target.kind }}",
+                )
+            ],
+        )
+        secret = Secret(
+            name="my_key",
+            kind="static",
+            config={},
+            targets=[
+                TargetConfig(provider="local", kind=TargetKind.FILE, config={"path": "./out.env"})
+            ],
+            agent_instructions=instructions,
+        )
+        sf = _make_secretfile([secret])
+        sf.variables["project"] = "demo"
+        rendered = instructions.render_for_secret(
+            variables=sf.variables,
+            secret_name=secret.name,
+            secret=secret,
+        )
+        assert rendered.summary == "Configure my_key for demo"
+        assert "file" in rendered.steps[0].description
 
     def test_static_without_value_or_instructions_goes_to_failed(self) -> None:
         """Static secret with no value and no instructions ends up in failed."""

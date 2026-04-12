@@ -1,6 +1,9 @@
 """Agent-specific functionality for autonomous secret synchronization."""
 
+from __future__ import annotations
+
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -15,10 +18,19 @@ logger = logging.getLogger(__name__)
 # Generator kinds that can be fully automated (no external input needed)
 _AUTO_GENERATOR_KINDS = {"random_password", "random_string", "uuid"}
 
+_SZ_AGENT_MANUAL_FAIL = (
+    "Manual intervention required while SZ_AGENT is enabled; unset SZ_AGENT or resolve secrets "
+    "outside the agent workflow"
+)
+
 
 class AgentSyncResult(BaseModel):
     """Result of agent sync operation."""
 
+    status: str = Field(
+        default="complete",
+        description="complete | pending_manual | failed | partial",
+    )
     synced_secrets: list[str] = Field(
         default_factory=list, description="Successfully synced secrets"
     )
@@ -38,6 +50,65 @@ class AgentSyncResult(BaseModel):
     sync_results: dict[str, Any] = Field(
         default_factory=dict, description="Detailed sync results from SyncEngine"
     )
+
+
+def env_sz_agent() -> bool:
+    """True when ``SZ_AGENT`` requests non-interactive automation semantics."""
+    return os.environ.get("SZ_AGENT", "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def resolve_resolved_mode_label(
+    secretfile: Secretfile,
+    *,
+    cli_web: bool,
+    sz_agent: bool,
+) -> str:
+    """Human-readable mode label for JSON (CLI flags + manifest + env)."""
+    if sz_agent:
+        return "auto"
+    if cli_web:
+        return "web"
+    return secretfile.effective_agent_config().mode.value
+
+
+def build_agent_sync_json_payload(
+    result: AgentSyncResult,
+    *,
+    dry_run: bool,
+    sz_agent: bool,
+    resolved_mode: str,
+    web_url: str | None = None,
+    web_session_id: str | None = None,
+) -> dict[str, Any]:
+    """Shape CLI/API JSON output (no secret values)."""
+    return {
+        "status": result.status,
+        "synced_secrets": result.synced_secrets,
+        "already_synced": result.already_synced,
+        "pending_secrets": {
+            k: v.model_dump(exclude_none=True) for k, v in result.pending_secrets.items()
+        },
+        "failed_secrets": result.failed_secrets,
+        "automation_summary": result.automation_summary,
+        "sync_results": result.sync_results,
+        "dry_run": dry_run,
+        "sz_agent": sz_agent,
+        "resolved_mode": resolved_mode,
+        "web_url": web_url,
+        "web_session_id": web_session_id,
+    }
+
+
+def _finalize_status(result: AgentSyncResult) -> None:
+    """Set ``result.status`` from pending/failed counts."""
+    if result.failed_secrets and result.pending_secrets:
+        result.status = "partial"
+    elif result.failed_secrets:
+        result.status = "failed"
+    elif result.pending_secrets:
+        result.status = "pending_manual"
+    else:
+        result.status = "complete"
 
 
 class AgentSecretSynchronizer:
@@ -66,17 +137,21 @@ class AgentSecretSynchronizer:
         self.secretfile_path = secretfile_path
         self.secretfile_content = secretfile_content
 
-    def sync(self) -> AgentSyncResult:
+    def sync(self, *, sz_agent: bool = False) -> AgentSyncResult:
         """Perform agent-aware secret synchronization.
+
+        Args:
+            sz_agent: When True, secrets that would require manual follow-up are reported in
+                ``failed_secrets`` instead of ``pending_secrets`` (Vector 3 / automation-only).
 
         Returns:
             AgentSyncResult with synced, pending, and failed secrets
         """
         result = AgentSyncResult()
-        already_synced = []
+        already_synced: list[str] = []
 
         # Separate secrets into auto-syncable and manual
-        auto_secrets = []
+        auto_secrets: list[str] = []
         for secret in self.secretfile.secrets:
             # Check if secret already exists in lockfile
             lockfile_entry = self.lockfile.get_secret_info(secret.name)
@@ -90,7 +165,12 @@ class AgentSecretSynchronizer:
                 auto_secrets.append(secret.name)
             else:
                 if secret.agent_instructions:
-                    result.pending_secrets[secret.name] = secret.agent_instructions
+                    rendered = secret.agent_instructions.render_for_secret(
+                        variables=self.secretfile.variables,
+                        secret_name=secret.name,
+                        secret=secret,
+                    )
+                    result.pending_secrets[secret.name] = rendered
                     logger.info("Secret '%s' requires manual intervention", secret.name)
                 else:
                     result.failed_secrets[secret.name] = (
@@ -124,12 +204,18 @@ class AgentSecretSynchronizer:
         # Track already synced secrets
         result.already_synced = already_synced
 
+        if sz_agent:
+            for name in list(result.pending_secrets.keys()):
+                result.failed_secrets[name] = _SZ_AGENT_MANUAL_FAIL
+                del result.pending_secrets[name]
+
         result.automation_summary = {
             "fully_synced": len(result.synced_secrets),
             "already_synced": len(result.already_synced),
             "requires_intervention": len(result.pending_secrets),
             "failed": len(result.failed_secrets),
         }
+        _finalize_status(result)
         return result
 
     def _can_auto_sync(self, secret: Secret) -> bool:
