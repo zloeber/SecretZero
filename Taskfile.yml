@@ -241,7 +241,14 @@ tasks:
     cmds:
       - |
         uv sync --all-extras
-        uv run pytest --maxfail=1 --disable-warnings -v tests
+        uv run pytest --maxfail=1 --disable-warnings -v tests --ignore=tests/e2e
+
+  test:e2e:
+    desc: Run Tavern HTTP E2E tests (requires dev extras)
+    cmds:
+      - |
+        uv sync --all-extras
+        uv run pytest --maxfail=1 --disable-warnings -v tests/e2e
 
   format:
     desc: Run python formatting

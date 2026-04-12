@@ -586,3 +586,37 @@ class TestErrorHandling:
         """Test using invalid HTTP method."""
         response = authenticated_client.delete("/secrets")
         assert response.status_code == 405
+
+
+class TestAgentSyncEndpoint:
+    """POST /agent/sync matches CLI semantics (no secret values in JSON)."""
+
+    def test_agent_sync_dry_run_pending_manual(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        sf = tmp_path / "Secretfile.yml"
+        sf.write_text("""
+version: '1.0'
+variables:
+  project: apitest
+secrets:
+  - name: manual_only
+    kind: static
+    config: {}
+    agent_instructions:
+      summary: "Do {{ secret_name }} for {{ var.project }}"
+      steps:
+        - action: a
+          description: b
+""")
+        (tmp_path / ".gitsecrets.lock").write_text(
+            '{"version": "1.0", "secrets": {}}', encoding="utf-8"
+        )
+        monkeypatch.chdir(tmp_path)
+        app = create_app(secretfile_path=str(sf.resolve()))
+        client = TestClient(app)
+        response = client.post("/agent/sync", json={"dry_run": True})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "pending_manual"
+        assert data["pending_secrets"]["manual_only"]["summary"] == "Do manual_only for apitest"

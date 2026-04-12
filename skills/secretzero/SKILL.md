@@ -60,6 +60,22 @@ Providers have sufficient authentication.
 ```yaml
 agent:
   mode: auto | human | web   # default: auto
+  web_port_min: 49152        # optional bounds for the Vector 2 localhost form
+  web_port_max: 65535
+```
+
+### REST API (same contract as the CLI)
+
+Remote clients should call **`POST /agent/sync`** with JSON fields aligned to the CLI: `dry_run`, `web`, optional `lockfile`, and optional `sz_agent` (per-request override of the `SZ_AGENT` environment on the server). Responses mirror `secretzero agent sync --json` (no plaintext secret values).
+
+- **Vector 2 over HTTP:** when manual secrets are pending and `web` is true, the response includes `status: awaiting_web_input`, a `web_url` on `127.0.0.1`, and `web_session_id`. Poll **`GET /agent/sync/web/{session_id}`** until `done` is true; structured results are in `result` (still no secret values).
+
+Example:
+
+```bash
+curl -s -X POST "http://127.0.0.1:8000/agent/sync" \
+  -H "Content-Type: application/json" \
+  -d '{"dry_run": true}'
 ```
 
 ## Installation

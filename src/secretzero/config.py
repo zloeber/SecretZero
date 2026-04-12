@@ -7,7 +7,7 @@ from typing import Any
 import yaml
 from jinja2 import Environment, StrictUndefined, select_autoescape
 
-from secretzero.models import Secretfile
+from secretzero.models import Secret, Secretfile
 
 
 class ConfigLoader:
@@ -109,10 +109,19 @@ class ConfigLoader:
         # Validate with Pydantic model
         return Secretfile(**interpolated_data)
 
-    def _interpolate_variables(self, data: Any, variables: dict[str, Any]) -> Any:
+    def _interpolate_variables(
+        self,
+        data: Any,
+        variables: dict[str, Any],
+        *,
+        in_agent_instructions: bool = False,
+    ) -> Any:
         """Recursively interpolate variables in the configuration.
 
         Supports Jinja2-style variable interpolation: {{var.name}}
+
+        Strings under ``agent_instructions`` are left unchanged so per-secret templates
+        (e.g. ``{{ secret_name }}``) can be rendered later by :meth:`AgentInstructions.render_for_secret`.
 
         Args:
             data: The data structure to interpolate
@@ -123,11 +132,23 @@ class ConfigLoader:
         """
         if isinstance(data, dict):
             return {
-                key: self._interpolate_variables(value, variables) for key, value in data.items()
+                key: self._interpolate_variables(
+                    value,
+                    variables,
+                    in_agent_instructions=in_agent_instructions or key == "agent_instructions",
+                )
+                for key, value in data.items()
             }
         elif isinstance(data, list):
-            return [self._interpolate_variables(item, variables) for item in data]
+            return [
+                self._interpolate_variables(
+                    item, variables, in_agent_instructions=in_agent_instructions
+                )
+                for item in data
+            ]
         elif isinstance(data, str):
+            if in_agent_instructions:
+                return data
             return self._interpolate_string(data, variables)
         return data
 
@@ -199,3 +220,63 @@ class ConfigLoader:
             return False, str(e)
         except Exception as e:
             return False, f"Validation error: {str(e)}"
+
+
+def _target_template_context(secret: Secret) -> dict[str, Any]:
+    """Build a flat-ish dict for ``target`` in agent instruction templates."""
+    if not secret.targets:
+        return {}
+    t0 = secret.targets[0]
+    kind_val = getattr(t0.kind, "value", t0.kind)
+    ctx: dict[str, Any] = {"provider": t0.provider, "kind": kind_val}
+    ctx.update(t0.config)
+    return ctx
+
+
+def render_template_with_agent_context(
+    text: str,
+    *,
+    variables: dict[str, Any],
+    secret_name: str,
+    secret: Secret,
+) -> str:
+    """Interpolate a string with Secretfile ``variables`` plus agent context.
+
+    Supports shell-style ``${VAR}``, Jinja ``{{ var.name }}`` (same as :class:`ConfigLoader`),
+    plus ``{{ secret_name }}`` and ``target`` (first secret target: kind, provider, config keys).
+    """
+    if not isinstance(text, str):
+        return str(text)
+
+    def replace_shell_var(match: Any) -> str:
+        var_name = match.group(1)
+        return str(variables.get(var_name, match.group(0)))
+
+    out = re.sub(r"\$\{([^}]+)\}", replace_shell_var, text)
+
+    if "{{" not in out:
+        return out
+
+    try:
+        from jinja2 import Environment, Undefined, select_autoescape
+
+        class SilentUndefined(Undefined):
+            def __bool__(self) -> bool:
+                return False
+
+            def __str__(self) -> str:
+                return ""
+
+        env = Environment(
+            undefined=SilentUndefined,
+            autoescape=select_autoescape(default=False, default_for_string=False),
+        )
+        template = env.from_string(out)
+        context = {
+            "var": variables,
+            "secret_name": secret_name,
+            "target": _target_template_context(secret),
+        }
+        return template.render(context)
+    except Exception:
+        return out

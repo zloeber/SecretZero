@@ -1,0 +1,17 @@
+---
+test_name: agent vector2 web flow exposes localhost session URL
+
+stages:
+  - name: POST agent sync with web returns awaiting_web_input and a localhost URL
+    request:
+      url: "{tavern.env_vars.SECRETZERO_E2E_BASE}/agent/sync"
+      method: POST
+      headers:
+        Content-Type: application/json
+      json:
+        dry_run: false
+        web: true
+    response:
+      status_code: 200
+      verify_response_with:
+        - function: e2e.tavern_helpers:assert_vector2_web_response

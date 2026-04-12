@@ -21,7 +21,7 @@ from secretzero.config import ConfigLoader
 from secretzero.drift import DriftDetector
 from secretzero.graph import generate_graph
 from secretzero.lockfile import Lockfile
-from secretzero.models import Secretfile
+from secretzero.models import AgentMode, Secretfile
 from secretzero.policy import PolicyEngine
 from secretzero.rotation import should_rotate_secret
 from secretzero.sync import SyncEngine
@@ -3887,7 +3887,18 @@ def agent() -> None:
 @click.option(
     "--interactive",
     is_flag=True,
-    help="Prompt for manual secrets interactively",
+    help="Prompt for manual secrets interactively (CLI prompts; not used with --web)",
+)
+@click.option(
+    "--web",
+    is_flag=True,
+    help="Collect manual secret values via a temporary localhost web form (Vector 2)",
+)
+@click.option(
+    "--verbose",
+    "-V",
+    is_flag=True,
+    help="Verbose logging for agent sync",
 )
 def agent_sync(
     file: str,
@@ -3896,6 +3907,8 @@ def agent_sync(
     dry_run: bool,
     output_json: bool,
     interactive: bool,
+    web: bool,
+    verbose: bool,
 ) -> None:
     """Agent-aware secret synchronisation with guided instructions.
 
@@ -3919,10 +3932,26 @@ def agent_sync(
         # Interactively supply values for pending secrets
         secretzero agent sync --interactive
 
+        # Secure local web form for manual values (never echoed to the agent)
+        secretzero agent sync --web
+
         # Sync with variable file override
         secretzero agent sync --var-file dev.szvar
     """
-    from secretzero.agent import AgentSecretSynchronizer
+    import json as _json
+    import logging
+
+    from secretzero.agent import (
+        AgentSecretSynchronizer,
+        build_agent_sync_json_payload,
+        env_sz_agent,
+        resolve_resolved_mode_label,
+    )
+    from secretzero.agent_webui import run_blocking_web_agent_form
+
+    if verbose:
+        logging.basicConfig(level=logging.DEBUG)
+        logging.getLogger("secretzero").setLevel(logging.DEBUG)
 
     # --non-interactive conflicts with --interactive
     if interactive and _is_non_interactive():
@@ -3953,6 +3982,18 @@ def agent_sync(
     # Load lockfile
     lock = Lockfile.load(lockfile_path)
 
+    sz_agent = env_sz_agent()
+    agent_cfg = secretfile.effective_agent_config()
+    use_web = (web or agent_cfg.mode == AgentMode.WEB) and not sz_agent
+    if sz_agent and web:
+        console.print(
+            "[yellow]Note:[/yellow] SZ_AGENT is set; --web is ignored (automation-only mode)."
+        )
+    if web and interactive:
+        console.print(
+            "[dim]Note: --web takes precedence over --interactive for collecting values.[/dim]"
+        )
+
     synchronizer = AgentSecretSynchronizer(
         secretfile,
         lock,
@@ -3962,33 +4003,52 @@ def agent_sync(
     )
 
     try:
-        result = synchronizer.sync()
+        result = synchronizer.sync(sz_agent=sz_agent)
     except Exception as exc:
         console.print(f"[red]Agent sync failed:[/red] {exc}")
         raise click.ClickException(str(exc)) from exc
+
+    if use_web and result.pending_secrets and not dry_run:
+        try:
+            result = run_blocking_web_agent_form(
+                pending_secret_names=list(result.pending_secrets.keys()),
+                secretfile=secretfile,
+                lockfile=lock,
+                lockfile_path=lockfile_path,
+                secretfile_path=file_path,
+                secretfile_content=secretfile_content,
+                dry_run=dry_run,
+                port_min=agent_cfg.web_port_min,
+                port_max=agent_cfg.web_port_max,
+                open_browser=not _is_non_interactive(),
+            )
+        except Exception as exc:
+            console.print(f"[yellow]Web UI failed ({exc}); showing instructions instead.[/yellow]")
+    elif use_web and result.pending_secrets and dry_run and not output_json:
+        console.print("[dim]Skipping localhost web UI because --dry-run is set.[/dim]")
 
     # Save lockfile if not dry run
     if not dry_run:
         lock.save(lockfile_path)
 
-    if output_json:
-        import json as _json
+    resolved = resolve_resolved_mode_label(secretfile, cli_web=web, sz_agent=sz_agent)
 
-        output = {
-            "synced_secrets": result.synced_secrets,
-            "already_synced": result.already_synced,
-            "pending_secrets": {
-                k: v.model_dump(exclude_none=True) for k, v in result.pending_secrets.items()
-            },
-            "failed_secrets": result.failed_secrets,
-            "automation_summary": result.automation_summary,
-            "sync_results": result.sync_results,
-            "dry_run": dry_run,
-        }
-        click.echo(_json.dumps(output, indent=2, default=str))
+    if output_json:
+        payload = build_agent_sync_json_payload(
+            result,
+            dry_run=dry_run,
+            sz_agent=sz_agent,
+            resolved_mode=resolved,
+        )
+        click.echo(_json.dumps(payload, indent=2, default=str))
         return
 
-    _display_agent_sync_results(result, lock, interactive=interactive, dry_run=dry_run)
+    _display_agent_sync_results(
+        result,
+        lock,
+        interactive=interactive and not web,
+        dry_run=dry_run,
+    )
 
 
 def _display_agent_sync_results(

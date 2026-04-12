@@ -10,9 +10,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from secretzero import __version__, generators, targets
+from secretzero.agent import (
+    AgentSecretSynchronizer,
+    build_agent_sync_json_payload,
+    env_sz_agent,
+    resolve_resolved_mode_label,
+)
+from secretzero.agent_webui import start_web_session_server, web_session_registry
 from secretzero.api.audit import get_audit_logger
 from secretzero.api.auth import RequireAuth
 from secretzero.api.schemas import (
+    AgentSyncRequest,
+    AgentSyncResponse,
+    AgentWebSessionStatusResponse,
     AppConfigResponse,
     AuditLogResponse,
     ConfigRenderResponse,
@@ -43,7 +53,7 @@ from secretzero.cli_config import get_effective_config
 from secretzero.config import ConfigLoader
 from secretzero.drift import DriftDetector
 from secretzero.lockfile import Lockfile
-from secretzero.models import Secretfile
+from secretzero.models import AgentMode, Secretfile
 from secretzero.policy import PolicyEngine
 from secretzero.rotation import should_rotate_secret
 from secretzero.sync import SyncEngine
@@ -355,6 +365,117 @@ def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Sync failed: {str(e)}",
             )
+
+    @app.post("/agent/sync", response_model=AgentSyncResponse)
+    async def agent_sync_endpoint(body: AgentSyncRequest, _auth: str = RequireAuth):
+        """Unified agent sync (CLI parity): structured JSON, optional localhost web URL for Vector 2."""
+        audit_logger = get_audit_logger()
+
+        try:
+            config_path = Path(app.state.secretfile_path)
+            if not config_path.exists():
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Secretfile not found: {config_path}",
+                )
+
+            if body.lockfile:
+                lockfile_path = Path(body.lockfile)
+            elif config_path.name == "Secretfile.yml":
+                lockfile_path = config_path.parent / ".gitsecrets.lock"
+            else:
+                lockfile_path = config_path.parent / (config_path.stem + ".lock")
+
+            secretfile_content = config_path.read_text()
+            loader = ConfigLoader()
+            secretfile = loader.load_file(config_path)
+            lock = Lockfile.load(lockfile_path)
+
+            sz_eff = body.sz_agent if body.sz_agent is not None else env_sz_agent()
+            agent_cfg = secretfile.effective_agent_config()
+            use_web = (body.web or agent_cfg.mode == AgentMode.WEB) and not sz_eff
+
+            syncer = AgentSecretSynchronizer(
+                secretfile,
+                lock,
+                dry_run=body.dry_run,
+                secretfile_path=config_path,
+                secretfile_content=secretfile_content,
+            )
+            result = syncer.sync(sz_agent=sz_eff)
+
+            resolved = resolve_resolved_mode_label(secretfile, cli_web=body.web, sz_agent=sz_eff)
+            payload = build_agent_sync_json_payload(
+                result,
+                dry_run=body.dry_run,
+                sz_agent=sz_eff,
+                resolved_mode=resolved,
+            )
+
+            if use_web and result.pending_secrets and not body.dry_run:
+                sess = web_session_registry.create(list(result.pending_secrets.keys()))
+                url, _port = start_web_session_server(
+                    session_id=sess.session_id,
+                    pending_secret_names=list(result.pending_secrets.keys()),
+                    secretfile=secretfile,
+                    lockfile=lock,
+                    lockfile_path=lockfile_path,
+                    secretfile_path=config_path,
+                    secretfile_content=secretfile_content,
+                    dry_run=body.dry_run,
+                    port_min=agent_cfg.web_port_min,
+                    port_max=agent_cfg.web_port_max,
+                    registry=web_session_registry,
+                )
+                payload["web_url"] = url
+                payload["web_session_id"] = sess.session_id
+                payload["status"] = "awaiting_web_input"
+
+            if not body.dry_run:
+                lock.save(lockfile_path)
+
+            audit_logger.log(
+                action="agent_sync",
+                resource="agent_sync",
+                details={
+                    "dry_run": body.dry_run,
+                    "web": body.web,
+                    "status": payload["status"],
+                    "pending_count": len(result.pending_secrets),
+                    "failed_count": len(result.failed_secrets),
+                },
+                success=True,
+            )
+
+            return AgentSyncResponse(**payload)
+        except HTTPException:
+            raise
+        except Exception as e:
+            audit_logger.log(
+                action="agent_sync",
+                resource="agent_sync",
+                details={"error": str(e)},
+                success=False,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Agent sync failed: {str(e)}",
+            )
+
+    @app.get("/agent/sync/web/{session_id}", response_model=AgentWebSessionStatusResponse)
+    async def agent_sync_web_status(session_id: str, _auth: str = RequireAuth):
+        """Poll completion for a Vector 2 web session (no secret values)."""
+        sess = web_session_registry.get(session_id)
+        if sess is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Unknown web session",
+            )
+        return AgentWebSessionStatusResponse(
+            done=sess.done,
+            error=sess.error,
+            result=sess.result_payload,
+        )
 
     @app.post("/rotation/check", response_model=RotationCheckResponse)
     async def check_rotation(request: RotationCheckRequest, _auth: str = RequireAuth):

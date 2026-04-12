@@ -234,3 +234,51 @@ class AppConfigResponse(BaseModel):
         default_factory=list,
         description="Config sources applied in order (e.g. defaults, config_yml, secretfile)",
     )
+
+
+class AgentSyncRequest(BaseModel):
+    """Request for unified ``agent sync`` (CLI parity)."""
+
+    dry_run: bool = False
+    web: bool = Field(
+        default=False,
+        description="When True and manual secrets are pending, expose a localhost web URL (Vector 2)",
+    )
+    lockfile: str | None = Field(
+        default=None,
+        description="Path to lockfile (default: .gitsecrets.lock next to the Secretfile)",
+    )
+    sz_agent: bool | None = Field(
+        default=None,
+        description="Override SZ_AGENT for this request; when None, use the server environment",
+    )
+
+
+class AgentSyncResponse(BaseModel):
+    """Structured agent sync result (no secret values)."""
+
+    status: str = Field(
+        description=(
+            "complete | pending_manual | failed | partial | awaiting_web_input "
+            "(awaiting_web_input when web_url is returned)"
+        )
+    )
+    synced_secrets: list[str] = Field(default_factory=list)
+    already_synced: list[str] = Field(default_factory=list)
+    pending_secrets: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    failed_secrets: dict[str, str] = Field(default_factory=dict)
+    automation_summary: dict[str, int] = Field(default_factory=dict)
+    sync_results: dict[str, Any] = Field(default_factory=dict)
+    dry_run: bool = False
+    sz_agent: bool = False
+    resolved_mode: str = ""
+    web_url: str | None = None
+    web_session_id: str | None = None
+
+
+class AgentWebSessionStatusResponse(BaseModel):
+    """Polling status for a Vector 2 web session."""
+
+    done: bool
+    error: str | None = None
+    result: dict[str, Any] | None = None

@@ -36,8 +36,7 @@ Then read this file fully before doing anything else in this session.
 - Browser UI for secret management workflows.
 - Fully automated release/deployment orchestration from scaffold itself.
 
-**Documentation / agent prompts:**  
-`prompt.md` (root) describes the unified agent sync workstream: CLI + FastAPI parity for all three vectors, and end-to-end API tests via Tavern YAML (one file per vector under `tests/e2e/`).
+**Unified agent sync:** Implemented — `secretzero agent sync --json [--web] [--verbose]` and `POST /agent/sync` share `AgentSecretSynchronizer`; Vector 2 web UI and `GET /agent/sync/web/{session_id}` for polling; Tavern E2E under `tests/e2e/` (`task test:e2e`).
 
 **Known issues:**
 - Interpolation mistakes can appear as empty rendered values and require `secretzero render` to diagnose.
