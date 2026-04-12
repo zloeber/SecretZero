@@ -14,7 +14,7 @@ edges:
     condition: when setting up the dev environment or running the project for the first time
   - target: patterns/INDEX.md
     condition: when starting a task — check the pattern index for a matching pattern file
-last_updated: 2026-04-10
+last_updated: 2026-04-12
 ---
 
 # Session Bootstrap
@@ -35,6 +35,9 @@ Then read this file fully before doing anything else in this session.
 - Autonomous/scheduled secret rotation service (rotation is operator-invoked).
 - Browser UI for secret management workflows.
 - Fully automated release/deployment orchestration from scaffold itself.
+
+**Documentation / agent prompts:**  
+`prompt.md` (root) describes the unified agent sync workstream: CLI + FastAPI parity for all three vectors, and end-to-end API tests via Tavern YAML (one file per vector under `tests/e2e/`).
 
 **Known issues:**
 - Interpolation mistakes can appear as empty rendered values and require `secretzero render` to diagnose.

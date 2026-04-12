@@ -1,104 +1,151 @@
 ---
 name: secretzero
-description: Use when Secretfile.yml sits at a repository root, or when running SecretZero sync, human-in-the-loop secret seeding, or schema-compliant Secretfile authoring. Use to bootstrap new projects, agents, or other processes which require initial secrets to be generated or seeded.
+description: |
+  Use whenever a Secretfile.yml exists in the repository (or sub-directory). 
+  Ideal for bootstrapping secrets, running sync/rotate operations, authoring schema-compliant manifests, 
+  or handling secure human-in-the-loop secret-zero workflows with AI agents. 
+  Supports fully automated, agent-instructed, and secure web-UI assisted secret seeding.
 ---
 
-# SecretZero for coding agents
+# SecretZero for Coding Agents
 
-Operate from the **repository root** where `Secretfile.yml` lives unless the manifest uses another path (then pass `-f` / `--file` consistently).
+**Always operate from the repository root** where `Secretfile.yml` lives (unless the manifest specifies a different path — then use `-f` / `--file` consistently for all commands).
 
-## Install
+## Core Principles for Agents
+- **Never** request or receive plaintext secret values in your context, logs, or history.
+- Prefer the **unified `secretzero agent sync`** command for all secret-zero scenarios.
+- Use `--json` output when possible for reliable parsing.
+- Keep the agent loop simple: call the command → act on results → repeat until clean.
 
-- **Requires Python 3.12+** and a recent [`uv`](https://docs.astral.sh/uv/) (or use `pip` equivalently).
-- Minimal CLI:
+## Unified Agent Workflow (Covers All Secret-Zero Vectors)
 
-  ```bash
-  uv tool install secretzero
-  ```
+SecretZero now provides **one primary command** that intelligently handles every common secret bootstrapping case:
 
-- Add extras matching the manifest’s providers (examples from the project docs). If uncertain then install 'all':
+```bash
+secretzero agent sync --json [--web] [--dry-run] [--verbose]
+```
 
-  ```bash
-  uv tool install secretzero[aws]
-  uv tool install secretzero[azure]
-  uv tool install secretzero[vault]
-  uv tool install secretzero[kubernetes]
-  uv tool install secretzero[cicd]
-  uv tool install secretzero[all]
-  ```
+### The Three Vectors (Handled Automatically)
 
-- Confirm the tool is on `PATH`: `secretzero --help`
+**Vector 1 – Agent instructs human (CLI-guided seeding)**  
+Human is expected to perform steps (create keys in consoles, run commands, etc.).  
+- Run: `secretzero agent sync --json`  
+- Parse `pending_secrets` → relay the rendered `summary` + ordered `steps` to the human.  
+- Human follows instructions (often running `secretzero sync` locally or external actions).  
+- Re-run the command until `pending_secrets` is empty.
 
-## Process a root manifest (baseline)
+**Vector 2 – Secure human input via local web UI (no value leakage)**  
+Agent triggers a temporary, localhost-only form for the human to enter values.  
+- Run: `secretzero agent sync --web`  
+- Tell the human: “A secure local page has opened at http://127.0.0.1:XXXX — please enter the requested secrets there and submit. Do **not** paste them here.”  
+- The web UI feeds values directly into the sync engine; values never enter your context or logs.  
+- Server auto-shuts down after submission.
 
-Run in order when onboarding a project that already has `Secretfile.yml`:
+**Vector 3 – Fully automated (no human intervention)**  
+Providers have sufficient authentication.  
+- Set `SZ_AGENT=true` in the environment, or rely on `Secretfile.agent.mode: auto`.  
+- Run: `secretzero agent sync --json` (or plain `secretzero sync`).  
+- Everything that can be generated or pulled automatically is handled; any remaining issues appear clearly in `failed_secrets`.
 
-1. `secretzero validate` — structural validation (default file: `Secretfile.yml`). Use `--var-file path.szvar` when the repo uses variable files.
-2. `secretzero init --install` — install declared provider/Python extras where supported.
-3. `secretzero test` — check provider connectivity when configured.
-4. `secretzero sync --dry-run` — full-engine preview (interactive prompts possible for manual secrets).
+**Recommended Agent Loop (works for all vectors):**
+1. Execute `secretzero agent sync --json` (add `--web` when appropriate).
+2. If `pending_secrets` exist:
+   - For Vector 1: Present templated instructions to the human.
+   - For Vector 2: Trigger `--web` and guide the user to the local form.
+3. Re-run the command after human action.
+4. If `failed_secrets` appear, fix the `Secretfile.yml` (usually by adding better `agent_instructions`) and retry.
+5. Proceed only when `pending_secrets` and `failed_secrets` are empty.
 
-Default lockfile is **`.gitsecrets.lock`** when the manifest is `Secretfile.yml`. If you use `-f other.yml`, SecretZero derives a matching lockfile name from the stem unless you set `-l` explicitly.
+**Top-level configuration** (in `Secretfile.yml`):
+```yaml
+agent:
+  mode: auto | human | web   # default: auto
+```
 
-Use **Agent mode** in the IDE so you can execute these commands, read output, and iterate without asking the user to copy-paste logs.
+## Installation
 
-## Human-in-the-loop seeding (`secretzero agent sync`)
+Requires **Python 3.12+** and [`uv`](https://docs.astral.sh/uv/) (preferred) or `pip`.
 
-Use this path when you want **automated secrets synced first** and **structured guidance** for anything that needs a human (sign-ups, admin approval, OAuth, third-party consoles).
+```bash
+# Minimal install
+uv tool install secretzero
 
-- **Read-oriented / automation-friendly output:**
+# Add extras for your providers (or use [all] if unsure)
+uv tool install secretzero[aws]
+uv tool install secretzero[azure]
+uv tool install secretzero[vault]
+uv tool install secretzero[kubernetes]
+uv tool install secretzero[cicd]
+uv tool install secretzero[all]
+```
 
-  ```bash
-  secretzero agent sync --json
-  ```
+Verify: `secretzero --help`
 
-  Parse the JSON: `synced_secrets`, `already_synced`, `pending_secrets` (each value includes `summary`, `steps`, `prerequisites`, etc.), and `failed_secrets`. Secrets that cannot auto-sync and lack `agent_instructions` appear under `failed_secrets` with an explicit error — fix the Secretfile (add `agent_instructions`) and re-run.
+## Baseline Onboarding Commands (Run in Order)
 
-- **Dry run:** `secretzero agent sync --dry-run` (or add `--dry-run` with `--json`).
+1. `secretzero validate` — Validates structure and variables (`--var-file` if needed).
+2. `secretzero init --install` — Installs declared provider extras.
+3. `secretzero test` — Checks provider connectivity.
+4. `secretzero sync --dry-run` — Previews the full sync (may prompt for manual secrets).
 
-- **After the human completes external steps:** run `secretzero agent sync --interactive` so the user can supply values for pending items (only when a real TTY is available — not in headless automation). Alternatively use full `secretzero sync` if that matches the repo’s documented workflow.
+Default lockfile: `.gitsecrets.lock` (derived automatically from the manifest filename).
 
-**Agent loop (recommended):**
+## Authoring `Secretfile.yml` (Schema-Driven)
 
-1. Run `secretzero agent sync --json` from the repo root.
-2. For each entry in `pending_secrets`, present `summary` and `steps` to the human; wait for them to finish browser/account work.
-3. Re-run `agent sync` until `pending_secrets` is empty or only contains items blocked on permissions.
-4. If `failed_secrets` is non-empty, correct the manifest and validate again.
+Use the CLI as the single source of truth.
 
-**Authoring expectation:** manual or semi-manual secrets should define `agent_instructions` (see schema export and examples below) so `agent sync` returns steps instead of hard failures.
+**Useful commands:**
+- `secretzero schema export -o Secretfile.schema.json` — Export JSON Schema for IDE support.
+- `secretzero validate [--format json]` — Validate your manifest.
+- `secretzero create --template-type basic` — Scaffold a new manifest (also supports `aws`, `azure`, etc.).
+- `secretzero secret-types [--type <kind>] --verbose` — List available generators and options.
 
-## Writing schema-compliant `Secretfile.yml`
+**Best practices for agent-friendly secrets:**
+- For any secret that cannot be fully automated, define `agent_instructions` with:
+  - `summary`: Short human-readable description.
+  - `steps`: Ordered list of actions (supports templating with `{{secret_name}}`, `{{target.xxx}}`, etc.).
+- Templated instructions are automatically rendered with Secretfile variables and target details.
 
-Use the CLI as the source of truth (Pydantic models back the schema).
+Example structure for a manual secret:
+```yaml
+secrets:
+  external_api_key:
+    kind: static
+    agent_instructions:
+      summary: "Create a new API key in the Example.com console"
+      steps:
+        - "Go to https://console.example.com/api-keys and create a key named {{secret_name}} for this environment."
+        - "Run `secretzero sync -s {{secret_name}}` locally to seed it."
+        - "Confirm to the agent when complete."
+```
 
-| Goal | Command |
-|------|---------|
-| Export JSON Schema for editors / review | `secretzero schema export -o Secretfile.schema.json` (use `-o -` for stdout) |
-| Validate YAML | `secretzero validate` or `secretzero validate --format json` |
-| Scaffold a new file | `secretzero create --template-type basic` (also `aws`, `azure`, `vault`, `kubernetes`) |
-| List generator kinds and options | `secretzero secret-types` and `secretzero secret-types --type <kind> --verbose` |
+## Common Pitfalls to Avoid
 
-Workflow for agents:
+- Missing or incomplete `agent_instructions` on non-auto secrets → results in `failed_secrets`.
+- Forgetting `--var-file` when variables are used.
+- Running commands from the wrong directory.
+- Expecting plaintext values — always use the agent workflow instead.
+- Installing without the correct provider extras.
 
-1. Discover required secrets from the codebase (env vars, configs, deployment manifests).
-2. Map each to a generator or `kind: static` and list targets (`kind: file`, cloud secret stores, CI providers, etc.).
-3. For any secret that is not fully generatable in CI, add **`agent_instructions`** with a `summary` and ordered `steps` (`action`, `description`; optional `params` as a **mapping** if needed).
-4. Run `secretzero validate`; fix errors against `secretzero schema export` or `--format json` validation output.
-5. Only then run `secretzero agent sync` / `secretzero sync`.
-
-Keep variable substitution consistent (`variables` section and `.szvar` files) and validate with the same `--var-file` flags the user will use in production.
-
-## Common mistakes
-
-- Running `agent sync` **without** `agent_instructions` on non-automatic secrets — yields `failed_secrets` instead of guided steps.
-- Validating without **`.szvar`** files that the manifest depends on — use the same `-v` / `--var-file` inputs as `sync`.
-- Forgetting provider extras — `secretzero init --install` or install the matching `secretzero[...]` extra.
-
-## Quick reference
+## Quick Reference Cheat Sheet
 
 ```bash
 secretzero validate
-secretzero agent sync --json
 secretzero schema export -o Secretfile.schema.json
+secretzero agent sync --json          # Vector 1 & 3
+secretzero agent sync --web           # Vector 2
+secretzero sync --dry-run
 secretzero secret-types --verbose
 ```
+
+## Tips for Effective Agent Use
+
+- Always prefer `--json` output when parsing results programmatically.
+- When guiding the human, quote the exact rendered `summary` and `steps` from the JSON.
+- For Vector 2, clearly communicate that the web UI is temporary, localhost-only, and secure.
+- After any manual changes or human actions, re-run `secretzero agent sync --json` to confirm state.
+- Combine with `secretzero drift` or `secretzero rotate` when maintenance is needed post-bootstrap.
+
+This workflow keeps secrets **out of agent context**, provides clear guidance, and scales from fully manual to fully automated scenarios with minimal friction.
+
+For the absolute latest behavior, run `secretzero --help` and `secretzero agent sync --help` in the target repository.

@@ -1,34 +1,50 @@
----
-name: agents
-description: Always-loaded project anchor. Read this first. Contains project identity, non-negotiables, commands, and pointer to ROUTER.md for full context.
-last_updated: 2026-04-09
----
+# SecretZero – Guidance for Claude (and Other Coding Agents)
 
-# SecretZero
+## Project Overview
 
-## What This Is
-A secrets-as-code management tool that validates, generates, syncs, and tracks project secrets through declarative `Secretfile.yml` manifests.
+SecretZero is a **declarative, schema-driven** secrets-as-code solution. It centers on `Secretfile.yml` manifests and includes multiple integrated components: Python CLI, FastAPI REST API, provider registry, lockfile engine, skills framework, Terraform support, and comprehensive documentation.
+
+The project is structured as a **monorepo** (managed via `Taskfile.yml`, `pyproject.toml`, and supporting Node/Docker configs). All major behavior must maintain **feature parity** across CLI, API, skills, and other sub-projects.
 
 ## Non-Negotiables
-- Never commit plaintext secrets, API keys, or credentials.
-- Never log or persist secret values outside approved providers/targets and lockfile metadata hashes.
-- Use Pydantic v2 APIs only (`model_dump()` / `model_dump_json()`), not v1 methods.
-- Use Rich console output for CLI UX (`Console.print()`), not raw `print`.
-- Register new provider/generator/target capabilities through bundle manifests and the bundle registry.
 
-## Commands
-- Dev setup: `uv sync --all-extras && source .venv/bin/activate`
-- Validate config: `secretzero validate`
-- Run tests: `task test`
-- Lint (fix): `task lint:fix`
-- Format: `task format`
-- Build artifacts/schema update: `task schema:update`
-- Security scan: `task security:scan`
-- Integration validations: `task test:validations`
+- **Schema-driven development**: All features, validation, and agent behavior must originate from the Pydantic models. After model changes, always run `task schema:update` to propagate updates to CLI, API, JSON Schema, examples, and tests.
+- **Zero-leakage rule**: Never request, receive, log, store, or allow plaintext secrets into any context, history, or responses.
+- **Feature parity**: New capabilities (especially agentic features) must work consistently via CLI flags, API endpoints, and skills.
+- Prefer structured JSON output for agent consumption.
+- Use Rich for CLI output and FastAPI best practices for the API layer.
 
-## Pre-push Checklist
+## Unified Agentic Secret-Zero Workflow
 
-Run from repository root before any `git push`:
+Use the **single unified entrypoint** for all secret bootstrapping:
+
+**CLI:**
+```bash
+secretzero agent sync --json [--web] [--dry-run]
+```
+
+**API equivalent:** Use the corresponding `/agent/sync` (or proxy/metadata) endpoint when the REST API is deployed.
+
+This command intelligently supports the **three agentic vectors**:
+
+- **Vector 1 (Agent instructs human)**: Relay templated instructions from `pending_secrets`.
+- **Vector 2 (Secure web UI)**: Use `--web`; guide the human to the temporary localhost form (values never enter agent context).
+- **Vector 3 (Fully automated)**: Enable via `SZ_AGENT=true` + provider auth; runs end-to-end without intervention.
+
+**Recommended loop**: Call the command/API → parse structured results → act (instruct human, trigger web UI, or proceed) → repeat until `pending_secrets` and `failed_secrets` are empty.
+
+Detailed guidance, `agent_instructions` (with templating support), top-level `agent:` config, and vector mapping live in `./skills/secretzero/SKILL.md`.
+
+## Essential Commands (Schema-Driven)
+
+- `task schema:update` — Regenerate schema after model changes (mandatory for parity).
+- `secretzero validate`, `secretzero schema export`
+- `secretzero agent sync --json`
+- `secretzero sync --dry-run`, `secretzero test`, `secretzero secret-types`
+
+## Pre-Push / Pre-Merge Checklist
+
+Run **in order** from the repository root before any push or merge:
 
 ```bash
 task lint:fix && task format && task schema:update
@@ -37,20 +53,22 @@ task security:scan
 task test:validations
 ```
 
-If `schema:update` or `lint:fix` modifies files, commit those changes and rerun at least `task test` and `task security:scan` before pushing.
+Fix all issues. If schema or lint tasks change files, commit them and re-run the checklist. Verify changes work via both CLI and API where applicable.
 
-## Merge Requests
+## Other Workflows
 
-After a clean pre-push run, push the branch and open or update the merge request.
+In addition to the three agentic vectors, SecretZero includes:
+- Standard sync, rotate, drift detection, policy checks
+- Audit logging and graph visualization
+- Provider-specific and Terraform-integrated operations
+- CI/CD secret injection
 
-## Notes
+Choose the right workflow for the task; default to the unified `agent sync` only for secret-zero bootstrapping.
 
-- Tasks assume `uv` and the project `.venv` as configured in `Taskfile.yml`.
-- If `schema:update` produces no diff, there is nothing to commit for schema.
+## After Every Task or Major Change
 
-## After Every Task
-After completing any task: update `.mex/ROUTER.md` project state and any `.mex/` files that are now out of date. If no pattern existed for the task you just completed, create one in `.mex/patterns/`.
+- Update `.mex/ROUTER.md` and relevant `.mex/` patterns.
+- Ensure documentation (`AGENTS.md`, `CLAUDE.md`, `SKILL.md`, docs/) reflects the changes.
+- Maintain schema-driven consistency across the monorepo.
 
-## Navigation
-At the start of every session, read `.mex/ROUTER.md` before doing anything else.
-For full project context, patterns, and task guidance — everything is there.
+Follow these rules to keep SecretZero secure, consistent, and highly usable by both humans and AI agents across all its components.
