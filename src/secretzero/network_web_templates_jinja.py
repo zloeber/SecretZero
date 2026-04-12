@@ -146,7 +146,11 @@ TEMPLATES = {
 {% extends "base.html" %}
 {% block body %}
   <h1>{{ title }}</h1>
+  {% if secret_names %}
   <p class="lead">Submit values for pending secrets. They are sent only to this CLI process.</p>
+  {% else %}
+  <p class="lead">No secrets currently require manual values. Submit to run sync with the current manifest.</p>
+  {% endif %}
   {% if error_message %}
   <div class="alert" role="alert">{{ error_message }}</div>
   {% endif %}
@@ -156,7 +160,7 @@ TEMPLATES = {
     <label for="f-{{ name }}">{{ name }}</label>
     <input id="f-{{ name }}" name="{{ name }}" type="password" required autocomplete="off"/>
     {% endfor %}
-    <button type="submit">Submit and sync</button>
+    <button type="submit">{% if secret_names %}Submit and sync{% else %}Run sync{% endif %}</button>
   </form>
 {% endblock %}
 """,

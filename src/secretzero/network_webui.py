@@ -266,7 +266,9 @@ def create_network_web_app(
         assert csrf is not None
         return _render(
             "form.html",
-            title="SecretZero — pending secrets",
+            title=(
+                "SecretZero — sync" if not pending_secret_names else "SecretZero — pending secrets"
+            ),
             secret_names=pending_secret_names,
             csrf_token=csrf,
         )
@@ -297,7 +299,11 @@ def create_network_web_app(
         if err:
             return _render(
                 "form.html",
-                title="SecretZero — pending secrets",
+                title=(
+                    "SecretZero — sync"
+                    if not pending_secret_names
+                    else "SecretZero — pending secrets"
+                ),
                 secret_names=pending_secret_names,
                 csrf_token=csrf_expected,
                 error_message=err,
@@ -306,7 +312,11 @@ def create_network_web_app(
             msg = "; ".join(f"{k}: {v}" for k, v in res.failed_secrets.items())
             return _render(
                 "form.html",
-                title="SecretZero — pending secrets",
+                title=(
+                    "SecretZero — sync"
+                    if not pending_secret_names
+                    else "SecretZero — pending secrets"
+                ),
                 secret_names=pending_secret_names,
                 csrf_token=csrf_expected,
                 error_message=msg or "Sync reported failed secrets.",

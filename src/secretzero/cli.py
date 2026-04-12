@@ -3920,6 +3920,12 @@ def audit(
     show_default=True,
     help="Seconds to wait for successful form submission",
 )
+@click.option(
+    "--force",
+    "-F",
+    is_flag=True,
+    help="Start the web UI even when no secrets require manual input (empty form runs sync)",
+)
 def web_command(
     file: str,
     lockfile: str,
@@ -3934,12 +3940,15 @@ def web_command(
     tls_self_signed: bool,
     tls_san: tuple[str, ...],
     timeout: float,
+    force: bool,
 ) -> None:
     """Serve a one-shot HTTPS-capable web UI to seed secrets that need manual input.
 
     Binds to all interfaces by default. Share the printed URL and bootstrap token
     out of band. For trusted transport use --tls-self-signed, your own --tls-cert
     / --tls-key, an SSH tunnel, or a reverse proxy with a real certificate.
+
+    Use --force to open the UI even when the initial sync reports nothing pending.
     """
     import secrets as std_secrets
 
@@ -3986,8 +3995,9 @@ def web_command(
         console.print(f"[red]Agent sync failed:[/red] {exc}")
         raise click.ClickException(str(exc)) from exc
 
-    if not result.pending_secrets:
+    if not result.pending_secrets and not force:
         console.print("[green]No pending secrets require manual input.[/green]")
+        console.print("[dim]Use --force to start the web UI anyway.[/dim]")
         return
 
     if dry_run:
@@ -3996,6 +4006,11 @@ def web_command(
             "(remove --dry-run to start the server).[/yellow]"
         )
         return
+
+    if force and not result.pending_secrets:
+        console.print(
+            "[yellow]No pending manual secrets; starting web UI anyway (--force).[/yellow]"
+        )
 
     bootstrap = None
     if token_file:

@@ -1,5 +1,6 @@
 """Tests for ``secretzero web`` network UI (auth, CSRF, sync hook)."""
 
+import re
 from pathlib import Path
 from unittest.mock import patch
 
@@ -102,9 +103,6 @@ def test_network_web_flow_auth_csrf_submit(tmp_path: Path) -> None:
         assert r3.status_code == 200
         assert "csrf_token" in r3.text
 
-        # extract csrf from HTML roughly
-        import re
-
         m = re.search(r'name="csrf_token" value="([^"]+)"', r3.text)
         assert m
         csrf = m.group(1)
@@ -116,4 +114,52 @@ def test_network_web_flow_auth_csrf_submit(tmp_path: Path) -> None:
         )
         assert r4.status_code == 200
         assert "done" in r4.text.lower() or "dry run" in r4.text.lower()
+        assert done == [True]
+
+
+def test_network_web_empty_pending_form_submit(tmp_path: Path) -> None:
+    """Force-open UI with no secret fields still completes sync via POST /submit."""
+    auth = NetworkWebSessionStore.from_bootstrap_token("tok2")
+    done: list[bool] = []
+
+    def on_ok() -> None:
+        done.append(True)
+
+    sf = _minimal_secretfile()
+    lk = _minimal_lockfile(tmp_path)
+
+    app = create_network_web_app(
+        pending_secret_names=[],
+        secretfile=sf,
+        lockfile=lk,
+        secretfile_path=None,
+        secretfile_content=None,
+        dry_run=True,
+        auth=auth,
+        use_tls=False,
+        on_success_shutdown=on_ok,
+    )
+
+    fake = AgentSyncResult(
+        status="complete",
+        synced_secrets=[],
+        failed_secrets={},
+        pending_secrets={},
+    )
+
+    with patch(
+        "secretzero.network_webui.sync_pending_secrets_from_web_form",
+        return_value=(fake, None),
+    ):
+        client = TestClient(app)
+        r2 = client.post("/auth", data={"access_token": "tok2"}, follow_redirects=False)
+        assert r2.status_code == 302
+        r3 = client.get("/form", cookies=r2.cookies)
+        assert r3.status_code == 200
+        assert "Run sync" in r3.text
+        m = re.search(r'name="csrf_token" value="([^"]+)"', r3.text)
+        assert m
+        csrf = m.group(1)
+        r4 = client.post("/submit", data={"csrf_token": csrf}, cookies=r2.cookies)
+        assert r4.status_code == 200
         assert done == [True]

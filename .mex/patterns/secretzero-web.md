@@ -28,5 +28,5 @@ last_updated: 2026-04-12
 
 ## Verify
 
-- [ ] `uv run secretzero web --help` lists host/port/token/TLS options.
+- [ ] `uv run secretzero web --help` lists host/port/token/TLS/`--force` options.
 - [ ] Tests in `tests/test_network_webui.py` pass.
