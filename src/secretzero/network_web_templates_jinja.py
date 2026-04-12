@@ -38,9 +38,60 @@ body {
   line-height: 1.5;
 }
 main {
-  max-width: 28rem;
+  max-width: 52rem;
   margin: 0 auto;
   padding: clamp(1.5rem, 4vw, 3rem) 1.25rem;
+}
+.manifest-meta {
+  font-size: 0.88rem;
+  color: var(--muted);
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 1.25rem;
+  padding: 0.75rem 1rem;
+  background: rgba(127,127,127,0.06);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+.toolbar { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; align-items: center; }
+.toolbar form { display: inline; margin: 0; }
+.btn {
+  display: inline-block;
+  padding: 0.45rem 0.85rem;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+}
+.btn-primary { background: var(--accent); color: #fff; border-color: transparent; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-danger { background: var(--danger); color: #fff; border-color: transparent; }
+.btn-sm { padding: 0.3rem 0.55rem; font-size: 0.8rem; }
+.table-wrap { overflow-x: auto; margin-top: 0.5rem; }
+table.sz { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+table.sz th, table.sz td {
+  border: 1px solid var(--border);
+  padding: 0.5rem 0.6rem;
+  text-align: left;
+  vertical-align: top;
+}
+table.sz th { background: rgba(127,127,127,0.08); font-weight: 600; }
+table.sz td.targets { max-width: 14rem; word-break: break-word; }
+table.sz td.actions { white-space: nowrap; }
+table.sz td.actions form { display: inline; margin-right: 0.25rem; }
+.notice-ok {
+  padding: 0.65rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  border: 1px solid #198754;
+  background: rgba(25, 135, 84, 0.12);
+  color: var(--text);
+  font-size: 0.9rem;
 }
 .card {
   background: var(--surface);
@@ -127,7 +178,7 @@ TEMPLATES = {
 {% extends "base.html" %}
 {% block body %}
   <h1>{{ title }}</h1>
-  <p class="lead">Enter the one-time access token from the operator to open the secure form.</p>
+  <p class="lead">Enter the one-time access token from the operator to open the dashboard.</p>
   {% if auth_error %}
   <div class="alert" role="alert">{{ auth_error }}</div>
   {% endif %}
@@ -177,6 +228,112 @@ TEMPLATES = {
   <h1>{{ title }}</h1>
   <div class="alert" role="alert">{{ message }}</div>
   <p class="lead"><a href="/">Return to access</a></p>
+{% endblock %}
+""",
+    "dashboard.html": """
+{% extends "base.html" %}
+{% block body %}
+  <h1>{{ title }}</h1>
+  <p class="lead">Manifest, lockfile metadata, and per-secret sync. Values are not logged by SecretZero.</p>
+  {% if dry_run %}
+  <div class="alert" role="alert">Dry-run mode: actions simulate only; lockfile is not written.</div>
+  {% endif %}
+  {% if notice %}
+  <div class="notice-ok" role="status">{{ notice }}</div>
+  {% endif %}
+  {% if error %}
+  <div class="alert" role="alert">{{ error }}</div>
+  {% endif %}
+  <div class="manifest-meta">
+    <div><strong>Secretfile</strong> {{ manifest.secretfile_display }}</div>
+    <div><strong>Lockfile synced</strong> {{ manifest.synced_at }}</div>
+    <div><strong>Manifest hash (lock)</strong> {{ manifest.secretfile_hash }}</div>
+    <div><strong>Var files</strong> {{ manifest.var_files }}</div>
+  </div>
+  <div class="toolbar">
+    <form method="post" action="/action/sync-all">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+      <button type="submit" class="btn btn-primary btn-sm">Sync all secrets</button>
+    </form>
+    <form method="post" action="/logout">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+      <button type="submit" class="btn btn-sm">Log out</button>
+    </form>
+    <form method="post" action="/shutdown" onsubmit="return confirm('Shut down the web server? Unsaved work is already written when actions succeed.');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+      <button type="submit" class="btn btn-danger btn-sm">Shut down server</button>
+    </form>
+  </div>
+  <div class="table-wrap">
+    <table class="sz" aria-describedby="manifest-heading">
+      <thead>
+        <tr>
+          <th>Secret</th>
+          <th>Kind</th>
+          <th>Targets</th>
+          <th>Value hash</th>
+          <th>Updated</th>
+          <th>Last rotated</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td><strong>{{ row.name }}</strong></td>
+          <td><code>{{ row.kind }}</code></td>
+          <td class="targets">{% for t in row.targets %}{{ t }}{% if not loop.last %}<br/>{% endif %}{% endfor %}</td>
+          <td><code>{{ row.hash_preview }}</code></td>
+          <td>{{ row.updated_at }}</td>
+          <td>{{ row.last_rotated }}{% if row.rotation_count %} (×{{ row.rotation_count }}){% endif %}</td>
+          <td class="actions">
+            {% if row.can_set_value %}
+            <a class="btn btn-sm" href="/secret/{{ row.name | uquote }}/edit">Set value</a>
+            {% endif %}
+            <form method="post" action="/action/sync-secret">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+              <input type="hidden" name="secret_name" value="{{ row.name }}"/>
+              <button type="submit" class="btn btn-sm">Sync</button>
+            </form>
+            <form method="post" action="/action/rotate-secret">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+              <input type="hidden" name="secret_name" value="{{ row.name }}"/>
+              <button type="submit" class="btn btn-sm">Rotate</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if not rows %}
+  <p class="lead">No secrets are defined in this Secretfile.</p>
+  {% endif %}
+{% endblock %}
+""",
+    "secret_edit.html": """
+{% extends "base.html" %}
+{% block body %}
+  <h1>{{ title }}</h1>
+  <p class="lead">New value is merged as a static secret and synced to targets for <code>{{ secret_name }}</code>.</p>
+  {% if error_message %}
+  <div class="alert" role="alert">{{ error_message }}</div>
+  {% endif %}
+  <form method="post" action="/secret/{{ secret_name | uquote }}/apply" autocomplete="off">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+    <label for="value">New value</label>
+    <input id="value" name="value" type="password" required autocomplete="off"/>
+    <button type="submit" class="btn btn-primary" style="margin-top:1rem;width:auto;">Apply and sync</button>
+  </form>
+  <p style="margin-top:1.25rem;"><a href="/dashboard">← Back to manifest</a></p>
+{% endblock %}
+""",
+    "stopped.html": """
+{% extends "base.html" %}
+{% block body %}
+  <h1>{{ title }}</h1>
+  <p class="lead">The web server has stopped. {% if dry_run %}No lockfile changes were persisted.{% else %}The lockfile was saved.{% endif %} You can close this tab.</p>
+  <p class="lead"><a href="/">Sign in again</a> requires restarting <code>secretzero web</code> from the CLI.</p>
 {% endblock %}
 """,
 }

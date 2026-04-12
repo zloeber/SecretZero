@@ -1,14 +1,13 @@
-"""Tests for ``secretzero web`` network UI (auth, CSRF, sync hook)."""
+"""Tests for ``secretzero web`` network UI (auth, dashboard, shutdown)."""
 
 import re
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
-from secretzero.agent import AgentSyncResult
 from secretzero.lockfile import Lockfile
-from secretzero.models import Secretfile
+from secretzero.models import Secret, Secretfile
 from secretzero.network_webui import (
     NetworkWebSessionStore,
     create_network_web_app,
@@ -19,6 +18,15 @@ from secretzero.network_webui import (
 
 def _minimal_secretfile() -> Secretfile:
     return Secretfile(version="1.0", secrets=[])
+
+
+def _secretfile_one_static() -> Secretfile:
+    return Secretfile(
+        version="1.0",
+        secrets=[
+            Secret(name="s1", kind="static", config={"value": "x"}, targets=[]),
+        ],
+    )
 
 
 def _minimal_lockfile(tmp: Path) -> Lockfile:
@@ -53,113 +61,97 @@ def test_self_signed_generates_pem(tmp_path: Path) -> None:
         key_f.unlink(missing_ok=True)
 
 
-def test_network_web_flow_auth_csrf_submit(tmp_path: Path) -> None:
+class _ImmediateTimer:
+    """Run Timer callback synchronously on start (for tests)."""
+
+    def __init__(
+        self, interval: float, function: object, args: tuple = (), kwargs: dict | None = None
+    ) -> None:
+        self._fn = function
+        self._args = args
+        self._kwargs = kwargs or {}
+
+    def start(self) -> None:
+        self._fn(*self._args, **self._kwargs)
+
+
+def test_dashboard_auth_and_shutdown(tmp_path: Path) -> None:
     auth = NetworkWebSessionStore.from_bootstrap_token("tok")
-    done = []
+    done: list[bool] = []
 
     def on_ok() -> None:
         done.append(True)
 
-    sf = _minimal_secretfile()
-    lk = _minimal_lockfile(tmp_path)
+    lk_path = tmp_path / ".gitsecrets.lock"
+    lk_path.write_text('{"version": "1.0", "secrets": {}}\n')
+    lk = Lockfile.load(lk_path)
 
     app = create_network_web_app(
-        pending_secret_names=["s1"],
-        secretfile=sf,
+        secretfile=_minimal_secretfile(),
         lockfile=lk,
-        secretfile_path=None,
-        secretfile_content=None,
+        lockfile_path=lk_path,
+        secretfile_path=tmp_path / "Secretfile.yml",
+        secretfile_content="version: '1.0'\nsecrets: []\n",
         dry_run=True,
         auth=auth,
         use_tls=False,
-        on_success_shutdown=on_ok,
+        on_shutdown=on_ok,
     )
 
-    fake = AgentSyncResult(
-        status="complete",
-        synced_secrets=["s1"],
-        failed_secrets={},
-        pending_secrets={},
-    )
+    mock_eng = MagicMock()
+    mock_eng.sync.return_value = {"errors": [], "details": []}
 
-    with patch(
-        "secretzero.network_webui.sync_pending_secrets_from_web_form",
-        return_value=(fake, None),
+    with (
+        patch("secretzero.network_webui.make_sync_engine", return_value=mock_eng),
+        patch("secretzero.network_webui.threading.Timer", _ImmediateTimer),
     ):
         client = TestClient(app)
-        r0 = client.get("/")
-        assert r0.status_code == 200
-        r1 = client.post("/auth", data={"access_token": "wrong"})
-        assert r1.status_code == 200
-        assert "Invalid access token" in r1.text
-
         r2 = client.post("/auth", data={"access_token": "tok"}, follow_redirects=False)
         assert r2.status_code == 302
-        assert r2.headers["location"] == "/form"
-        sid_cookie = r2.cookies.get("sz_web_session")
-        assert sid_cookie
+        assert r2.headers["location"] == "/dashboard"
 
-        r3 = client.get("/form", cookies=r2.cookies)
+        r3 = client.get("/dashboard", cookies=r2.cookies)
         assert r3.status_code == 200
-        assert "csrf_token" in r3.text
+        assert "Manifest" in r3.text or "manifest" in r3.text.lower()
 
         m = re.search(r'name="csrf_token" value="([^"]+)"', r3.text)
         assert m
         csrf = m.group(1)
 
         r4 = client.post(
-            "/submit",
-            data={"csrf_token": csrf, "s1": "x"},
+            "/shutdown",
+            data={"csrf_token": csrf},
             cookies=r2.cookies,
         )
         assert r4.status_code == 200
-        assert "done" in r4.text.lower() or "dry run" in r4.text.lower()
+        assert "stopped" in r4.text.lower()
         assert done == [True]
 
 
-def test_network_web_empty_pending_form_submit(tmp_path: Path) -> None:
-    """Force-open UI with no secret fields still completes sync via POST /submit."""
-    auth = NetworkWebSessionStore.from_bootstrap_token("tok2")
-    done: list[bool] = []
-
-    def on_ok() -> None:
-        done.append(True)
-
-    sf = _minimal_secretfile()
-    lk = _minimal_lockfile(tmp_path)
+def test_sync_all_invokes_engine(tmp_path: Path) -> None:
+    auth = NetworkWebSessionStore.from_bootstrap_token("t2")
+    lk_path = tmp_path / "x.lock"
+    lk_path.write_text('{"version": "1.0", "secrets": {}}\n')
+    lk = Lockfile.load(lk_path)
 
     app = create_network_web_app(
-        pending_secret_names=[],
-        secretfile=sf,
+        secretfile=_secretfile_one_static(),
         lockfile=lk,
+        lockfile_path=lk_path,
         secretfile_path=None,
         secretfile_content=None,
         dry_run=True,
         auth=auth,
         use_tls=False,
-        on_success_shutdown=on_ok,
+        on_shutdown=lambda: None,
     )
-
-    fake = AgentSyncResult(
-        status="complete",
-        synced_secrets=[],
-        failed_secrets={},
-        pending_secrets={},
-    )
-
-    with patch(
-        "secretzero.network_webui.sync_pending_secrets_from_web_form",
-        return_value=(fake, None),
-    ):
-        client = TestClient(app)
-        r2 = client.post("/auth", data={"access_token": "tok2"}, follow_redirects=False)
-        assert r2.status_code == 302
-        r3 = client.get("/form", cookies=r2.cookies)
-        assert r3.status_code == 200
-        assert "Run sync" in r3.text
-        m = re.search(r'name="csrf_token" value="([^"]+)"', r3.text)
-        assert m
-        csrf = m.group(1)
-        r4 = client.post("/submit", data={"csrf_token": csrf}, cookies=r2.cookies)
-        assert r4.status_code == 200
-        assert done == [True]
+    mock_eng = MagicMock()
+    with patch("secretzero.network_webui.make_sync_engine", return_value=mock_eng):
+        c = TestClient(app)
+        r_auth = c.post("/auth", data={"access_token": "t2"}, follow_redirects=False)
+        cookies = r_auth.cookies
+        dash = c.get("/dashboard", cookies=cookies)
+        csrf = re.search(r'name="csrf_token" value="([^"]+)"', dash.text)
+        assert csrf
+        c.post("/action/sync-all", data={"csrf_token": csrf.group(1)}, cookies=cookies)
+        mock_eng.sync.assert_called()

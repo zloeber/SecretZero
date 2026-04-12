@@ -3259,13 +3259,17 @@ def graph(file: str, graph_type: str, output_format: str, output: str | None) ->
         sys.exit(EXIT_UNKNOWN_ERROR)
 
 
-@main.group()
-def list() -> None:
-    """List secrets, providers, targets, or variables from a Secretfile."""
+@main.group("list")
+def list_group() -> None:
+    """List secrets, providers, targets, or variables from a Secretfile.
+
+    Named ``list_group`` so the built-in ``list`` remains available in this module
+    (a function named ``list`` would shadow it and break ``list(...)`` calls below).
+    """
     pass
 
 
-@list.command("secrets")
+@list_group.command("secrets")
 @click.option(
     "--file",
     "-f",
@@ -3351,7 +3355,7 @@ def list_secrets(file: str, output_format: str, name_filter: str | None) -> None
     console.print(f"\n[dim]Total: {len(secrets)} secret(s)[/dim]")
 
 
-@list.command("providers")
+@list_group.command("providers")
 @click.option(
     "--file",
     "-f",
@@ -3417,7 +3421,7 @@ def list_providers(file: str, output_format: str) -> None:
     console.print(f"\n[dim]Total: {len(config.providers)} provider(s)[/dim]")
 
 
-@list.command("targets")
+@list_group.command("targets")
 @click.option(
     "--file",
     "-f",
@@ -3480,7 +3484,7 @@ def list_targets(file: str, output_format: str) -> None:
     console.print(f"\n[dim]Total: {len(all_targets)} target(s)[/dim]")
 
 
-@list.command("variables")
+@list_group.command("variables")
 @click.option(
     "--file",
     "-f",
@@ -3918,13 +3922,7 @@ def audit(
     type=float,
     default=3600.0,
     show_default=True,
-    help="Seconds to wait for successful form submission",
-)
-@click.option(
-    "--force",
-    "-F",
-    is_flag=True,
-    help="Start the web UI even when no secrets require manual input (empty form runs sync)",
+    help="Seconds to wait before timing out if the UI is not shut down",
 )
 def web_command(
     file: str,
@@ -3940,15 +3938,14 @@ def web_command(
     tls_self_signed: bool,
     tls_san: tuple[str, ...],
     timeout: float,
-    force: bool,
 ) -> None:
-    """Serve a one-shot HTTPS-capable web UI to seed secrets that need manual input.
+    """Serve an HTTPS-capable web UI to inspect the manifest, sync, and update secrets.
 
     Binds to all interfaces by default. Share the printed URL and bootstrap token
     out of band. For trusted transport use --tls-self-signed, your own --tls-cert
     / --tls-key, an SSH tunnel, or a reverse proxy with a real certificate.
 
-    Use --force to open the UI even when the initial sync reports nothing pending.
+    Use **Shut down** in the UI to stop the server; the CLI also saves the lockfile when the session ends.
     """
     import secrets as std_secrets
 
@@ -3995,22 +3992,12 @@ def web_command(
         console.print(f"[red]Agent sync failed:[/red] {exc}")
         raise click.ClickException(str(exc)) from exc
 
-    if not result.pending_secrets and not force:
-        console.print("[green]No pending secrets require manual input.[/green]")
-        console.print("[dim]Use --force to start the web UI anyway.[/dim]")
-        return
-
     if dry_run:
         console.print(
             "[yellow]Skipping network web UI in --dry-run "
             "(remove --dry-run to start the server).[/yellow]"
         )
         return
-
-    if force and not result.pending_secrets:
-        console.print(
-            "[yellow]No pending manual secrets; starting web UI anyway (--force).[/yellow]"
-        )
 
     bootstrap = None
     if token_file:
@@ -4043,7 +4030,6 @@ def web_command(
 
     try:
         _base_url, _used_port, _fp = run_network_blocking_web_session(
-            pending_secret_names=list(result.pending_secrets.keys()),
             secretfile=secretfile,
             lockfile=lock,
             lockfile_path=lockfile_path,
@@ -4058,14 +4044,14 @@ def web_command(
             tls_certfile=tls_cert_path,
             tls_keyfile=tls_key_path,
             tls_self_signed=tls_self_signed,
-            tls_extra_sans=list(tls_san),
+            tls_extra_sans=[*tls_san],
             timeout=timeout,
             on_ready=_on_ready,
         )
     except TimeoutError as exc:
         raise click.ClickException(str(exc)) from exc
 
-    console.print("[green]Web session completed.[/green]")
+    console.print("[green]Web session ended.[/green]")
 
     if not dry_run:
         lock.save(lockfile_path)

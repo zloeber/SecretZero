@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 import uvicorn
 from cryptography import x509
@@ -26,10 +27,14 @@ from fastapi import FastAPI, Form, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from jinja2 import DictLoader, Environment, select_autoescape
 
-from secretzero.agent import AgentSyncResult
-from secretzero.agent_webui import sync_pending_secrets_from_web_form
+from secretzero.agent_webui import _inject_static_values
 from secretzero.lockfile import Lockfile
 from secretzero.models import Secretfile
+from secretzero.network_web_dashboard import (
+    build_manifest_rows,
+    build_secret_rows,
+    make_sync_engine,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -77,11 +82,13 @@ class NetworkWebSessionStore:
 def _pkg_templates_env() -> Environment:
     from secretzero.network_web_templates_jinja import TEMPLATES
 
-    return Environment(
+    env = Environment(
         loader=DictLoader(TEMPLATES),
         autoescape=select_autoescape(["html", "xml"]),
         enable_async=False,
     )
+    env.filters["uquote"] = lambda s: quote(str(s), safe="")
+    return env
 
 
 def pick_port_in_range(host: str, port_min: int, port_max: int) -> int:
@@ -180,20 +187,31 @@ def generate_self_signed_tls_files(
     return Path(cert_f.name), Path(key_f.name), fingerprint
 
 
+class _NetworkWebState:
+    """Mutable Secretfile + lockfile for the dashboard session (single-threaded uvicorn)."""
+
+    __slots__ = ("secretfile", "lockfile")
+
+    def __init__(self, secretfile: Secretfile, lockfile: Lockfile) -> None:
+        self.secretfile = secretfile
+        self.lockfile = lockfile
+
+
 def create_network_web_app(
     *,
-    pending_secret_names: list[str],
     secretfile: Secretfile,
     lockfile: Lockfile,
+    lockfile_path: Path,
     secretfile_path: Path | None,
     secretfile_content: str | None,
     dry_run: bool,
     auth: NetworkWebSessionStore,
     use_tls: bool,
-    on_success_shutdown: Callable[[], None],
+    on_shutdown: Callable[[], None],
 ) -> FastAPI:
-    """FastAPI app: bootstrap token exchange, session cookie, CSRF, one-shot form."""
+    """FastAPI app: bootstrap token, dashboard, per-secret sync/rotate, logout, shutdown."""
     env = _pkg_templates_env()
+    state = _NetworkWebState(secretfile, lockfile)
 
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
@@ -210,6 +228,39 @@ def create_network_web_app(
         tpl = env.get_template(name)
         html = tpl.render(**ctx)
         return HTMLResponse(html)
+
+    def _secret_names() -> set[str]:
+        return {s.name for s in state.secretfile.secrets}
+
+    def _get_secret(name: str) -> Any | None:
+        for s in state.secretfile.secrets:
+            if s.name == name:
+                return s
+        return None
+
+    def _dashboard_response(
+        request: Request,
+        *,
+        notice: str | None = None,
+        error: str | None = None,
+    ) -> HTMLResponse:
+        sid = request.cookies.get(COOKIE_NAME)
+        csrf = auth.csrf_for(sid or "") if sid else None
+        assert csrf is not None
+        return _render(
+            "dashboard.html",
+            title="SecretZero — manifest",
+            csrf_token=csrf,
+            rows=build_secret_rows(state.secretfile, state.lockfile),
+            manifest=build_manifest_rows(state.lockfile, secretfile_path),
+            dry_run=dry_run,
+            notice=notice,
+            error=error,
+        )
+
+    def _save_lock() -> None:
+        if not dry_run:
+            state.lockfile.save(lockfile_path)
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:
@@ -230,7 +281,7 @@ def create_network_web_app(
                 auth_error=msg,
             )
         sid, _csrf = pair
-        resp = RedirectResponse(url="/form", status_code=status.HTTP_302_FOUND)
+        resp = RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
         resp.set_cookie(COOKIE_NAME, sid, **_cookie_kwargs())
         return resp
 
@@ -243,7 +294,7 @@ def create_network_web_app(
             return await _exchange_bootstrap(access_token)
         sid = request.cookies.get(COOKIE_NAME)
         if auth.valid_session(sid):
-            return RedirectResponse("/form", status_code=status.HTTP_302_FOUND)
+            return RedirectResponse("/dashboard", status_code=status.HTTP_302_FOUND)
         return _render(
             "login.html",
             title="SecretZero — access",
@@ -257,81 +308,216 @@ def create_network_web_app(
     ) -> Response:
         return await _exchange_bootstrap(access_token)
 
-    @app.get("/form", response_class=HTMLResponse, response_model=None)
-    async def form_get(request: Request) -> HTMLResponse | RedirectResponse:
+    @app.get("/form", response_model=None)
+    async def legacy_form_redirect() -> RedirectResponse:
+        return RedirectResponse("/dashboard", status_code=status.HTTP_301_MOVED_PERMANENTLY)
+
+    @app.get("/dashboard", response_model=None)
+    async def dashboard_get(request: Request) -> HTMLResponse | RedirectResponse:
         sid = request.cookies.get(COOKIE_NAME)
         if not auth.valid_session(sid):
             return RedirectResponse("/", status_code=status.HTTP_302_FOUND)
+        qn = request.query_params.get("notice")
+        qe = request.query_params.get("error")
+        return _dashboard_response(request, notice=qn, error=qe)
+
+    @app.get("/secret/{secret_name}/edit", response_model=None)
+    async def secret_edit(request: Request, secret_name: str) -> HTMLResponse | RedirectResponse:
+        sid = request.cookies.get(COOKIE_NAME)
+        if not auth.valid_session(sid):
+            return RedirectResponse("/", status_code=status.HTTP_302_FOUND)
+        name = secret_name
+        if name not in _secret_names():
+            return _dashboard_response(request, error=f"Unknown secret: {name}")
+        sec = _get_secret(name)
+        if not sec or sec.kind != "static":
+            return _dashboard_response(
+                request, error=f"'{name}' is not a static secret (set value in YAML or use Rotate)."
+            )
         csrf = auth.csrf_for(sid or "")
         assert csrf is not None
+        qe = request.query_params.get("error")
         return _render(
-            "form.html",
-            title=(
-                "SecretZero — sync" if not pending_secret_names else "SecretZero — pending secrets"
-            ),
-            secret_names=pending_secret_names,
+            "secret_edit.html",
+            title=f"Update — {name}",
+            secret_name=name,
             csrf_token=csrf,
+            error_message=qe,
         )
 
-    @app.post("/submit", response_model=None)
-    async def submit(request: Request) -> HTMLResponse | RedirectResponse:
+    @app.post("/secret/{secret_name}/apply", response_model=None)
+    async def secret_apply(request: Request, secret_name: str) -> Response:
         sid = request.cookies.get(COOKIE_NAME)
         if not auth.valid_session(sid):
             return RedirectResponse("/", status_code=status.HTTP_302_FOUND)
-        csrf_expected = auth.csrf_for(sid or "")
-        form = await request.form()
-        form_dict = dict(form)
-        if not csrf_expected or form_dict.get("csrf_token") != csrf_expected:
-            return _render(
-                "error.html",
-                title="SecretZero — session error",
-                message="Invalid or missing CSRF token. Reload the form and try again.",
+        form = dict(await request.form())
+        if not auth.csrf_for(sid or "") or form.get("csrf_token") != auth.csrf_for(sid or ""):
+            return RedirectResponse(
+                f"/dashboard?error={quote('Invalid CSRF token')}",
+                status_code=status.HTTP_303_SEE_OTHER,
             )
-        res, err = sync_pending_secrets_from_web_form(
-            pending_secret_names=pending_secret_names,
-            form_values=form_dict,
-            secretfile=secretfile,
-            lockfile=lockfile,
-            secretfile_path=secretfile_path,
-            secretfile_content=secretfile_content,
-            dry_run=dry_run,
+        name = secret_name
+        sec_apply = _get_secret(name)
+        if not sec_apply or sec_apply.kind != "static":
+            return RedirectResponse(
+                f"/dashboard?error={quote('Invalid secret')}", status_code=status.HTTP_303_SEE_OTHER
+            )
+        raw = form.get("value")
+        val = str(raw).strip() if raw is not None else ""
+        if not val:
+            return RedirectResponse(
+                f"/secret/{quote(name, safe='')}/edit?error={quote('Value required')}",
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+        try:
+            state.secretfile = _inject_static_values(state.secretfile, {name: val})
+            eng = make_sync_engine(
+                state.secretfile,
+                state.lockfile,
+                secretfile_path=secretfile_path,
+                secretfile_content=secretfile_content,
+            )
+            eng.sync(dry_run=dry_run, secret_names=[name])
+            _save_lock()
+        except Exception as exc:
+            logger.exception("Apply secret failed")
+            return RedirectResponse(
+                f"/dashboard?error={quote(str(exc))}", status_code=status.HTTP_303_SEE_OTHER
+            )
+        return RedirectResponse(
+            f"/dashboard?notice={quote(f'Updated and synced: {name}')}",
+            status_code=status.HTTP_303_SEE_OTHER,
         )
-        if err:
-            return _render(
-                "form.html",
-                title=(
-                    "SecretZero — sync"
-                    if not pending_secret_names
-                    else "SecretZero — pending secrets"
-                ),
-                secret_names=pending_secret_names,
-                csrf_token=csrf_expected,
-                error_message=err,
+
+    @app.post("/action/sync-secret", response_model=None)
+    async def action_sync_secret(request: Request) -> Response:
+        sid = request.cookies.get(COOKIE_NAME)
+        if not auth.valid_session(sid):
+            return RedirectResponse("/", status_code=status.HTTP_302_FOUND)
+        form = dict(await request.form())
+        if not auth.csrf_for(sid or "") or form.get("csrf_token") != auth.csrf_for(sid or ""):
+            return RedirectResponse(
+                f"/dashboard?error={quote('Invalid CSRF token')}",
+                status_code=status.HTTP_303_SEE_OTHER,
             )
-        if isinstance(res, AgentSyncResult) and res.failed_secrets:
-            msg = "; ".join(f"{k}: {v}" for k, v in res.failed_secrets.items())
-            return _render(
-                "form.html",
-                title=(
-                    "SecretZero — sync"
-                    if not pending_secret_names
-                    else "SecretZero — pending secrets"
-                ),
-                secret_names=pending_secret_names,
-                csrf_token=csrf_expected,
-                error_message=msg or "Sync reported failed secrets.",
+        name = str(form.get("secret_name") or "").strip()
+        if name not in _secret_names():
+            return RedirectResponse(
+                f"/dashboard?error={quote('Unknown secret')}", status_code=status.HTTP_303_SEE_OTHER
             )
+        try:
+            eng = make_sync_engine(
+                state.secretfile,
+                state.lockfile,
+                secretfile_path=secretfile_path,
+                secretfile_content=secretfile_content,
+            )
+            eng.sync(dry_run=dry_run, secret_names=[name])
+            _save_lock()
+        except Exception as exc:
+            logger.exception("Sync secret failed")
+            return RedirectResponse(
+                f"/dashboard?error={quote(str(exc))}", status_code=status.HTTP_303_SEE_OTHER
+            )
+        return RedirectResponse(
+            f"/dashboard?notice={quote(f'Synced: {name}')}", status_code=status.HTTP_303_SEE_OTHER
+        )
+
+    @app.post("/action/rotate-secret", response_model=None)
+    async def action_rotate_secret(request: Request) -> Response:
+        sid = request.cookies.get(COOKIE_NAME)
+        if not auth.valid_session(sid):
+            return RedirectResponse("/", status_code=status.HTTP_302_FOUND)
+        form = dict(await request.form())
+        if not auth.csrf_for(sid or "") or form.get("csrf_token") != auth.csrf_for(sid or ""):
+            return RedirectResponse(
+                f"/dashboard?error={quote('Invalid CSRF token')}",
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+        name = str(form.get("secret_name") or "").strip()
+        if name not in _secret_names():
+            return RedirectResponse(
+                f"/dashboard?error={quote('Unknown secret')}", status_code=status.HTTP_303_SEE_OTHER
+            )
+        try:
+            eng = make_sync_engine(
+                state.secretfile,
+                state.lockfile,
+                secretfile_path=secretfile_path,
+                secretfile_content=secretfile_content,
+            )
+            eng.sync(dry_run=dry_run, force_rotation=True, secret_names=[name])
+            _save_lock()
+        except Exception as exc:
+            logger.exception("Rotate secret failed")
+            return RedirectResponse(
+                f"/dashboard?error={quote(str(exc))}", status_code=status.HTTP_303_SEE_OTHER
+            )
+        return RedirectResponse(
+            f"/dashboard?notice={quote(f'Rotated: {name}')}", status_code=status.HTTP_303_SEE_OTHER
+        )
+
+    @app.post("/action/sync-all", response_model=None)
+    async def action_sync_all(request: Request) -> Response:
+        sid = request.cookies.get(COOKIE_NAME)
+        if not auth.valid_session(sid):
+            return RedirectResponse("/", status_code=status.HTTP_302_FOUND)
+        form = dict(await request.form())
+        if not auth.csrf_for(sid or "") or form.get("csrf_token") != auth.csrf_for(sid or ""):
+            return RedirectResponse(
+                f"/dashboard?error={quote('Invalid CSRF token')}",
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+        try:
+            eng = make_sync_engine(
+                state.secretfile,
+                state.lockfile,
+                secretfile_path=secretfile_path,
+                secretfile_content=secretfile_content,
+            )
+            eng.sync(dry_run=dry_run)
+            _save_lock()
+        except Exception as exc:
+            logger.exception("Sync all failed")
+            return RedirectResponse(
+                f"/dashboard?error={quote(str(exc))}", status_code=status.HTTP_303_SEE_OTHER
+            )
+        return RedirectResponse(
+            "/dashboard?notice=" + quote("Full sync completed."),
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+    @app.post("/logout", response_model=None)
+    async def logout(request: Request) -> Response:
+        sid = request.cookies.get(COOKIE_NAME)
+        form = dict(await request.form())
+        if sid and auth.csrf_for(sid) and form.get("csrf_token") == auth.csrf_for(sid):
+            auth.invalidate_session(sid)
+        resp = RedirectResponse("/", status_code=status.HTTP_302_FOUND)
+        resp.delete_cookie(COOKIE_NAME, path="/")
+        return resp
+
+    @app.post("/shutdown", response_model=None)
+    async def shutdown(request: Request) -> HTMLResponse | RedirectResponse:
+        sid = request.cookies.get(COOKIE_NAME)
+        if not auth.valid_session(sid):
+            return RedirectResponse("/", status_code=status.HTTP_302_FOUND)
+        form = dict(await request.form())
+        if not auth.csrf_for(sid or "") or form.get("csrf_token") != auth.csrf_for(sid or ""):
+            return _dashboard_response(request, error="Invalid CSRF token")
+        _save_lock()
         if sid:
             auth.invalidate_session(sid)
-        on_success_shutdown()
-        return _render("success.html", title="SecretZero — done", dry_run=dry_run)
+        out = _render("stopped.html", title="SecretZero — stopped", dry_run=dry_run)
+        out.delete_cookie(COOKIE_NAME, path="/")
+        threading.Timer(0.25, on_shutdown).start()
+        return out
 
     return app
 
 
 def run_network_blocking_web_session(
     *,
-    pending_secret_names: list[str],
     secretfile: Secretfile,
     lockfile: Lockfile,
     lockfile_path: Path,
@@ -350,7 +536,7 @@ def run_network_blocking_web_session(
     timeout: float,
     on_ready: Callable[[str, int, str | None], None] | None = None,
 ) -> tuple[str, int, str | None]:
-    """Run uvicorn until form success or timeout. Returns (base_url, port, spki_fingerprint_or_none).
+    """Run uvicorn until shutdown or timeout. Returns (base_url, port, spki_fingerprint_or_none).
 
     ``on_ready`` is invoked after the server is listening (use to print URL + token while the UI is up).
     """
@@ -378,15 +564,15 @@ def run_network_blocking_web_session(
     use_tls = bool(ssl_cert and ssl_key)
     auth = NetworkWebSessionStore.from_bootstrap_token(bootstrap_token)
     app = create_network_web_app(
-        pending_secret_names=pending_secret_names,
         secretfile=secretfile,
         lockfile=lockfile,
+        lockfile_path=lockfile_path,
         secretfile_path=secretfile_path,
         secretfile_content=secretfile_content,
         dry_run=dry_run,
         auth=auth,
         use_tls=use_tls,
-        on_success_shutdown=shutdown_server,
+        on_shutdown=shutdown_server,
     )
 
     config = uvicorn.Config(
@@ -422,7 +608,7 @@ def run_network_blocking_web_session(
     try:
         if not done.wait(timeout=timeout):
             server.should_exit = True
-            raise TimeoutError("Timed out waiting for web form submission")
+            raise TimeoutError("Timed out waiting for web UI shutdown or timeout")
     finally:
         server.should_exit = True
         thread.join(timeout=15.0)
