@@ -30,10 +30,11 @@ Then read this file fully before doing anything else in this session.
 - Built-in generators (`random_password`, `random_string`, `static`, `script`, `provider_backed`) and provider-backed targets across AWS/Azure/Vault/GitHub/GitLab/Jenkins/Kubernetes/Infisical.
 - Policy/status/drift/terraform command families and comprehensive pytest suite.
 - Task-based verification workflow (`lint:fix`, `format`, `schema:update`, `test`, `security:scan`, `test:validations`).
+- **`secretzero web`:** one-shot, bindable FastAPI UI for manual secret seeding over the network (bootstrap token, session + CSRF, optional self-signed or BYO TLS). See `.mex/patterns/secretzero-web.md`.
 
 **Not yet built:**
 - Autonomous/scheduled secret rotation service (rotation is operator-invoked).
-- Browser UI for secret management workflows.
+- Full browser UI for ongoing secret management (beyond one-shot seeding via `secretzero web` / Vector 2).
 - Fully automated release/deployment orchestration from scaffold itself.
 
 **Unified agent sync:** Implemented — `secretzero agent sync --json [--web] [--verbose]` and `POST /agent/sync` share `AgentSecretSynchronizer`; Vector 2 web UI and `GET /agent/sync/web/{session_id}` for polling; Tavern E2E under `tests/e2e/` (`task test:e2e`).

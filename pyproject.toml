@@ -18,6 +18,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
+    "cryptography>=46.0.6",
     "pydantic>=2.0.0",
     "pyyaml>=6.0",
     "ruamel-yaml>=0.18.0",

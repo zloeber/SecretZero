@@ -128,6 +128,39 @@ def _inject_static_values(secretfile: Secretfile, values: dict[str, str]) -> Sec
     return secretfile.model_copy(update={"secrets": new_secrets})
 
 
+def sync_pending_secrets_from_web_form(
+    *,
+    pending_secret_names: list[str],
+    form_values: dict[str, Any],
+    secretfile: Secretfile,
+    lockfile: Lockfile,
+    secretfile_path: Path | None,
+    secretfile_content: str | None,
+    dry_run: bool,
+) -> tuple[Any | None, str | None]:
+    """Merge ``form_values`` into static config and run :class:`AgentSecretSynchronizer`.
+
+    Returns ``(result, None)`` on success, or ``(None, error_message)`` on validation failure.
+    """
+    from secretzero.agent import AgentSecretSynchronizer
+
+    values: dict[str, str] = {}
+    for name in pending_secret_names:
+        raw = form_values.get(name)
+        if raw is None or str(raw).strip() == "":
+            return None, f"Missing value for {name}"
+        values[str(name)] = str(raw)
+    merged = _inject_static_values(secretfile, values)
+    syncer = AgentSecretSynchronizer(
+        merged,
+        lockfile,
+        dry_run=dry_run,
+        secretfile_path=secretfile_path,
+        secretfile_content=secretfile_content,
+    )
+    return syncer.sync(sz_agent=False), None
+
+
 def run_blocking_web_agent_form(
     *,
     pending_secret_names: list[str],
@@ -173,25 +206,22 @@ def run_blocking_web_agent_form(
     async def submit(request: Request) -> HTMLResponse:
         try:
             form_data = await request.form()
-            values: dict[str, str] = {}
-            for name in pending_secret_names:
-                raw = form_data.get(name)
-                if raw is None or str(raw).strip() == "":
-                    error_box.append(f"Missing value for {name}")
-                    return HTMLResponse(
-                        "<html><body>Missing fields. Go back and try again.</body></html>",
-                        status_code=400,
-                    )
-                values[str(name)] = str(raw)
-            merged = _inject_static_values(secretfile, values)
-            syncer = AgentSecretSynchronizer(
-                merged,
-                lockfile,
-                dry_run=dry_run,
+            res, err = sync_pending_secrets_from_web_form(
+                pending_secret_names=pending_secret_names,
+                form_values=dict(form_data),
+                secretfile=secretfile,
+                lockfile=lockfile,
                 secretfile_path=secretfile_path,
                 secretfile_content=secretfile_content,
+                dry_run=dry_run,
             )
-            result_holder.append(syncer.sync(sz_agent=False))
+            if err:
+                error_box.append(err)
+                return HTMLResponse(
+                    "<html><body>Missing fields. Go back and try again.</body></html>",
+                    status_code=400,
+                )
+            result_holder.append(res)
         except Exception as exc:
             logger.exception("Web agent form sync failed")
             error_box.append(str(exc))
@@ -250,7 +280,7 @@ def create_web_app_for_session(
     registry: WebSessionRegistry,
 ) -> FastAPI:
     """FastAPI sub-app used on a dedicated localhost port for one session."""
-    from secretzero.agent import AgentSecretSynchronizer, build_agent_sync_json_payload
+    from secretzero.agent import build_agent_sync_json_payload
 
     app = FastAPI()
 
@@ -262,25 +292,21 @@ def create_web_app_for_session(
     async def submit(request: Request) -> HTMLResponse:
         try:
             form_data = await request.form()
-            values: dict[str, str] = {}
-            for name in pending_secret_names:
-                raw = form_data.get(name)
-                if raw is None or str(raw).strip() == "":
-                    registry.fail(session_id, f"Missing value for {name}")
-                    return HTMLResponse(
-                        "<html><body>Missing fields.</body></html>",
-                        status_code=400,
-                    )
-                values[str(name)] = str(raw)
-            merged = _inject_static_values(secretfile, values)
-            syncer = AgentSecretSynchronizer(
-                merged,
-                lockfile,
-                dry_run=dry_run,
+            res, err = sync_pending_secrets_from_web_form(
+                pending_secret_names=pending_secret_names,
+                form_values=dict(form_data),
+                secretfile=secretfile,
+                lockfile=lockfile,
                 secretfile_path=secretfile_path,
                 secretfile_content=secretfile_content,
+                dry_run=dry_run,
             )
-            res = syncer.sync(sz_agent=False)
+            if err:
+                registry.fail(session_id, err)
+                return HTMLResponse(
+                    "<html><body>Missing fields.</body></html>",
+                    status_code=400,
+                )
             if not dry_run:
                 lockfile.save(lockfile_path)
             payload = build_agent_sync_json_payload(

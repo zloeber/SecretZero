@@ -3,7 +3,7 @@ revision = 3
 requires-python = ">=3.12"
 
 [options]
-exclude-newer = "2026-04-05T19:55:21.18115Z"
+exclude-newer = "2026-04-05T20:46:06.802841Z"
 exclude-newer-span = "P7D"
 
 [options.exclude-newer-package]
@@ -2603,6 +2603,7 @@ name = "secretzero"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
+    { name = "cryptography" },
     { name = "fastapi" },
     { name = "jinja2" },
     { name = "pydantic" },
@@ -2731,6 +2732,7 @@ requires-dist = [
     { name = "boto3", marker = "extra == 'all'", specifier = ">=1.26.0" },
     { name = "boto3", marker = "extra == 'aws'", specifier = ">=1.26.0" },
     { name = "click", specifier = ">=8.0.0" },
+    { name = "cryptography", specifier = ">=46.0.6" },
     { name = "fastapi", specifier = ">=0.129.0" },
     { name = "fastapi", marker = "extra == 'all'", specifier = ">=0.104.0" },
     { name = "fastapi", marker = "extra == 'api'", specifier = ">=0.129.0" },

@@ -4,6 +4,7 @@ import json
 import sys
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 import click
 import yaml
@@ -3831,6 +3832,228 @@ def audit(
 
     console.print(table)
     console.print(f"\n[dim]Showing {len(logs)} of available entries[/dim]")
+
+
+# ---------------------------------------------------------------------------
+# Network web UI (manual secret seeding)
+# ---------------------------------------------------------------------------
+
+
+@main.command("web")
+@click.option(
+    "--file",
+    "-f",
+    type=click.Path(exists=True),
+    default="Secretfile.yml",
+    help="Path to Secretfile",
+)
+@click.option(
+    "--lockfile",
+    "-l",
+    type=click.Path(),
+    default=".gitsecrets.lock",
+    help="Path to lockfile",
+)
+@click.option(
+    "--var-file",
+    "-v",
+    "var_files",
+    type=click.Path(exists=True),
+    multiple=True,
+    help="Path to .szvar variable file(s) to merge (can be specified multiple times)",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Preview only; does not open the network web UI",
+)
+@click.option(
+    "--host",
+    default="0.0.0.0",
+    show_default=True,
+    help="Address to bind (use 127.0.0.1 for local-only)",
+)
+@click.option(
+    "--port",
+    type=int,
+    default=None,
+    help="TCP port (default: random in agent web_port_min–web_port_max from Secretfile)",
+)
+@click.option(
+    "--token",
+    default=None,
+    help="Bootstrap access token (default: generate randomly)",
+)
+@click.option(
+    "--token-file",
+    type=click.Path(exists=True),
+    default=None,
+    help="Read bootstrap token from file (whitespace trimmed); overrides --token",
+)
+@click.option(
+    "--tls-cert",
+    type=click.Path(exists=True),
+    default=None,
+    help="PEM TLS certificate for HTTPS",
+)
+@click.option(
+    "--tls-key",
+    type=click.Path(exists=True),
+    default=None,
+    help="PEM TLS private key for HTTPS",
+)
+@click.option(
+    "--tls-self-signed",
+    is_flag=True,
+    help="Generate a short-lived self-signed certificate (requires cryptography)",
+)
+@click.option(
+    "--tls-san",
+    multiple=True,
+    default=(),
+    help="Extra Subject Alternative Name (hostname or IP); repeat for multiple (with --tls-self-signed)",
+)
+@click.option(
+    "--timeout",
+    type=float,
+    default=3600.0,
+    show_default=True,
+    help="Seconds to wait for successful form submission",
+)
+def web_command(
+    file: str,
+    lockfile: str,
+    var_files: tuple[str, ...],
+    dry_run: bool,
+    host: str,
+    port: int | None,
+    token: str | None,
+    token_file: str | None,
+    tls_cert: str | None,
+    tls_key: str | None,
+    tls_self_signed: bool,
+    tls_san: tuple[str, ...],
+    timeout: float,
+) -> None:
+    """Serve a one-shot HTTPS-capable web UI to seed secrets that need manual input.
+
+    Binds to all interfaces by default. Share the printed URL and bootstrap token
+    out of band. For trusted transport use --tls-self-signed, your own --tls-cert
+    / --tls-key, an SSH tunnel, or a reverse proxy with a real certificate.
+    """
+    import secrets as std_secrets
+
+    from secretzero.agent import AgentSecretSynchronizer
+    from secretzero.network_webui import run_network_blocking_web_session
+
+    file_path = Path(file)
+    if lockfile == ".gitsecrets.lock" and file != "Secretfile.yml":
+        lockfile = file_path.stem + ".lock"
+    lockfile_path = Path(lockfile)
+    var_file_paths = [Path(vf) for vf in var_files] if var_files else None
+    loader = ConfigLoader()
+
+    if tls_self_signed and (tls_cert or tls_key):
+        console.print(
+            "[red]Error:[/red] use either --tls-self-signed or --tls-cert/--tls-key, not both."
+        )
+        raise click.Abort()
+    if (tls_cert or tls_key) and not (tls_cert and tls_key):
+        console.print("[red]Error:[/red] --tls-cert and --tls-key must be provided together.")
+        raise click.Abort()
+
+    try:
+        secretfile = loader.load_file(file_path, var_files=var_file_paths)
+    except Exception as exc:
+        console.print(f"[red]Error loading Secretfile:[/red] {exc}")
+        raise click.ClickException(str(exc)) from exc
+
+    secretfile_content = file_path.read_text()
+    lock = Lockfile.load(lockfile_path)
+    agent_cfg = secretfile.effective_agent_config()
+
+    synchronizer = AgentSecretSynchronizer(
+        secretfile,
+        lock,
+        dry_run=dry_run,
+        secretfile_path=file_path,
+        secretfile_content=secretfile_content,
+    )
+
+    try:
+        result = synchronizer.sync(sz_agent=False)
+    except Exception as exc:
+        console.print(f"[red]Agent sync failed:[/red] {exc}")
+        raise click.ClickException(str(exc)) from exc
+
+    if not result.pending_secrets:
+        console.print("[green]No pending secrets require manual input.[/green]")
+        return
+
+    if dry_run:
+        console.print(
+            "[yellow]Skipping network web UI in --dry-run "
+            "(remove --dry-run to start the server).[/yellow]"
+        )
+        return
+
+    bootstrap = None
+    if token_file:
+        bootstrap = Path(token_file).read_text().strip()
+    elif token:
+        bootstrap = token.strip()
+    if not bootstrap:
+        bootstrap = std_secrets.token_urlsafe(32)
+
+    tls_cert_path = Path(tls_cert) if tls_cert else None
+    tls_key_path = Path(tls_key) if tls_key else None
+
+    console.print("[bold cyan]SecretZero network web[/bold cyan]")
+    console.print(
+        "[dim]Share the URL and bootstrap token while the server is running. "
+        "The token works once; self-signed TLS shows a browser warning—verify the "
+        "SPKI fingerprint if prompted.[/dim]\n"
+    )
+
+    def _on_ready(base_url: str, used_port: int, spki_fp: str | None) -> None:
+        join = "&" if "?" in base_url else "?"
+        access_url = f"{base_url.rstrip('/')}{join}access_token={quote(bootstrap, safe='')}"
+        console.print(
+            f"[bold]Listen[/bold]  {host}:{used_port}  (link uses 127.0.0.1 when host is 0.0.0.0)"
+        )
+        console.print(f"[bold]Bootstrap token[/bold]  {bootstrap}")
+        console.print(f"[bold]Open[/bold]           {access_url}")
+        if spki_fp:
+            console.print(f"[bold]TLS SPKI SHA-256[/bold]  {spki_fp}")
+
+    try:
+        _base_url, _used_port, _fp = run_network_blocking_web_session(
+            pending_secret_names=list(result.pending_secrets.keys()),
+            secretfile=secretfile,
+            lockfile=lock,
+            lockfile_path=lockfile_path,
+            secretfile_path=file_path,
+            secretfile_content=secretfile_content,
+            dry_run=dry_run,
+            host=host,
+            port=port,
+            port_min=agent_cfg.web_port_min,
+            port_max=agent_cfg.web_port_max,
+            bootstrap_token=bootstrap,
+            tls_certfile=tls_cert_path,
+            tls_keyfile=tls_key_path,
+            tls_self_signed=tls_self_signed,
+            tls_extra_sans=list(tls_san),
+            timeout=timeout,
+            on_ready=_on_ready,
+        )
+    except TimeoutError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    console.print("[green]Web session completed.[/green]")
+
+    if not dry_run:
+        lock.save(lockfile_path)
 
 
 # ---------------------------------------------------------------------------
