@@ -60,7 +60,20 @@ main {
   border: 1px solid var(--border);
 }
 .toolbar { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; align-items: center; }
+.toolbar--secondary { margin-bottom: 0.65rem; }
 .toolbar form { display: inline; margin: 0; }
+.sz-tool-pre {
+  margin: 1rem 0 0;
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(127,127,127,0.06);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+}
 .btn {
   display: inline-block;
   padding: 0.45rem 0.85rem;
@@ -462,6 +475,7 @@ TEMPLATES = {
   <div class="toolbar">
     <form method="post" action="/action/sync-all">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+      <input type="hidden" name="list_filter" value="{{ list_filter }}"/>
       <button type="submit" class="btn btn-primary btn-sm">Sync all secrets</button>
     </form>
     <form method="post" action="/logout">
@@ -470,8 +484,31 @@ TEMPLATES = {
     </form>
     <form method="post" action="/shutdown" onsubmit="return confirm('Shut down the web server? Unsaved work is already written when actions succeed.');">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+      <input type="hidden" name="list_filter" value="{{ list_filter }}"/>
       <button type="submit" class="btn btn-danger btn-sm">Shut down server</button>
     </form>
+  </div>
+  <div class="toolbar toolbar--secondary toolbar--filters">
+    <span style="font-size:0.85rem;color:var(--muted);">Show</span>
+    <a href="/dashboard?filter=all" class="btn btn-sm{% if list_filter == 'all' %} btn-primary{% endif %}">All ({{ row_total }})</a>
+    <a href="/dashboard?filter=unsynced" class="btn btn-sm{% if list_filter == 'unsynced' %} btn-primary{% endif %}">Unsynced only ({{ unsynced_count }})</a>
+  </div>
+  <div class="toolbar toolbar--secondary">
+    <span style="font-size:0.85rem;color:var(--muted);">Tools</span>
+    {% if tools_available %}
+    <form method="post" action="/action/validate-manifest">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+      <input type="hidden" name="list_filter" value="{{ list_filter }}"/>
+      <button type="submit" class="btn btn-sm">Validate manifest</button>
+    </form>
+    <form method="post" action="/action/check-drift">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+      <input type="hidden" name="list_filter" value="{{ list_filter }}"/>
+      <button type="submit" class="btn btn-sm">Check drift</button>
+    </form>
+    {% else %}
+    <span style="font-size:0.85rem;color:var(--muted);">Validate / drift need the Secretfile path (normal CLI <code>secretzero web</code>).</span>
+    {% endif %}
   </div>
   <p class="sync-legend" role="note" aria-label="Per-target arrow colors">
     <span><span class="sync-legend__i sync-legend__i--synced" aria-hidden="true"></span> Synced</span>
@@ -495,7 +532,7 @@ TEMPLATES = {
           <div class="sz-flow__group">
             <div class="sz-flow__group-badge"><span class="sz-flow__group-provider">{{ group.provider }}</span> · <code>{{ group.kind }}</code></div>
             <div class="sz-flow__group-inner">
-              {% for item in group.items %}
+              {% for item in group.lanes %}
               <div class="sz-flow__lane">
                 <div class="sz-flow__arrow sz-flow__arrow--{{ item.sync_state }}" role="img" title="{{ item.arrow_title }}"></div>
                 <div class="sz-flow__dest-wrap">
@@ -522,11 +559,13 @@ TEMPLATES = {
         {% endif %}
         <form method="post" action="/action/sync-secret">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+          <input type="hidden" name="list_filter" value="{{ list_filter }}"/>
           <input type="hidden" name="secret_name" value="{{ row.name }}"/>
           <button type="submit" class="btn btn-sm">Sync</button>
         </form>
         <form method="post" action="/action/rotate-secret">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+          <input type="hidden" name="list_filter" value="{{ list_filter }}"/>
           <input type="hidden" name="secret_name" value="{{ row.name }}"/>
           <button type="submit" class="btn btn-sm">Rotate</button>
         </form>
@@ -534,9 +573,19 @@ TEMPLATES = {
     </article>
     {% endfor %}
   </div>
-  {% if not rows %}
+  {% if not rows and row_total > 0 %}
+  <p class="lead">No secrets match this filter. Try <a href="/dashboard?filter=all">show all</a>.</p>
+  {% elif not rows %}
   <p class="lead">No secrets are defined in this Secretfile.</p>
   {% endif %}
+{% endblock %}
+""",
+    "tool_result.html": """
+{% extends "base.html" %}
+{% block body %}
+  <h1>{{ title }}</h1>
+  <p class="lead"><a class="btn btn-sm" href="{{ back_href }}">← {{ back_label }}</a></p>
+  <pre class="sz-tool-pre" role="region" aria-label="Command output">{{ tool_body }}</pre>
 {% endblock %}
 """,
     "secret_edit.html": """

@@ -30,15 +30,36 @@ from jinja2 import DictLoader, Environment, select_autoescape
 from secretzero.agent_webui import _inject_static_values
 from secretzero.lockfile import Lockfile
 from secretzero.models import Secretfile
+from secretzero.network_web_actions import run_check_drift, run_validate_manifest
 from secretzero.network_web_dashboard import (
+    build_agent_instructions_payload,
     build_manifest_rows,
     build_secret_rows,
     make_sync_engine,
+    target_groups_show_only_unsynced_lanes,
 )
 
 logger = logging.getLogger(__name__)
 
 COOKIE_NAME = "sz_web_session"
+
+
+def dashboard_redirect_url(
+    *,
+    notice: str | None = None,
+    error: str | None = None,
+    list_filter: str = "all",
+) -> str:
+    """Build /dashboard URL with optional notice, error, and list filter."""
+    lf = list_filter if list_filter in ("all", "unsynced") else "all"
+    parts: list[str] = [f"filter={quote(lf)}"]
+    if notice is not None:
+        parts.insert(0, f"notice={quote(notice)}")
+    if error is not None:
+        parts.insert(0, f"error={quote(error)}")
+    return "/dashboard?" + "&".join(parts)
+
+
 COOKIE_MAX_AGE = 3600
 
 
@@ -204,6 +225,7 @@ def create_network_web_app(
     lockfile_path: Path,
     secretfile_path: Path | None,
     secretfile_content: str | None,
+    var_file_paths: list[Path] | None,
     dry_run: bool,
     auth: NetworkWebSessionStore,
     use_tls: bool,
@@ -243,15 +265,37 @@ def create_network_web_app(
         *,
         notice: str | None = None,
         error: str | None = None,
+        list_filter: str = "all",
     ) -> HTMLResponse:
         sid = request.cookies.get(COOKIE_NAME)
         csrf = auth.csrf_for(sid or "") if sid else None
         assert csrf is not None
+        all_rows = build_secret_rows(state.secretfile, state.lockfile)
+        row_total = len(all_rows)
+        unsynced_count = sum(1 for r in all_rows if r.get("is_unsynced"))
+        if list_filter == "unsynced":
+            rows = []
+            for r in all_rows:
+                if not r.get("is_unsynced"):
+                    continue
+                r2 = dict(r)
+                if r2.get("has_targets") and r2.get("target_groups"):
+                    r2["target_groups"] = target_groups_show_only_unsynced_lanes(
+                        r2["target_groups"]
+                    )
+                rows.append(r2)
+        else:
+            rows = all_rows
+        tools_available = bool(secretfile_path and secretfile_path.exists())
         return _render(
             "dashboard.html",
             title="SecretZero — manifest",
             csrf_token=csrf,
-            rows=build_secret_rows(state.secretfile, state.lockfile),
+            rows=rows,
+            row_total=row_total,
+            unsynced_count=unsynced_count,
+            list_filter=list_filter,
+            tools_available=tools_available,
             manifest=build_manifest_rows(state.lockfile, secretfile_path),
             dry_run=dry_run,
             notice=notice,
@@ -261,6 +305,10 @@ def create_network_web_app(
     def _save_lock() -> None:
         if not dry_run:
             state.lockfile.save(lockfile_path)
+
+    def _filter_param(request: Request) -> str:
+        raw = request.query_params.get("filter", "all")
+        return raw if raw in ("all", "unsynced") else "all"
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:
@@ -319,7 +367,7 @@ def create_network_web_app(
             return RedirectResponse("/", status_code=status.HTTP_302_FOUND)
         qn = request.query_params.get("notice")
         qe = request.query_params.get("error")
-        return _dashboard_response(request, notice=qn, error=qe)
+        return _dashboard_response(request, notice=qn, error=qe, list_filter=_filter_param(request))
 
     @app.get("/secret/{secret_name}/edit", response_model=None)
     async def secret_edit(request: Request, secret_name: str) -> HTMLResponse | RedirectResponse:
@@ -328,21 +376,30 @@ def create_network_web_app(
             return RedirectResponse("/", status_code=status.HTTP_302_FOUND)
         name = secret_name
         if name not in _secret_names():
-            return _dashboard_response(request, error=f"Unknown secret: {name}")
+            return _dashboard_response(
+                request,
+                error=f"Unknown secret: {name}",
+                list_filter=_filter_param(request),
+            )
         sec = _get_secret(name)
         if not sec or sec.kind != "static":
             return _dashboard_response(
-                request, error=f"'{name}' is not a static secret (set value in YAML or use Rotate)."
+                request,
+                error=f"'{name}' is not a static secret (set value in YAML or use Rotate).",
+                list_filter=_filter_param(request),
             )
         csrf = auth.csrf_for(sid or "")
         assert csrf is not None
         qe = request.query_params.get("error")
+        assert sec is not None
+        agent_instructions = build_agent_instructions_payload(state.secretfile, sec)
         return _render(
             "secret_edit.html",
             title=f"Update — {name}",
             secret_name=name,
             csrf_token=csrf,
             error_message=qe,
+            agent_instructions=agent_instructions,
         )
 
     @app.post("/secret/{secret_name}/apply", response_model=None)
@@ -351,16 +408,18 @@ def create_network_web_app(
         if not auth.valid_session(sid):
             return RedirectResponse("/", status_code=status.HTTP_302_FOUND)
         form = dict(await request.form())
+        lf = str(form.get("list_filter") or "all")
         if not auth.csrf_for(sid or "") or form.get("csrf_token") != auth.csrf_for(sid or ""):
             return RedirectResponse(
-                f"/dashboard?error={quote('Invalid CSRF token')}",
+                dashboard_redirect_url(error="Invalid CSRF token", list_filter=lf),
                 status_code=status.HTTP_303_SEE_OTHER,
             )
         name = secret_name
         sec_apply = _get_secret(name)
         if not sec_apply or sec_apply.kind != "static":
             return RedirectResponse(
-                f"/dashboard?error={quote('Invalid secret')}", status_code=status.HTTP_303_SEE_OTHER
+                dashboard_redirect_url(error="Invalid secret", list_filter=lf),
+                status_code=status.HTTP_303_SEE_OTHER,
             )
         raw = form.get("value")
         val = str(raw).strip() if raw is not None else ""
@@ -382,10 +441,14 @@ def create_network_web_app(
         except Exception as exc:
             logger.exception("Apply secret failed")
             return RedirectResponse(
-                f"/dashboard?error={quote(str(exc))}", status_code=status.HTTP_303_SEE_OTHER
+                dashboard_redirect_url(error=str(exc), list_filter=lf),
+                status_code=status.HTTP_303_SEE_OTHER,
             )
         return RedirectResponse(
-            f"/dashboard?notice={quote(f'Updated and synced: {name}')}",
+            dashboard_redirect_url(
+                notice=f"Updated and synced: {name}",
+                list_filter=lf,
+            ),
             status_code=status.HTTP_303_SEE_OTHER,
         )
 
@@ -395,15 +458,17 @@ def create_network_web_app(
         if not auth.valid_session(sid):
             return RedirectResponse("/", status_code=status.HTTP_302_FOUND)
         form = dict(await request.form())
+        lf = str(form.get("list_filter") or "all")
         if not auth.csrf_for(sid or "") or form.get("csrf_token") != auth.csrf_for(sid or ""):
             return RedirectResponse(
-                f"/dashboard?error={quote('Invalid CSRF token')}",
+                dashboard_redirect_url(error="Invalid CSRF token", list_filter=lf),
                 status_code=status.HTTP_303_SEE_OTHER,
             )
         name = str(form.get("secret_name") or "").strip()
         if name not in _secret_names():
             return RedirectResponse(
-                f"/dashboard?error={quote('Unknown secret')}", status_code=status.HTTP_303_SEE_OTHER
+                dashboard_redirect_url(error="Unknown secret", list_filter=lf),
+                status_code=status.HTTP_303_SEE_OTHER,
             )
         try:
             eng = make_sync_engine(
@@ -417,10 +482,12 @@ def create_network_web_app(
         except Exception as exc:
             logger.exception("Sync secret failed")
             return RedirectResponse(
-                f"/dashboard?error={quote(str(exc))}", status_code=status.HTTP_303_SEE_OTHER
+                dashboard_redirect_url(error=str(exc), list_filter=lf),
+                status_code=status.HTTP_303_SEE_OTHER,
             )
         return RedirectResponse(
-            f"/dashboard?notice={quote(f'Synced: {name}')}", status_code=status.HTTP_303_SEE_OTHER
+            dashboard_redirect_url(notice=f"Synced: {name}", list_filter=lf),
+            status_code=status.HTTP_303_SEE_OTHER,
         )
 
     @app.post("/action/rotate-secret", response_model=None)
@@ -429,15 +496,17 @@ def create_network_web_app(
         if not auth.valid_session(sid):
             return RedirectResponse("/", status_code=status.HTTP_302_FOUND)
         form = dict(await request.form())
+        lf = str(form.get("list_filter") or "all")
         if not auth.csrf_for(sid or "") or form.get("csrf_token") != auth.csrf_for(sid or ""):
             return RedirectResponse(
-                f"/dashboard?error={quote('Invalid CSRF token')}",
+                dashboard_redirect_url(error="Invalid CSRF token", list_filter=lf),
                 status_code=status.HTTP_303_SEE_OTHER,
             )
         name = str(form.get("secret_name") or "").strip()
         if name not in _secret_names():
             return RedirectResponse(
-                f"/dashboard?error={quote('Unknown secret')}", status_code=status.HTTP_303_SEE_OTHER
+                dashboard_redirect_url(error="Unknown secret", list_filter=lf),
+                status_code=status.HTTP_303_SEE_OTHER,
             )
         try:
             eng = make_sync_engine(
@@ -451,10 +520,12 @@ def create_network_web_app(
         except Exception as exc:
             logger.exception("Rotate secret failed")
             return RedirectResponse(
-                f"/dashboard?error={quote(str(exc))}", status_code=status.HTTP_303_SEE_OTHER
+                dashboard_redirect_url(error=str(exc), list_filter=lf),
+                status_code=status.HTTP_303_SEE_OTHER,
             )
         return RedirectResponse(
-            f"/dashboard?notice={quote(f'Rotated: {name}')}", status_code=status.HTTP_303_SEE_OTHER
+            dashboard_redirect_url(notice=f"Rotated: {name}", list_filter=lf),
+            status_code=status.HTTP_303_SEE_OTHER,
         )
 
     @app.post("/action/sync-all", response_model=None)
@@ -463,9 +534,10 @@ def create_network_web_app(
         if not auth.valid_session(sid):
             return RedirectResponse("/", status_code=status.HTTP_302_FOUND)
         form = dict(await request.form())
+        lf = str(form.get("list_filter") or "all")
         if not auth.csrf_for(sid or "") or form.get("csrf_token") != auth.csrf_for(sid or ""):
             return RedirectResponse(
-                f"/dashboard?error={quote('Invalid CSRF token')}",
+                dashboard_redirect_url(error="Invalid CSRF token", list_filter=lf),
                 status_code=status.HTTP_303_SEE_OTHER,
             )
         try:
@@ -480,11 +552,80 @@ def create_network_web_app(
         except Exception as exc:
             logger.exception("Sync all failed")
             return RedirectResponse(
-                f"/dashboard?error={quote(str(exc))}", status_code=status.HTTP_303_SEE_OTHER
+                dashboard_redirect_url(error=str(exc), list_filter=lf),
+                status_code=status.HTTP_303_SEE_OTHER,
             )
         return RedirectResponse(
-            "/dashboard?notice=" + quote("Full sync completed."),
+            dashboard_redirect_url(notice="Full sync completed.", list_filter=lf),
             status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+    @app.post("/action/validate-manifest", response_model=None)
+    async def action_validate_manifest(request: Request) -> HTMLResponse | RedirectResponse:
+        sid = request.cookies.get(COOKIE_NAME)
+        if not auth.valid_session(sid):
+            return RedirectResponse("/", status_code=status.HTTP_302_FOUND)
+        form = dict(await request.form())
+        lf = str(form.get("list_filter") or "all")
+        if not auth.csrf_for(sid or "") or form.get("csrf_token") != auth.csrf_for(sid or ""):
+            return RedirectResponse(
+                dashboard_redirect_url(error="Invalid CSRF token", list_filter=lf),
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+        if not secretfile_path or not secretfile_path.exists():
+            return RedirectResponse(
+                dashboard_redirect_url(
+                    error="Validate requires the Secretfile path used to start this server.",
+                    list_filter=lf,
+                ),
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+        try:
+            body = run_validate_manifest(secretfile_path, var_file_paths)
+        except Exception as exc:
+            logger.exception("Validate manifest failed")
+            body = f"Validate failed: {exc}"
+        back = dashboard_redirect_url(list_filter=lf)
+        return _render(
+            "tool_result.html",
+            title="SecretZero — validate manifest",
+            tool_body=body,
+            back_href=back,
+            back_label="Back to manifest",
+        )
+
+    @app.post("/action/check-drift", response_model=None)
+    async def action_check_drift(request: Request) -> HTMLResponse | RedirectResponse:
+        sid = request.cookies.get(COOKIE_NAME)
+        if not auth.valid_session(sid):
+            return RedirectResponse("/", status_code=status.HTTP_302_FOUND)
+        form = dict(await request.form())
+        lf = str(form.get("list_filter") or "all")
+        if not auth.csrf_for(sid or "") or form.get("csrf_token") != auth.csrf_for(sid or ""):
+            return RedirectResponse(
+                dashboard_redirect_url(error="Invalid CSRF token", list_filter=lf),
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+        if not secretfile_path or not secretfile_path.exists():
+            return RedirectResponse(
+                dashboard_redirect_url(
+                    error="Drift check requires the Secretfile path used to start this server.",
+                    list_filter=lf,
+                ),
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+        try:
+            body = run_check_drift(secretfile_path, lockfile_path)
+        except Exception as exc:
+            logger.exception("Drift check failed")
+            body = f"Drift check failed: {exc}"
+        back = dashboard_redirect_url(list_filter=lf)
+        return _render(
+            "tool_result.html",
+            title="SecretZero — drift check",
+            tool_body=body,
+            back_href=back,
+            back_label="Back to manifest",
         )
 
     @app.post("/logout", response_model=None)
@@ -503,8 +644,15 @@ def create_network_web_app(
         if not auth.valid_session(sid):
             return RedirectResponse("/", status_code=status.HTTP_302_FOUND)
         form = dict(await request.form())
+        lf = str(form.get("list_filter") or "all")
+        if lf not in ("all", "unsynced"):
+            lf = "all"
         if not auth.csrf_for(sid or "") or form.get("csrf_token") != auth.csrf_for(sid or ""):
-            return _dashboard_response(request, error="Invalid CSRF token")
+            return _dashboard_response(
+                request,
+                error="Invalid CSRF token",
+                list_filter=lf,
+            )
         _save_lock()
         if sid:
             auth.invalidate_session(sid)
@@ -523,6 +671,7 @@ def run_network_blocking_web_session(
     lockfile_path: Path,
     secretfile_path: Path | None,
     secretfile_content: str | None,
+    var_file_paths: list[Path] | None = None,
     dry_run: bool,
     host: str,
     port: int | None,
@@ -569,6 +718,7 @@ def run_network_blocking_web_session(
         lockfile_path=lockfile_path,
         secretfile_path=secretfile_path,
         secretfile_content=secretfile_content,
+        var_file_paths=var_file_paths,
         dry_run=dry_run,
         auth=auth,
         use_tls=use_tls,

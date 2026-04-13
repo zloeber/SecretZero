@@ -74,6 +74,34 @@ _ARROW_TITLE = {
 }
 
 
+def compute_is_unsynced(
+    *,
+    has_targets: bool,
+    in_lock: bool,
+    target_groups: list[dict[str, Any]],
+) -> bool:
+    """True if the secret needs attention (lock-only secrets without targets, or any lane not synced)."""
+    if not has_targets:
+        return not in_lock
+    for g in target_groups:
+        for lane in g["lanes"]:
+            if lane["sync_state"] != "synced":
+                return True
+    return False
+
+
+def target_groups_show_only_unsynced_lanes(
+    target_groups: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Drop lanes where sync_state is ``synced`` (for the unsynced-only dashboard filter)."""
+    out: list[dict[str, Any]] = []
+    for g in target_groups:
+        lanes = [ln for ln in g["lanes"] if ln.get("sync_state") != "synced"]
+        if lanes:
+            out.append({**g, "lanes": lanes})
+    return out
+
+
 def build_agent_instructions_payload(secretfile: Secretfile, sec: Secret) -> dict[str, Any] | None:
     """Structured, human-readable agent instructions for web templates (best-effort render)."""
     if not sec.agent_instructions:
@@ -175,10 +203,17 @@ def build_secret_rows(secretfile: Secretfile, lockfile: Lockfile) -> list[dict[s
                     {
                         "provider": key[0],
                         "kind": key[1],
-                        "items": bucket[key],
+                        # "lanes" not "items": Jinja dicts expose .items as a method
+                        "lanes": bucket[key],
                     }
                 )
         agent_payload = build_agent_instructions_payload(secretfile, sec)
+        in_lock = entry is not None
+        is_unsynced = compute_is_unsynced(
+            has_targets=has_targets,
+            in_lock=in_lock,
+            target_groups=target_groups,
+        )
         rows.append(
             {
                 "name": sec.name,
@@ -191,7 +226,8 @@ def build_secret_rows(secretfile: Secretfile, lockfile: Lockfile) -> list[dict[s
                 if entry and entry.last_rotated
                 else "—",
                 "rotation_count": entry.rotation_count if entry else 0,
-                "in_lock": entry is not None,
+                "in_lock": in_lock,
+                "is_unsynced": is_unsynced,
                 "can_set_value": sec.kind == "static",
                 "agent_instructions": agent_payload,
             }

@@ -92,6 +92,7 @@ def test_dashboard_auth_and_shutdown(tmp_path: Path) -> None:
         lockfile_path=lk_path,
         secretfile_path=tmp_path / "Secretfile.yml",
         secretfile_content="version: '1.0'\nsecrets: []\n",
+        var_file_paths=None,
         dry_run=True,
         auth=auth,
         use_tls=False,
@@ -113,6 +114,9 @@ def test_dashboard_auth_and_shutdown(tmp_path: Path) -> None:
         r3 = client.get("/dashboard", cookies=r2.cookies)
         assert r3.status_code == 200
         assert "Manifest" in r3.text or "manifest" in r3.text.lower()
+        r3u = client.get("/dashboard?filter=unsynced", cookies=r2.cookies)
+        assert r3u.status_code == 200
+        assert "Unsynced only" in r3u.text
 
         m = re.search(r'name="csrf_token" value="([^"]+)"', r3.text)
         assert m
@@ -140,6 +144,7 @@ def test_sync_all_invokes_engine(tmp_path: Path) -> None:
         lockfile_path=lk_path,
         secretfile_path=None,
         secretfile_content=None,
+        var_file_paths=None,
         dry_run=True,
         auth=auth,
         use_tls=False,

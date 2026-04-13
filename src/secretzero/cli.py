@@ -4035,6 +4035,7 @@ def web_command(
             lockfile_path=lockfile_path,
             secretfile_path=file_path,
             secretfile_content=secretfile_content,
+            var_file_paths=var_file_paths,
             dry_run=dry_run,
             host=host,
             port=port,
