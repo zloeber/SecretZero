@@ -30,7 +30,7 @@ Then read this file fully before doing anything else in this session.
 - Built-in generators (`random_password`, `random_string`, `static`, `script`, `provider_backed`) and provider-backed targets across AWS/Azure/Vault/GitHub/GitLab/Jenkins/Kubernetes/Infisical.
 - Policy/status/drift/terraform command families and comprehensive pytest suite.
 - Task-based verification workflow (`lint:fix`, `format`, `schema:update`, `test`, `security:scan`, `test:validations`).
-- **`secretzero web`:** one-shot, bindable FastAPI UI over the network (bootstrap token, session + CSRF, optional TLS): dashboard with manifest/lock metadata, per-secret sync/rotate, static value edit, sync-all, logout, shutdown. See `.mex/patterns/secretzero-web.md`.
+- **`secretzero web`:** one-shot, bindable FastAPI UI over the network (bootstrap token, session + CSRF, optional TLS): dashboard with manifest/lock metadata, per-secret sync/rotate, **per-target “Force to target”** when multiple targets exist and another lane is already synced (`SyncEngine.sync(..., force_targets=...)`), static value edit (forces target writes), optional `--debug` sync log panel, sync-all, logout, shutdown. CLI parity: `secretzero sync -s <name> --force-target <target_id>` (repeatable). See `.mex/patterns/secretzero-web.md`.
 
 **Not yet built:**
 - Autonomous/scheduled secret rotation service (rotation is operator-invoked).
@@ -39,6 +39,7 @@ Then read this file fully before doing anything else in this session.
 **Unified agent sync:** Implemented — `secretzero agent sync --json [--web] [--verbose]` and `POST /agent/sync` share `AgentSecretSynchronizer`; Vector 2 web UI and `GET /agent/sync/web/{session_id}` for polling; Tavern E2E under `tests/e2e/` (`task test:e2e`).
 
 **Known issues:**
+- `secretzero sync --format json` previously skipped writing the lockfile; fixed — JSON sync now persists `.gitsecrets.lock` when not `--dry-run` (same rules as text output).
 - Interpolation mistakes can appear as empty rendered values and require `secretzero render` to diagnose.
 - Missing provider extras cause runtime unknown-kind/missing-dependency errors.
 - Partial sync can skip if previous value retrieval from existing targets fails.

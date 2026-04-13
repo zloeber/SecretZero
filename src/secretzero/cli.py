@@ -1809,6 +1809,34 @@ def _show_provider_details(provider_name: str, target_name: str | None, verbose:
             )
 
 
+def _cli_force_targets_map(
+    config: Any,
+    secret_names: tuple[str, ...],
+    force_target_args: tuple[str, ...],
+) -> dict[str, frozenset[str]] | None:
+    """Build ``force_targets`` for :meth:`SyncEngine.sync`; validate target IDs."""
+    if not force_target_args:
+        return None
+    from secretzero.sync import SyncEngine
+
+    if len(secret_names) != 1:
+        raise click.BadParameter(
+            "--force-target requires exactly one --secret (use -s once)",
+        )
+    name = secret_names[0]
+    sec = next((s for s in config.secrets if s.name == name), None)
+    if sec is None:
+        raise click.BadParameter(f"Secret {name!r} not found in Secretfile")
+    allowed = {SyncEngine._build_target_id(t) for t in sec.targets}
+    bad = [ft for ft in force_target_args if ft not in allowed]
+    if bad:
+        opts = ", ".join(sorted(allowed)) or "(none)"
+        raise click.BadParameter(
+            f"Unknown --force-target {bad[0]!r} for secret {name!r}. Valid: {opts}"
+        )
+    return {name: frozenset(force_target_args)}
+
+
 @main.command()
 @click.option(
     "--file",
@@ -1871,6 +1899,16 @@ def _show_provider_details(provider_name: str, target_name: str | None, verbose:
     is_flag=True,
     help="Remove lockfile entries that have no corresponding secret in the Secretfile",
 )
+@click.option(
+    "--force-target",
+    "force_targets",
+    multiple=True,
+    help=(
+        "Re-push the current secret value to these target IDs only (repeatable). "
+        "Target IDs match the lockfile (e.g. local/file/.env, github/github_secret/…). "
+        "Requires exactly one --secret. Use when multiple targets exist and at least one is already synced."
+    ),
+)
 def sync(
     file: str,
     lockfile: str,
@@ -1882,6 +1920,7 @@ def sync(
     secrets: tuple[str, ...],
     output_format: str,
     clean: bool,
+    force_targets: tuple[str, ...],
 ) -> None:
     """Generate and synchronize secrets to targets.
 
@@ -1914,6 +1953,9 @@ def sync(
 
         # Short form
         secretzero sync -s db_password -s api_key
+
+        # Re-push to one target when several exist and others are already synced
+        secretzero sync -s api_key --force-target local/file/.env.production
 
         # Preview plan before applying
         secretzero sync --plan
@@ -2025,6 +2067,12 @@ def sync(
 
     # Prepare secret name filter
     secret_names = list(secrets) if secrets else None
+    force_targets_map: dict[str, frozenset[str]] | None = None
+    if force_targets:
+        force_targets_map = _cli_force_targets_map(config, secrets, force_targets)
+    if force_targets_map is not None and not secret_names:
+        raise click.BadParameter("--force-target requires --secret")
+
     if secret_names and output_format == "text":
         console.print(
             f"[bold]Synchronizing {len(secret_names)} secret(s):[/bold] {', '.join(secret_names)}\n"
@@ -2037,6 +2085,7 @@ def sync(
             dry_run=dry_run,
             secret_names=secret_names,
             ignore_foreign_context_targets=variable_context_changed,
+            force_targets=force_targets_map,
         )
 
         if output_format == "json":
@@ -2079,6 +2128,12 @@ def sync(
             if clean:
                 json_result["cleaned"] = cleaned_entries
             click.echo(json.dumps(json_result, indent=2, default=str))
+            # Mirror text mode: persist lockfile after sync (JSON path used to return here without saving).
+            if not dry_run:
+                if results["secrets_stored"] > 0 or cleaned_entries:
+                    lock.save(lockfile_path)
+                elif results.get("secretfile_changed") is not None:
+                    lock.save(lockfile_path)
             if results.get("errors"):
                 sys.exit(EXIT_UNKNOWN_ERROR)
             return
@@ -3924,6 +3979,11 @@ def audit(
     show_default=True,
     help="Seconds to wait before timing out if the UI is not shut down",
 )
+@click.option(
+    "--debug",
+    is_flag=True,
+    help="Show a structured sync debug log at the bottom of the dashboard (no secret values).",
+)
 def web_command(
     file: str,
     lockfile: str,
@@ -3938,6 +3998,7 @@ def web_command(
     tls_self_signed: bool,
     tls_san: tuple[str, ...],
     timeout: float,
+    debug: bool,
 ) -> None:
     """Serve an HTTPS-capable web UI to inspect the manifest, sync, and update secrets.
 
@@ -4027,6 +4088,10 @@ def web_command(
         console.print(f"[bold]Open[/bold]           {access_url}")
         if spki_fp:
             console.print(f"[bold]TLS SPKI SHA-256[/bold]  {spki_fp}")
+        if debug:
+            console.print(
+                "[dim]Debug log panel is ON (structured sync summaries at the bottom of the dashboard).[/dim]"
+            )
 
     try:
         _base_url, _used_port, _fp = run_network_blocking_web_session(
@@ -4037,6 +4102,7 @@ def web_command(
             secretfile_content=secretfile_content,
             var_file_paths=var_file_paths,
             dry_run=dry_run,
+            debug=debug,
             host=host,
             port=port,
             port_min=agent_cfg.web_port_min,

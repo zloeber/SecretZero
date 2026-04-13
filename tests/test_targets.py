@@ -31,6 +31,25 @@ class TestFileTarget:
             value = target.retrieve("MY_SECRET")
             assert value == "secret_value_123"
 
+    def test_dotenv_config_key_override_preserves_casing(self):
+        """config.key is the file/env key; manifest secret name may differ in casing."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            env_path = Path(tmpdir) / ".env"
+            config = {
+                "path": str(env_path),
+                "format": "dotenv",
+                "merge": False,
+                "key": "PYPI_PROD_API_TOKEN",
+            }
+            target = FileTarget(config)
+            assert target.store("pypi_prod_api_token", "pypi-token-value")
+
+            text = env_path.read_text()
+            assert "PYPI_PROD_API_TOKEN=" in text
+            assert "pypi_prod_api_token=" not in text
+
+            assert target.retrieve("pypi_prod_api_token") == "pypi-token-value"
+
     def test_dotenv_with_quotes(self):
         """Test dotenv format with quoted values."""
         with tempfile.TemporaryDirectory() as tmpdir:

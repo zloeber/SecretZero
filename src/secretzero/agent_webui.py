@@ -117,11 +117,17 @@ p.note {{ color: #444; font-size: 0.9rem; }}
 
 
 def _inject_static_values(secretfile: Secretfile, values: dict[str, str]) -> Secretfile:
-    """Apply submitted values as ``static`` secret ``config.value`` entries."""
+    """Apply submitted values as ``static`` secret ``config.value`` entries.
+
+    ``StaticGenerator`` prefers ``default`` over ``value`` when both exist; manifests
+    often use ``default: ${ENV_VAR}`` as a placeholder. Drop ``default`` here so the
+    submitted literal is not shadowed by an unresolved env reference.
+    """
     new_secrets = []
     for sec in secretfile.secrets:
         if sec.name in values:
             cfg = {**sec.config, "value": values[sec.name]}
+            cfg.pop("default", None)
             new_secrets.append(sec.model_copy(update={"config": cfg}))
         else:
             new_secrets.append(sec)

@@ -182,7 +182,7 @@ table.sz td.actions form { display: inline; margin-right: 0.25rem; }
 .sz-flow__group-inner { display: flex; flex-direction: column; gap: 0.4rem; }
 .sz-flow__lane {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.5rem;
   min-width: 0;
 }
@@ -191,7 +191,7 @@ table.sz td.actions form { display: inline; margin-right: 0.25rem; }
   height: 4px;
   border-radius: 2px;
   position: relative;
-  align-self: center;
+  margin-top: 0.55rem;
 }
 .sz-flow__arrow::after {
   content: "";
@@ -220,6 +220,37 @@ table.sz td.actions form { display: inline; margin-right: 0.25rem; }
   word-break: break-word;
   margin: 0;
 }
+.sz-lane-details {
+  margin: 0.4rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.76rem;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.sz-lane-details li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem;
+  line-height: 1.35;
+}
+.sz-lane-details .sz-lane-details__k {
+  font-weight: 600;
+  color: var(--text);
+  flex: 0 0 auto;
+}
+.sz-lane-details code {
+  font-size: 0.74rem;
+  word-break: break-word;
+  color: var(--text);
+}
+.sz-lane-force {
+  margin: 0.45rem 0 0;
+}
+.sz-lane-force .btn-sm { font-size: 0.72rem; padding: 0.22rem 0.45rem; }
 .sz-flow__meta {
   display: flex;
   flex-wrap: wrap;
@@ -319,7 +350,10 @@ input:focus {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
-button[type="submit"] {
+/* Full-width primary CTA for simple forms only (login, legacy submit). Dashboard/toolbar
+   buttons use .btn / .btn-sm; without :not(.btn), this rule's specificity beats .btn-sm and
+   made Sync larger and blue while Set value / Rotate stayed outline style. */
+button[type="submit"]:not(.btn) {
   margin-top: 1.5rem;
   width: 100%;
   padding: 0.65rem 1rem;
@@ -331,7 +365,7 @@ button[type="submit"] {
   border-radius: 8px;
   cursor: pointer;
 }
-button[type="submit"]:hover { background: var(--accent-hover); }
+button[type="submit"]:not(.btn):hover { background: var(--accent-hover); }
 .alert {
   padding: 0.75rem 1rem;
   border-radius: 8px;
@@ -537,6 +571,22 @@ TEMPLATES = {
                 <div class="sz-flow__arrow sz-flow__arrow--{{ item.sync_state }}" role="img" title="{{ item.arrow_title }}"></div>
                 <div class="sz-flow__dest-wrap">
                   <p class="sz-flow__dest-text"><code>{{ item.dest }}</code></p>
+                  {% if item.details %}
+                  <ul class="sz-lane-details" aria-label="Storage details">
+                    {% for d in item.details %}
+                    <li><span class="sz-lane-details__k">{{ d.label }}</span> <code>{{ d.value }}</code></li>
+                    {% endfor %}
+                  </ul>
+                  {% endif %}
+                  {% if item.can_force_resync %}
+                  <form class="sz-lane-force" method="post" action="/action/force-sync-target">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+                    <input type="hidden" name="list_filter" value="{{ list_filter }}"/>
+                    <input type="hidden" name="secret_name" value="{{ row.name }}"/>
+                    <input type="hidden" name="target_id" value="{{ item.target_id }}"/>
+                    <button type="submit" class="btn btn-sm" title="Write the current secret value to this target again">Force to target</button>
+                  </form>
+                  {% endif %}
                 </div>
               </div>
               {% endfor %}
@@ -555,7 +605,7 @@ TEMPLATES = {
       </div>
       <div class="sz-flow__actions">
         {% if row.can_set_value %}
-        <a class="btn btn-sm" href="/secret/{{ row.name | uquote }}/edit">Set value</a>
+        <a class="btn btn-sm" href="/secret/{{ row.name | uquote }}/edit?filter={{ list_filter }}">Set value</a>
         {% endif %}
         <form method="post" action="/action/sync-secret">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
@@ -563,12 +613,16 @@ TEMPLATES = {
           <input type="hidden" name="secret_name" value="{{ row.name }}"/>
           <button type="submit" class="btn btn-sm">Sync</button>
         </form>
+        {% if row.can_set_value %}
+        <a class="btn btn-sm" href="/secret/{{ row.name | uquote }}/edit?filter={{ list_filter }}">Rotate</a>
+        {% else %}
         <form method="post" action="/action/rotate-secret">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
           <input type="hidden" name="list_filter" value="{{ list_filter }}"/>
           <input type="hidden" name="secret_name" value="{{ row.name }}"/>
           <button type="submit" class="btn btn-sm">Rotate</button>
         </form>
+        {% endif %}
       </div>
     </article>
     {% endfor %}
@@ -577,6 +631,15 @@ TEMPLATES = {
   <p class="lead">No secrets match this filter. Try <a href="/dashboard?filter=all">show all</a>.</p>
   {% elif not rows %}
   <p class="lead">No secrets are defined in this Secretfile.</p>
+  {% endif %}
+  {% if debug %}
+  <section class="sz-debug-pane" style="margin-top:2rem;border-top:1px solid var(--border);padding-top:1rem;" aria-label="Debug log">
+    <details open>
+      <summary style="cursor:pointer;font-weight:600;">Debug log</summary>
+      <p style="font-size:0.85rem;color:var(--muted);margin:0.5rem 0 0;">Structured sync output (targets, skip reasons, errors). Secret values are never included.</p>
+      <pre class="sz-tool-pre" role="region" style="max-height:28rem;overflow:auto;">{{ debug_log_text or "(Run a sync action to populate this log.)" }}</pre>
+    </details>
+  </section>
   {% endif %}
 {% endblock %}
 """,
@@ -601,11 +664,12 @@ TEMPLATES = {
   {% endwith %}
   <form method="post" action="/secret/{{ secret_name | uquote }}/apply" autocomplete="off">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+    <input type="hidden" name="list_filter" value="{{ list_filter }}"/>
     <label for="value">New value</label>
     <input id="value" name="value" type="password" required autocomplete="off"/>
     <button type="submit" class="btn btn-primary" style="margin-top:1rem;width:auto;">Apply and sync</button>
   </form>
-  <p style="margin-top:1.25rem;"><a href="/dashboard">← Back to manifest</a></p>
+  <p style="margin-top:1.25rem;"><a href="/dashboard?filter={{ list_filter }}">← Back to manifest</a></p>
 {% endblock %}
 """,
     "stopped.html": """

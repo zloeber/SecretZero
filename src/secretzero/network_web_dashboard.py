@@ -33,12 +33,113 @@ def _kind_str(kind: Any) -> str:
     return str(kind)
 
 
-def _target_dest_label(tc: TargetConfig) -> str:
-    """Path or name shown inside the provider/kind bubble."""
-    k = _kind_str(tc.kind)
-    if k == "file":
-        return str(tc.config.get("path", "") or "—")
-    return str(tc.config.get("name", "") or "—")
+def build_target_lane_ui(secret_name: str, tc: TargetConfig) -> dict[str, Any]:
+    """Primary destination line plus labeled rows for the dashboard (no secret values).
+
+    Mirrors how built-in targets resolve storage keys/names so operators see e.g. dotenv key,
+    GitHub Actions secret name, K8s data key, etc.
+    """
+    cfg = tc.config
+    kind = _kind_str(tc.kind).lower()
+    details: list[dict[str, str]] = []
+
+    def add(label: str, value: str | None) -> None:
+        if value is None:
+            return
+        v = str(value).strip()
+        if v:
+            details.append({"label": label, "value": v})
+
+    # --- file (local) ---
+    if kind == "file":
+        path = str(cfg.get("path", "") or "")
+        dest = path if path else "—"
+        add("Format", str(cfg.get("format", "dotenv")))
+        # Optional override; default is manifest secret name (FileTarget dict key).
+        add("Entry key", str(cfg.get("key", secret_name)))
+        return {"dest": dest, "details": details}
+
+    # --- GitHub Actions ---
+    if kind == "github_secret":
+        owner, repo = cfg.get("owner"), cfg.get("repo")
+        dest = f"{owner}/{repo}" if (owner and repo) else str(cfg.get("name", "") or "—")
+        remote = str(cfg.get("secret_name") or secret_name)
+        add("Actions secret", remote)
+        env = cfg.get("environment")
+        if env:
+            add("Environment", str(env))
+        return {"dest": dest, "details": details}
+
+    # --- GitLab CI variable ---
+    if kind in ("gitlab_variable", "gitlab_ci_variable"):
+        proj = str(cfg.get("project", "") or "")
+        dest = proj if proj else "—"
+        add("Variable key", secret_name)
+        add("Environment scope", str(cfg.get("environment_scope", "*")))
+        vt = cfg.get("variable_type")
+        if vt:
+            add("Variable type", str(vt))
+        return {"dest": dest, "details": details}
+
+    # --- Kubernetes ---
+    if kind == "kubernetes_secret":
+        ns = str(cfg.get("namespace", "default"))
+        obj = str(cfg.get("secret_name", "") or "")
+        dkey = str(cfg.get("data_key") or secret_name)
+        dest = f"{ns}/{obj}" if obj else ns
+        add("Secret object", obj)
+        add("Data key", dkey)
+        return {"dest": dest, "details": details}
+
+    # --- Jenkins ---
+    if kind == "jenkins_credential":
+        cid = str(cfg.get("credential_id", "") or "")
+        dest = cid if cid else "—"
+        add("Domain", str(cfg.get("domain", "_")))
+        add("Credential type", str(cfg.get("credential_type", "string")))
+        return {"dest": dest, "details": details}
+
+    # --- Vault KV ---
+    if kind == "vault_kv":
+        path = str(cfg.get("path", "") or cfg.get("name", "") or "")
+        dest = path if path else "—"
+        add("Mount", str(cfg.get("mount_point", "secret")))
+        ver = cfg.get("version")
+        if ver is not None:
+            add("KV version", str(ver))
+        return {"dest": dest, "details": details}
+
+    # --- Azure Key Vault ---
+    if kind == "azure_keyvault":
+        vault_url = str(cfg.get("vault_url", "") or "")
+        kv_sn = str(cfg.get("secret_name") or secret_name)
+        dest = kv_sn
+        add("Vault", vault_url)
+        return {"dest": dest, "details": details}
+
+    # --- AWS SSM & Secrets Manager ---
+    if kind in ("ssm_parameter", "secrets_manager"):
+        nm = str(cfg.get("name", "") or "")
+        dest = nm if nm else "—"
+        if kind == "ssm_parameter":
+            add("Parameter type", str(cfg.get("type", "SecureString")))
+        return {"dest": dest, "details": details}
+
+    # --- Jinja template output ---
+    if kind == "template":
+        out = str(cfg.get("output_path", "") or "")
+        tpl = str(cfg.get("template_path", "") or "")
+        dest = out if out else (tpl or "—")
+        add("Template", tpl)
+        add("Context key", secret_name)
+        return {"dest": dest, "details": details}
+
+    # --- Generic fallback (bundles / future targets) ---
+    ident = str(cfg.get("path", "") or cfg.get("name", "") or "")
+    dest = ident if ident else "—"
+    if kind:
+        add("Target kind", kind)
+    return {"dest": dest, "details": details}
 
 
 def _lock_hash_for_target(
@@ -72,6 +173,20 @@ _ARROW_TITLE = {
     "pending": "This target is not recorded in the lockfile yet — run Sync.",
     "drift": "Recorded hash for this target differs from the current secret hash — re-sync.",
 }
+
+
+def apply_force_resync_flags(target_groups: list[dict[str, Any]]) -> None:
+    """Set ``can_force_resync`` on each lane when multi-target and another lane is synced."""
+    flat: list[dict[str, Any]] = []
+    for g in target_groups:
+        for ln in g["lanes"]:
+            flat.append(ln)
+    n = len(flat)
+    for i, lane in enumerate(flat):
+        other_synced = n >= 2 and any(
+            flat[j].get("sync_state") == "synced" for j in range(n) if j != i
+        )
+        lane["can_force_resync"] = other_synced
 
 
 def compute_is_unsynced(
@@ -190,9 +305,11 @@ def build_secret_rows(secretfile: Secretfile, lockfile: Lockfile) -> list[dict[s
                 tid = SyncEngine._build_target_id(tc)
                 locked = _lock_hash_for_target(entry, tid, tc)
                 sync_state = _sync_state_for_target(entry, locked)
+                lane_ui = build_target_lane_ui(sec.name, tc)
                 bucket[key].append(
                     {
-                        "dest": _target_dest_label(tc),
+                        "dest": lane_ui["dest"],
+                        "details": lane_ui["details"],
                         "sync_state": sync_state,
                         "arrow_title": _ARROW_TITLE[sync_state],
                         "target_id": tid,
@@ -207,6 +324,7 @@ def build_secret_rows(secretfile: Secretfile, lockfile: Lockfile) -> list[dict[s
                         "lanes": bucket[key],
                     }
                 )
+            apply_force_resync_flags(target_groups)
         agent_payload = build_agent_instructions_payload(secretfile, sec)
         in_lock = entry is not None
         is_unsynced = compute_is_unsynced(

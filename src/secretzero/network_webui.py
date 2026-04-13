@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import ipaddress
+import json
 import logging
 import secrets
 import socket
@@ -38,10 +39,79 @@ from secretzero.network_web_dashboard import (
     make_sync_engine,
     target_groups_show_only_unsynced_lanes,
 )
+from secretzero.sync import SyncEngine
 
 logger = logging.getLogger(__name__)
 
 COOKIE_NAME = "sz_web_session"
+
+_MAX_DEBUG_BLOCKS = 32
+
+
+def format_sync_results_for_debug(results: dict[str, Any]) -> str:
+    """Format sync engine output for the web debug panel. Must not include secret values."""
+
+    def _simplify_detail(d: dict[str, Any]) -> dict[str, Any]:
+        out: dict[str, Any] = {
+            "name": d.get("name"),
+            "kind": d.get("kind"),
+            "generated": d.get("generated"),
+            "stored": d.get("stored"),
+            "skipped": d.get("skipped"),
+            "reason": d.get("reason"),
+        }
+        errs = d.get("errors")
+        if errs:
+            out["errors"] = errs
+        targets: list[dict[str, Any]] = []
+        for t in d.get("targets") or []:
+            if not isinstance(t, dict):
+                continue
+            targets.append(
+                {
+                    "provider": t.get("provider"),
+                    "kind": t.get("kind"),
+                    "status": t.get("status"),
+                    "message": t.get("message"),
+                }
+            )
+        if targets:
+            out["targets"] = targets
+        return {k: v for k, v in out.items() if v is not None}
+
+    payload = {
+        "secrets_stored": results.get("secrets_stored"),
+        "secrets_skipped": results.get("secrets_skipped"),
+        "secrets_processed": results.get("secrets_processed"),
+        "errors": results.get("errors"),
+        "details": [_simplify_detail(x) for x in results.get("details") or [] if isinstance(x, dict)],
+    }
+    return json.dumps(payload, indent=2)
+
+
+def _flatten_sync_errors(results: dict[str, Any]) -> list[str]:
+    """Collect human-readable sync errors (no secret values)."""
+    out: list[str] = []
+    for e in results.get("errors") or []:
+        if isinstance(e, str) and e.strip():
+            out.append(e.strip())
+    for d in results.get("details") or []:
+        if not isinstance(d, dict):
+            continue
+        for e in d.get("errors") or []:
+            if isinstance(e, str) and e.strip():
+                out.append(e.strip())
+    return out
+
+
+def _append_debug_block(state: Any, title: str, body: str) -> None:
+    from datetime import UTC, datetime
+
+    ts = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+    block = f"=== {title} @ {ts} ===\n{body.strip()}"
+    state.debug_blocks.append(block)
+    while len(state.debug_blocks) > _MAX_DEBUG_BLOCKS:
+        state.debug_blocks.pop(0)
 
 
 def dashboard_redirect_url(
@@ -211,11 +281,12 @@ def generate_self_signed_tls_files(
 class _NetworkWebState:
     """Mutable Secretfile + lockfile for the dashboard session (single-threaded uvicorn)."""
 
-    __slots__ = ("secretfile", "lockfile")
+    __slots__ = ("secretfile", "lockfile", "debug_blocks")
 
     def __init__(self, secretfile: Secretfile, lockfile: Lockfile) -> None:
         self.secretfile = secretfile
         self.lockfile = lockfile
+        self.debug_blocks: list[str] = []
 
 
 def create_network_web_app(
@@ -227,6 +298,7 @@ def create_network_web_app(
     secretfile_content: str | None,
     var_file_paths: list[Path] | None,
     dry_run: bool,
+    debug: bool,
     auth: NetworkWebSessionStore,
     use_tls: bool,
     on_shutdown: Callable[[], None],
@@ -287,6 +359,7 @@ def create_network_web_app(
         else:
             rows = all_rows
         tools_available = bool(secretfile_path and secretfile_path.exists())
+        debug_log_text = "\n\n".join(state.debug_blocks) if debug else ""
         return _render(
             "dashboard.html",
             title="SecretZero — manifest",
@@ -298,6 +371,8 @@ def create_network_web_app(
             tools_available=tools_available,
             manifest=build_manifest_rows(state.lockfile, secretfile_path),
             dry_run=dry_run,
+            debug=debug,
+            debug_log_text=debug_log_text,
             notice=notice,
             error=error,
         )
@@ -391,6 +466,8 @@ def create_network_web_app(
         csrf = auth.csrf_for(sid or "")
         assert csrf is not None
         qe = request.query_params.get("error")
+        edit_lf = request.query_params.get("filter", "all")
+        list_filter = edit_lf if edit_lf in ("all", "unsynced") else "all"
         assert sec is not None
         agent_instructions = build_agent_instructions_payload(state.secretfile, sec)
         return _render(
@@ -400,6 +477,7 @@ def create_network_web_app(
             csrf_token=csrf,
             error_message=qe,
             agent_instructions=agent_instructions,
+            list_filter=list_filter,
         )
 
     @app.post("/secret/{secret_name}/apply", response_model=None)
@@ -436,7 +514,15 @@ def create_network_web_app(
                 secretfile_path=secretfile_path,
                 secretfile_content=secretfile_content,
             )
-            eng.sync(dry_run=dry_run, secret_names=[name])
+            # force_rotation: lockfile may already list all targets as synced; a new static value
+            # must still be written to targets (otherwise sync skips with "All targets already synced").
+            results = eng.sync(dry_run=dry_run, secret_names=[name], force_rotation=True)
+            if debug:
+                _append_debug_block(
+                    state,
+                    f"Apply static: {name}",
+                    format_sync_results_for_debug(results),
+                )
             _save_lock()
         except Exception as exc:
             logger.exception("Apply secret failed")
@@ -444,6 +530,22 @@ def create_network_web_app(
                 dashboard_redirect_url(error=str(exc), list_filter=lf),
                 status_code=status.HTTP_303_SEE_OTHER,
             )
+        errs = _flatten_sync_errors(results)
+        if errs:
+            return RedirectResponse(
+                dashboard_redirect_url(error=errs[0][:1200], list_filter=lf),
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+        for d in results.get("details") or []:
+            if isinstance(d, dict) and d.get("skipped") and (d.get("reason") or ""):
+                r = str(d["reason"])
+                return RedirectResponse(
+                    dashboard_redirect_url(
+                        notice=f"Value saved for {name} but sync skipped: {r}"[:1200],
+                        list_filter=lf,
+                    ),
+                    status_code=status.HTTP_303_SEE_OTHER,
+                )
         return RedirectResponse(
             dashboard_redirect_url(
                 notice=f"Updated and synced: {name}",
@@ -477,7 +579,13 @@ def create_network_web_app(
                 secretfile_path=secretfile_path,
                 secretfile_content=secretfile_content,
             )
-            eng.sync(dry_run=dry_run, secret_names=[name])
+            results = eng.sync(dry_run=dry_run, secret_names=[name])
+            if debug:
+                _append_debug_block(
+                    state,
+                    f"Sync secret: {name}",
+                    format_sync_results_for_debug(results),
+                )
             _save_lock()
         except Exception as exc:
             logger.exception("Sync secret failed")
@@ -485,8 +593,85 @@ def create_network_web_app(
                 dashboard_redirect_url(error=str(exc), list_filter=lf),
                 status_code=status.HTTP_303_SEE_OTHER,
             )
+        errs = _flatten_sync_errors(results)
+        if errs:
+            return RedirectResponse(
+                dashboard_redirect_url(error=errs[0][:1200], list_filter=lf),
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
         return RedirectResponse(
             dashboard_redirect_url(notice=f"Synced: {name}", list_filter=lf),
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+    @app.post("/action/force-sync-target", response_model=None)
+    async def action_force_sync_target(request: Request) -> Response:
+        """Re-push the current secret value to one target (multi-target workflows)."""
+        sid = request.cookies.get(COOKIE_NAME)
+        if not auth.valid_session(sid):
+            return RedirectResponse("/", status_code=status.HTTP_302_FOUND)
+        form = dict(await request.form())
+        lf = str(form.get("list_filter") or "all")
+        if not auth.csrf_for(sid or "") or form.get("csrf_token") != auth.csrf_for(sid or ""):
+            return RedirectResponse(
+                dashboard_redirect_url(error="Invalid CSRF token", list_filter=lf),
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+        name = str(form.get("secret_name") or "").strip()
+        tid = str(form.get("target_id") or "").strip()
+        if name not in _secret_names() or not tid:
+            return RedirectResponse(
+                dashboard_redirect_url(error="Invalid request", list_filter=lf),
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+        sec = _get_secret(name)
+        if not sec or not sec.targets:
+            return RedirectResponse(
+                dashboard_redirect_url(error="Secret has no targets", list_filter=lf),
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+        allowed = {SyncEngine._build_target_id(t) for t in sec.targets}
+        if tid not in allowed:
+            return RedirectResponse(
+                dashboard_redirect_url(error="Unknown target for this secret", list_filter=lf),
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+        try:
+            eng = make_sync_engine(
+                state.secretfile,
+                state.lockfile,
+                secretfile_path=secretfile_path,
+                secretfile_content=secretfile_content,
+            )
+            results = eng.sync(
+                dry_run=dry_run,
+                secret_names=[name],
+                force_targets={name: frozenset([tid])},
+            )
+            if debug:
+                _append_debug_block(
+                    state,
+                    f"Force target {tid}: {name}",
+                    format_sync_results_for_debug(results),
+                )
+            _save_lock()
+        except Exception as exc:
+            logger.exception("Force sync target failed")
+            return RedirectResponse(
+                dashboard_redirect_url(error=str(exc), list_filter=lf),
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+        errs = _flatten_sync_errors(results)
+        if errs:
+            return RedirectResponse(
+                dashboard_redirect_url(error=errs[0][:1200], list_filter=lf),
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+        return RedirectResponse(
+            dashboard_redirect_url(
+                notice=f"Re-synced to target: {name} ({tid})",
+                list_filter=lf,
+            ),
             status_code=status.HTTP_303_SEE_OTHER,
         )
 
@@ -508,6 +693,12 @@ def create_network_web_app(
                 dashboard_redirect_url(error="Unknown secret", list_filter=lf),
                 status_code=status.HTTP_303_SEE_OTHER,
             )
+        sec_rot = _get_secret(name)
+        if sec_rot is not None and sec_rot.kind == "static":
+            return RedirectResponse(
+                f"/secret/{quote(name, safe='')}/edit?filter={quote(lf)}",
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
         try:
             eng = make_sync_engine(
                 state.secretfile,
@@ -515,12 +706,24 @@ def create_network_web_app(
                 secretfile_path=secretfile_path,
                 secretfile_content=secretfile_content,
             )
-            eng.sync(dry_run=dry_run, force_rotation=True, secret_names=[name])
+            results = eng.sync(dry_run=dry_run, force_rotation=True, secret_names=[name])
+            if debug:
+                _append_debug_block(
+                    state,
+                    f"Rotate: {name}",
+                    format_sync_results_for_debug(results),
+                )
             _save_lock()
         except Exception as exc:
             logger.exception("Rotate secret failed")
             return RedirectResponse(
                 dashboard_redirect_url(error=str(exc), list_filter=lf),
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+        errs = _flatten_sync_errors(results)
+        if errs:
+            return RedirectResponse(
+                dashboard_redirect_url(error=errs[0][:1200], list_filter=lf),
                 status_code=status.HTTP_303_SEE_OTHER,
             )
         return RedirectResponse(
@@ -547,12 +750,20 @@ def create_network_web_app(
                 secretfile_path=secretfile_path,
                 secretfile_content=secretfile_content,
             )
-            eng.sync(dry_run=dry_run)
+            results = eng.sync(dry_run=dry_run)
+            if debug:
+                _append_debug_block(state, "Sync all", format_sync_results_for_debug(results))
             _save_lock()
         except Exception as exc:
             logger.exception("Sync all failed")
             return RedirectResponse(
                 dashboard_redirect_url(error=str(exc), list_filter=lf),
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+        errs = _flatten_sync_errors(results)
+        if errs:
+            return RedirectResponse(
+                dashboard_redirect_url(error=errs[0][:1200], list_filter=lf),
                 status_code=status.HTTP_303_SEE_OTHER,
             )
         return RedirectResponse(
@@ -673,6 +884,7 @@ def run_network_blocking_web_session(
     secretfile_content: str | None,
     var_file_paths: list[Path] | None = None,
     dry_run: bool,
+    debug: bool = False,
     host: str,
     port: int | None,
     port_min: int,
@@ -720,11 +932,15 @@ def run_network_blocking_web_session(
         secretfile_content=secretfile_content,
         var_file_paths=var_file_paths,
         dry_run=dry_run,
+        debug=debug,
         auth=auth,
         use_tls=use_tls,
         on_shutdown=shutdown_server,
     )
 
+    # Uvicorn defaults timeout_graceful_shutdown to None; wait_for(..., None) then waits until
+    # every connection closes. Browsers often keep HTTPS connections alive, so shutdown from
+    # the UI would never finish. A bounded graceful period cancels stuck tasks and exits.
     config = uvicorn.Config(
         app,
         host=host,
@@ -732,6 +948,7 @@ def run_network_blocking_web_session(
         log_level="warning",
         ssl_certfile=ssl_cert,
         ssl_keyfile=ssl_key,
+        timeout_graceful_shutdown=8,
     )
     server = uvicorn.Server(config)
     server_box[0] = server

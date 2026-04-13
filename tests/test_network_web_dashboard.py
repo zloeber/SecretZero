@@ -7,6 +7,7 @@ from secretzero.lockfile import Lockfile
 from secretzero.models import Secret, Secretfile, TargetConfig
 from secretzero.network_web_dashboard import (
     build_secret_rows,
+    build_target_lane_ui,
     compute_is_unsynced,
     target_groups_show_only_unsynced_lanes,
 )
@@ -58,6 +59,10 @@ def test_build_secret_rows_groups_targets_and_sync_state(tmp_path: Path) -> None
     assert groups[0]["lanes"][0]["sync_state"] == "synced"
     assert groups[0]["lanes"][1]["sync_state"] == "drift"
     assert groups[1]["lanes"][0]["sync_state"] == "pending"
+    # Per-target metadata (entry key = manifest secret name for file targets)
+    lane0 = groups[0]["lanes"][0]
+    assert lane0["dest"] == ".env.a"
+    assert any(d["label"] == "Entry key" and d["value"] == "api_key" for d in lane0["details"])
 
 
 def test_compute_is_unsynced() -> None:
@@ -67,6 +72,24 @@ def test_compute_is_unsynced() -> None:
     assert compute_is_unsynced(has_targets=True, in_lock=True, target_groups=g) is False
     g2 = [{"lanes": [{"sync_state": "pending"}]}]
     assert compute_is_unsynced(has_targets=True, in_lock=True, target_groups=g2) is True
+
+
+def test_build_target_lane_ui_github_secret() -> None:
+    tc = TargetConfig(
+        provider="github",
+        kind="github_secret",
+        config={
+            "owner": "acme",
+            "repo": "app",
+            "secret_name": "CUSTOM_PYPI_TOKEN",
+            "environment": "production",
+        },
+    )
+    ui = build_target_lane_ui("pypi_prod_api_token", tc)
+    assert ui["dest"] == "acme/app"
+    labels = {d["label"]: d["value"] for d in ui["details"]}
+    assert labels["Actions secret"] == "CUSTOM_PYPI_TOKEN"
+    assert labels["Environment"] == "production"
 
 
 def test_target_groups_show_only_unsynced_lanes() -> None:
