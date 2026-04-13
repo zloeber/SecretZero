@@ -14,6 +14,9 @@ _BASE_STYLE = """
   --shadow: 0 4px 24px rgba(0,0,0,.08);
   --radius: 12px;
   --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --flow-synced: #198754;
+  --flow-pending: #e97109;
+  --flow-drift: #c82832;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -26,6 +29,9 @@ _BASE_STYLE = """
     --accent-hover: #6eb0ff;
     --danger: #f4717a;
     --shadow: 0 4px 24px rgba(0,0,0,.45);
+    --flow-synced: #3dd68c;
+    --flow-pending: #ffb347;
+    --flow-drift: #ff7b7b;
   }
 }
 * { box-sizing: border-box; }
@@ -38,7 +44,7 @@ body {
   line-height: 1.5;
 }
 main {
-  max-width: 52rem;
+  max-width: min(88rem, 100%);
   margin: 0 auto;
   padding: clamp(1.5rem, 4vw, 3rem) 1.25rem;
 }
@@ -84,6 +90,179 @@ table.sz th { background: rgba(127,127,127,0.08); font-weight: 600; }
 table.sz td.targets { max-width: 14rem; word-break: break-word; }
 table.sz td.actions { white-space: nowrap; }
 table.sz td.actions form { display: inline; margin-right: 0.25rem; }
+/* Secret → targets flow (dashboard): one arrow per target, grouped by provider/kind */
+.flow-list { display: flex; flex-direction: column; gap: 1rem; margin-top: 0.5rem; }
+.sync-legend {
+  font-size: 0.78rem;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 1rem;
+  margin: 0 0 0.75rem;
+}
+.sync-legend__i {
+  display: inline-block;
+  width: 1.6rem;
+  height: 4px;
+  border-radius: 2px;
+  vertical-align: middle;
+  margin-right: 0.25rem;
+}
+.sync-legend__i--synced { background: var(--flow-synced); }
+.sync-legend__i--pending { background: var(--flow-pending); }
+.sync-legend__i--drift { background: var(--flow-drift); }
+.sz-flow {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.15rem;
+  background: rgba(127,127,127,0.05);
+  box-shadow: 0 1px 0 rgba(0,0,0,.04);
+}
+.sz-flow__top {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  min-width: 0;
+}
+.sz-flow__source {
+  flex: 0 0 auto;
+  min-width: 10.5rem;
+  max-width: 17rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.sz-flow__name { font-weight: 700; font-size: 0.95rem; letter-spacing: -0.02em; word-break: break-word; }
+.sz-flow__kind code { font-size: 0.78rem; color: var(--muted); }
+.sz-flow__right {
+  flex: 1 1 50%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.sz-flow__group {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.55rem 0.65rem 0.65rem;
+  background: rgba(127,127,127,0.04);
+}
+.sz-flow__group--empty {
+  color: var(--muted);
+  font-style: italic;
+  font-size: 0.85rem;
+}
+.sz-flow__group-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin-bottom: 0.4rem;
+}
+.sz-flow__group-badge code { font-size: inherit; font-weight: 700; text-transform: none; letter-spacing: 0; }
+.sz-flow__group-inner { display: flex; flex-direction: column; gap: 0.4rem; }
+.sz-flow__lane {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.sz-flow__arrow {
+  flex: 0 0 clamp(2.25rem, 12vw, 4.5rem);
+  height: 4px;
+  border-radius: 2px;
+  position: relative;
+  align-self: center;
+}
+.sz-flow__arrow::after {
+  content: "";
+  position: absolute;
+  right: -1px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 5px solid transparent;
+}
+.sz-flow__arrow--synced { background: var(--flow-synced); }
+.sz-flow__arrow--synced::after { border-left: 8px solid var(--flow-synced); }
+.sz-flow__arrow--pending { background: var(--flow-pending); }
+.sz-flow__arrow--pending::after { border-left: 8px solid var(--flow-pending); }
+.sz-flow__arrow--drift { background: var(--flow-drift); }
+.sz-flow__arrow--drift::after { border-left: 8px solid var(--flow-drift); }
+.sz-flow__dest-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.4rem 0.6rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+.sz-flow__dest-text {
+  font-size: 0.82rem;
+  word-break: break-word;
+  margin: 0;
+}
+.sz-flow__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1.25rem;
+  margin-top: 0.75rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.sz-flow__meta strong { color: var(--text); font-weight: 600; }
+.sz-flow__meta code { font-size: 0.76rem; }
+.sz-flow__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.65rem;
+}
+.sz-flow__actions form { display: inline; margin: 0; }
+.sz-ai {
+  margin-top: 0.35rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+.sz-ai summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--accent);
+  list-style: none;
+}
+.sz-ai summary::-webkit-details-marker { display: none; }
+.sz-ai summary::before { content: "▸ "; display: inline; }
+.sz-ai[open] summary::before { content: "▾ "; }
+.sz-ai__summary { margin-bottom: 0.35rem; }
+.sz-ai p { margin: 0.35rem 0 0; color: var(--text); }
+.sz-ai .sz-ai__prereq {
+  margin: 0.45rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+}
+.sz-ai ol.sz-ai__steps {
+  margin: 0.4rem 0 0;
+  padding-left: 1.15rem;
+}
+.sz-ai ol.sz-ai__steps li { margin-bottom: 0.45rem; }
+.sz-ai .sz-ai__step-title { font-weight: 600; color: var(--text); }
+.sz-ai .sz-ai__muted { color: var(--muted); font-size: 0.92em; margin-top: 0.15rem; }
+.sz-ai .sz-ai__extras { margin-top: 0.45rem; font-size: 0.74rem; color: var(--muted); }
+.sz-ai a { color: var(--accent); }
+@media (max-width: 720px) {
+  .sz-flow__top { flex-direction: column; align-items: stretch; }
+  .sz-flow__source { max-width: none; }
+}
 .notice-ok {
   padding: 0.65rem 1rem;
   border-radius: 8px;
@@ -230,6 +409,36 @@ TEMPLATES = {
   <p class="lead"><a href="/">Return to access</a></p>
 {% endblock %}
 """,
+    "agent_instructions_partial.html": """
+{% if agent_instructions %}
+<details class="sz-ai">
+  <summary class="sz-ai__summary">Agent instructions</summary>
+  <p>{{ agent_instructions.summary }}</p>
+  {% if agent_instructions.prerequisites %}
+  <ul class="sz-ai__prereq">
+    {% for p in agent_instructions.prerequisites %}
+    <li>{{ p }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  <ol class="sz-ai__steps">
+    {% for step in agent_instructions.steps %}
+    <li>
+      <div class="sz-ai__step-title">{{ step.action }}</div>
+      <div class="sz-ai__muted">{{ step.description }}</div>
+    </li>
+    {% endfor %}
+  </ol>
+  <div class="sz-ai__extras">
+    {% if agent_instructions.estimated_time %}<div>Est. time: {{ agent_instructions.estimated_time }}</div>{% endif %}
+    {% if agent_instructions.automation_hint %}<div>Automation: {{ agent_instructions.automation_hint }}</div>{% endif %}
+    {% if agent_instructions.fallback %}<div>Fallback: {{ agent_instructions.fallback }}</div>{% endif %}
+    {% if agent_instructions.required_tools %}<div>Tools: {{ agent_instructions.required_tools | join(", ") }}</div>{% endif %}
+    {% if agent_instructions.documentation_url %}<div><a href="{{ agent_instructions.documentation_url }}" rel="noopener noreferrer" target="_blank">Documentation</a></div>{% endif %}
+  </div>
+</details>
+{% endif %}
+""",
     "dashboard.html": """
 {% extends "base.html" %}
 {% block body %}
@@ -264,47 +473,66 @@ TEMPLATES = {
       <button type="submit" class="btn btn-danger btn-sm">Shut down server</button>
     </form>
   </div>
-  <div class="table-wrap">
-    <table class="sz" aria-describedby="manifest-heading">
-      <thead>
-        <tr>
-          <th>Secret</th>
-          <th>Kind</th>
-          <th>Targets</th>
-          <th>Value hash</th>
-          <th>Updated</th>
-          <th>Last rotated</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in rows %}
-        <tr>
-          <td><strong>{{ row.name }}</strong></td>
-          <td><code>{{ row.kind }}</code></td>
-          <td class="targets">{% for t in row.targets %}{{ t }}{% if not loop.last %}<br/>{% endif %}{% endfor %}</td>
-          <td><code>{{ row.hash_preview }}</code></td>
-          <td>{{ row.updated_at }}</td>
-          <td>{{ row.last_rotated }}{% if row.rotation_count %} (×{{ row.rotation_count }}){% endif %}</td>
-          <td class="actions">
-            {% if row.can_set_value %}
-            <a class="btn btn-sm" href="/secret/{{ row.name | uquote }}/edit">Set value</a>
-            {% endif %}
-            <form method="post" action="/action/sync-secret">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
-              <input type="hidden" name="secret_name" value="{{ row.name }}"/>
-              <button type="submit" class="btn btn-sm">Sync</button>
-            </form>
-            <form method="post" action="/action/rotate-secret">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
-              <input type="hidden" name="secret_name" value="{{ row.name }}"/>
-              <button type="submit" class="btn btn-sm">Rotate</button>
-            </form>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <p class="sync-legend" role="note" aria-label="Per-target arrow colors">
+    <span><span class="sync-legend__i sync-legend__i--synced" aria-hidden="true"></span> Synced</span>
+    <span><span class="sync-legend__i sync-legend__i--pending" aria-hidden="true"></span> Pending</span>
+    <span><span class="sync-legend__i sync-legend__i--drift" aria-hidden="true"></span> Drift</span>
+  </p>
+  <div class="flow-list" role="list" aria-label="Secrets and deployment targets">
+    {% for row in rows %}
+    <article class="sz-flow" role="listitem">
+      <div class="sz-flow__top">
+        <div class="sz-flow__source">
+          <div class="sz-flow__name">{{ row.name }}</div>
+          <div class="sz-flow__kind"><code>{{ row.kind }}</code></div>
+          {% with agent_instructions=row.agent_instructions %}
+          {% include "agent_instructions_partial.html" %}
+          {% endwith %}
+        </div>
+        <div class="sz-flow__right" aria-label="Targets for {{ row.name }}">
+          {% if row.has_targets %}
+          {% for group in row.target_groups %}
+          <div class="sz-flow__group">
+            <div class="sz-flow__group-badge"><span class="sz-flow__group-provider">{{ group.provider }}</span> · <code>{{ group.kind }}</code></div>
+            <div class="sz-flow__group-inner">
+              {% for item in group.items %}
+              <div class="sz-flow__lane">
+                <div class="sz-flow__arrow sz-flow__arrow--{{ item.sync_state }}" role="img" title="{{ item.arrow_title }}"></div>
+                <div class="sz-flow__dest-wrap">
+                  <p class="sz-flow__dest-text"><code>{{ item.dest }}</code></p>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+          {% else %}
+          <div class="sz-flow__group sz-flow__group--empty" role="presentation">No targets — sync will only update lock metadata.</div>
+          {% endif %}
+        </div>
+      </div>
+      <div class="sz-flow__meta">
+        <span><strong>Value hash</strong> <code>{{ row.hash_preview }}</code></span>
+        <span><strong>Updated</strong> {{ row.updated_at }}</span>
+        <span><strong>Last rotated</strong> {{ row.last_rotated }}{% if row.rotation_count %} (×{{ row.rotation_count }}){% endif %}</span>
+      </div>
+      <div class="sz-flow__actions">
+        {% if row.can_set_value %}
+        <a class="btn btn-sm" href="/secret/{{ row.name | uquote }}/edit">Set value</a>
+        {% endif %}
+        <form method="post" action="/action/sync-secret">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+          <input type="hidden" name="secret_name" value="{{ row.name }}"/>
+          <button type="submit" class="btn btn-sm">Sync</button>
+        </form>
+        <form method="post" action="/action/rotate-secret">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+          <input type="hidden" name="secret_name" value="{{ row.name }}"/>
+          <button type="submit" class="btn btn-sm">Rotate</button>
+        </form>
+      </div>
+    </article>
+    {% endfor %}
   </div>
   {% if not rows %}
   <p class="lead">No secrets are defined in this Secretfile.</p>
@@ -319,6 +547,9 @@ TEMPLATES = {
   {% if error_message %}
   <div class="alert" role="alert">{{ error_message }}</div>
   {% endif %}
+  {% with agent_instructions=agent_instructions %}
+  {% include "agent_instructions_partial.html" %}
+  {% endwith %}
   <form method="post" action="/secret/{{ secret_name | uquote }}/apply" autocomplete="off">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
     <label for="value">New value</label>
