@@ -20,11 +20,21 @@ class FileTarget(BaseTarget):
                 - path: File path to store secrets
                 - format: File format (dotenv, json, yaml, toml)
                 - merge: Whether to merge with existing content (default: True)
+                - key: Optional key/name used in the file (dotenv variable name, JSON key, etc.).
+                  If set, overrides the manifest secret name for storage and retrieval so casing
+                  and spelling can differ from ``Secret.name`` (e.g. ``PYPI_PROD_API_TOKEN``).
         """
         super().__init__(config)
         self.path = Path(config.get("path", ".env"))
         self.format = config.get("format", "dotenv")
         self.merge = config.get("merge", True)
+
+    def _entry_key(self, secret_name: str) -> str:
+        """Key used in the file: ``config.key`` when set, else the manifest secret name."""
+        override = self.config.get("key")
+        if override is not None and str(override).strip() != "":
+            return str(override).strip()
+        return secret_name
 
     def store(self, secret_name: str, secret_value: str) -> bool:
         """Store a secret in the file.
@@ -47,8 +57,9 @@ class FileTarget(BaseTarget):
         if self.merge and self.path.exists():
             existing_data = self._read_file()
 
-        # Update with new secret
-        existing_data[secret_name] = secret_value
+        # Update with new secret (optional config.key overrides manifest name for the on-disk key)
+        entry_key = self._entry_key(secret_name)
+        existing_data[entry_key] = secret_value
 
         # Write to file
         self._write_file(existing_data)
@@ -68,7 +79,8 @@ class FileTarget(BaseTarget):
             return None
 
         data = self._read_file()
-        return data.get(secret_name)
+        entry_key = self._entry_key(secret_name)
+        return data.get(entry_key)
 
     def validate(self) -> tuple[bool, str | None]:
         """Validate that the file path is writable.

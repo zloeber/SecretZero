@@ -4,6 +4,7 @@ import json
 import sys
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 import click
 import yaml
@@ -1808,6 +1809,34 @@ def _show_provider_details(provider_name: str, target_name: str | None, verbose:
             )
 
 
+def _cli_force_targets_map(
+    config: Any,
+    secret_names: tuple[str, ...],
+    force_target_args: tuple[str, ...],
+) -> dict[str, frozenset[str]] | None:
+    """Build ``force_targets`` for :meth:`SyncEngine.sync`; validate target IDs."""
+    if not force_target_args:
+        return None
+    from secretzero.sync import SyncEngine
+
+    if len(secret_names) != 1:
+        raise click.BadParameter(
+            "--force-target requires exactly one --secret (use -s once)",
+        )
+    name = secret_names[0]
+    sec = next((s for s in config.secrets if s.name == name), None)
+    if sec is None:
+        raise click.BadParameter(f"Secret {name!r} not found in Secretfile")
+    allowed = {SyncEngine._build_target_id(t) for t in sec.targets}
+    bad = [ft for ft in force_target_args if ft not in allowed]
+    if bad:
+        opts = ", ".join(sorted(allowed)) or "(none)"
+        raise click.BadParameter(
+            f"Unknown --force-target {bad[0]!r} for secret {name!r}. Valid: {opts}"
+        )
+    return {name: frozenset(force_target_args)}
+
+
 @main.command()
 @click.option(
     "--file",
@@ -1870,6 +1899,16 @@ def _show_provider_details(provider_name: str, target_name: str | None, verbose:
     is_flag=True,
     help="Remove lockfile entries that have no corresponding secret in the Secretfile",
 )
+@click.option(
+    "--force-target",
+    "force_targets",
+    multiple=True,
+    help=(
+        "Re-push the current secret value to these target IDs only (repeatable). "
+        "Target IDs match the lockfile (e.g. local/file/.env, github/github_secret/…). "
+        "Requires exactly one --secret. Use when multiple targets exist and at least one is already synced."
+    ),
+)
 def sync(
     file: str,
     lockfile: str,
@@ -1881,6 +1920,7 @@ def sync(
     secrets: tuple[str, ...],
     output_format: str,
     clean: bool,
+    force_targets: tuple[str, ...],
 ) -> None:
     """Generate and synchronize secrets to targets.
 
@@ -1913,6 +1953,9 @@ def sync(
 
         # Short form
         secretzero sync -s db_password -s api_key
+
+        # Re-push to one target when several exist and others are already synced
+        secretzero sync -s api_key --force-target local/file/.env.production
 
         # Preview plan before applying
         secretzero sync --plan
@@ -2024,6 +2067,12 @@ def sync(
 
     # Prepare secret name filter
     secret_names = list(secrets) if secrets else None
+    force_targets_map: dict[str, frozenset[str]] | None = None
+    if force_targets:
+        force_targets_map = _cli_force_targets_map(config, secrets, force_targets)
+    if force_targets_map is not None and not secret_names:
+        raise click.BadParameter("--force-target requires --secret")
+
     if secret_names and output_format == "text":
         console.print(
             f"[bold]Synchronizing {len(secret_names)} secret(s):[/bold] {', '.join(secret_names)}\n"
@@ -2036,6 +2085,7 @@ def sync(
             dry_run=dry_run,
             secret_names=secret_names,
             ignore_foreign_context_targets=variable_context_changed,
+            force_targets=force_targets_map,
         )
 
         if output_format == "json":
@@ -2078,6 +2128,12 @@ def sync(
             if clean:
                 json_result["cleaned"] = cleaned_entries
             click.echo(json.dumps(json_result, indent=2, default=str))
+            # Mirror text mode: persist lockfile after sync (JSON path used to return here without saving).
+            if not dry_run:
+                if results["secrets_stored"] > 0 or cleaned_entries:
+                    lock.save(lockfile_path)
+                elif results.get("secretfile_changed") is not None:
+                    lock.save(lockfile_path)
             if results.get("errors"):
                 sys.exit(EXIT_UNKNOWN_ERROR)
             return
@@ -3258,13 +3314,17 @@ def graph(file: str, graph_type: str, output_format: str, output: str | None) ->
         sys.exit(EXIT_UNKNOWN_ERROR)
 
 
-@main.group()
-def list() -> None:
-    """List secrets, providers, targets, or variables from a Secretfile."""
+@main.group("list")
+def list_group() -> None:
+    """List secrets, providers, targets, or variables from a Secretfile.
+
+    Named ``list_group`` so the built-in ``list`` remains available in this module
+    (a function named ``list`` would shadow it and break ``list(...)`` calls below).
+    """
     pass
 
 
-@list.command("secrets")
+@list_group.command("secrets")
 @click.option(
     "--file",
     "-f",
@@ -3350,7 +3410,7 @@ def list_secrets(file: str, output_format: str, name_filter: str | None) -> None
     console.print(f"\n[dim]Total: {len(secrets)} secret(s)[/dim]")
 
 
-@list.command("providers")
+@list_group.command("providers")
 @click.option(
     "--file",
     "-f",
@@ -3416,7 +3476,7 @@ def list_providers(file: str, output_format: str) -> None:
     console.print(f"\n[dim]Total: {len(config.providers)} provider(s)[/dim]")
 
 
-@list.command("targets")
+@list_group.command("targets")
 @click.option(
     "--file",
     "-f",
@@ -3479,7 +3539,7 @@ def list_targets(file: str, output_format: str) -> None:
     console.print(f"\n[dim]Total: {len(all_targets)} target(s)[/dim]")
 
 
-@list.command("variables")
+@list_group.command("variables")
 @click.option(
     "--file",
     "-f",
@@ -3831,6 +3891,237 @@ def audit(
 
     console.print(table)
     console.print(f"\n[dim]Showing {len(logs)} of available entries[/dim]")
+
+
+# ---------------------------------------------------------------------------
+# Network web UI (manual secret seeding)
+# ---------------------------------------------------------------------------
+
+
+@main.command("web")
+@click.option(
+    "--file",
+    "-f",
+    type=click.Path(exists=True),
+    default="Secretfile.yml",
+    help="Path to Secretfile",
+)
+@click.option(
+    "--lockfile",
+    "-l",
+    type=click.Path(),
+    default=".gitsecrets.lock",
+    help="Path to lockfile",
+)
+@click.option(
+    "--var-file",
+    "-v",
+    "var_files",
+    type=click.Path(exists=True),
+    multiple=True,
+    help="Path to .szvar variable file(s) to merge (can be specified multiple times)",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Preview only; does not open the network web UI",
+)
+@click.option(
+    "--host",
+    default="0.0.0.0",  # nosec B104
+    show_default=True,
+    help="Address to bind (use 127.0.0.1 for local-only)",
+)
+@click.option(
+    "--port",
+    type=int,
+    default=None,
+    help="TCP port (default: random in agent web_port_min–web_port_max from Secretfile)",
+)
+@click.option(
+    "--token",
+    default=None,
+    help="Bootstrap access token (default: generate randomly)",
+)
+@click.option(
+    "--token-file",
+    type=click.Path(exists=True),
+    default=None,
+    help="Read bootstrap token from file (whitespace trimmed); overrides --token",
+)
+@click.option(
+    "--tls-cert",
+    type=click.Path(exists=True),
+    default=None,
+    help="PEM TLS certificate for HTTPS",
+)
+@click.option(
+    "--tls-key",
+    type=click.Path(exists=True),
+    default=None,
+    help="PEM TLS private key for HTTPS",
+)
+@click.option(
+    "--tls-self-signed",
+    is_flag=True,
+    help="Generate a short-lived self-signed certificate (requires cryptography)",
+)
+@click.option(
+    "--tls-san",
+    multiple=True,
+    default=(),
+    help="Extra Subject Alternative Name (hostname or IP); repeat for multiple (with --tls-self-signed)",
+)
+@click.option(
+    "--timeout",
+    type=float,
+    default=3600.0,
+    show_default=True,
+    help="Seconds to wait before timing out if the UI is not shut down",
+)
+@click.option(
+    "--debug",
+    is_flag=True,
+    help="Show a structured sync debug log at the bottom of the dashboard (no secret values).",
+)
+def web_command(
+    file: str,
+    lockfile: str,
+    var_files: tuple[str, ...],
+    dry_run: bool,
+    host: str,
+    port: int | None,
+    token: str | None,
+    token_file: str | None,
+    tls_cert: str | None,
+    tls_key: str | None,
+    tls_self_signed: bool,
+    tls_san: tuple[str, ...],
+    timeout: float,
+    debug: bool,
+) -> None:
+    """Serve an HTTPS-capable web UI to inspect the manifest, sync, and update secrets.
+
+    Binds to all interfaces by default. Share the printed URL and bootstrap token
+    out of band. For trusted transport use --tls-self-signed, your own --tls-cert
+    / --tls-key, an SSH tunnel, or a reverse proxy with a real certificate.
+
+    Use **Shut down** in the UI to stop the server; the CLI also saves the lockfile when the session ends.
+    """
+    import secrets as std_secrets
+
+    from secretzero.agent import AgentSecretSynchronizer
+    from secretzero.network_webui import run_network_blocking_web_session
+
+    file_path = Path(file)
+    if lockfile == ".gitsecrets.lock" and file != "Secretfile.yml":
+        lockfile = file_path.stem + ".lock"
+    lockfile_path = Path(lockfile)
+    var_file_paths = [Path(vf) for vf in var_files] if var_files else None
+    loader = ConfigLoader()
+
+    if tls_self_signed and (tls_cert or tls_key):
+        console.print(
+            "[red]Error:[/red] use either --tls-self-signed or --tls-cert/--tls-key, not both."
+        )
+        raise click.Abort()
+    if (tls_cert or tls_key) and not (tls_cert and tls_key):
+        console.print("[red]Error:[/red] --tls-cert and --tls-key must be provided together.")
+        raise click.Abort()
+
+    try:
+        secretfile = loader.load_file(file_path, var_files=var_file_paths)
+    except Exception as exc:
+        console.print(f"[red]Error loading Secretfile:[/red] {exc}")
+        raise click.ClickException(str(exc)) from exc
+
+    secretfile_content = file_path.read_text()
+    lock = Lockfile.load(lockfile_path)
+    agent_cfg = secretfile.effective_agent_config()
+
+    synchronizer = AgentSecretSynchronizer(
+        secretfile,
+        lock,
+        dry_run=dry_run,
+        secretfile_path=file_path,
+        secretfile_content=secretfile_content,
+    )
+
+    try:
+        synchronizer.sync(sz_agent=False)
+    except Exception as exc:
+        console.print(f"[red]Agent sync failed:[/red] {exc}")
+        raise click.ClickException(str(exc)) from exc
+
+    if dry_run:
+        console.print(
+            "[yellow]Skipping network web UI in --dry-run "
+            "(remove --dry-run to start the server).[/yellow]"
+        )
+        return
+
+    bootstrap = None
+    if token_file:
+        bootstrap = Path(token_file).read_text().strip()
+    elif token:
+        bootstrap = token.strip()
+    if not bootstrap:
+        bootstrap = std_secrets.token_urlsafe(32)
+
+    tls_cert_path = Path(tls_cert) if tls_cert else None
+    tls_key_path = Path(tls_key) if tls_key else None
+
+    console.print("[bold cyan]SecretZero network web[/bold cyan]")
+    console.print(
+        "[dim]Share the URL and bootstrap token while the server is running. "
+        "The token works once; self-signed TLS shows a browser warning—verify the "
+        "SPKI fingerprint if prompted.[/dim]\n"
+    )
+
+    def _on_ready(base_url: str, used_port: int, spki_fp: str | None) -> None:
+        join = "&" if "?" in base_url else "?"
+        access_url = f"{base_url.rstrip('/')}{join}access_token={quote(bootstrap, safe='')}"
+        console.print(
+            f"[bold]Listen[/bold]  {host}:{used_port}  (link uses 127.0.0.1 when host is 0.0.0.0)"
+        )
+        console.print(f"[bold]Bootstrap token[/bold]  {bootstrap}")
+        console.print(f"[bold]Open[/bold]           {access_url}")
+        if spki_fp:
+            console.print(f"[bold]TLS SPKI SHA-256[/bold]  {spki_fp}")
+        if debug:
+            console.print(
+                "[dim]Debug log panel is ON (structured sync summaries at the bottom of the dashboard).[/dim]"
+            )
+
+    try:
+        _base_url, _used_port, _fp = run_network_blocking_web_session(
+            secretfile=secretfile,
+            lockfile=lock,
+            lockfile_path=lockfile_path,
+            secretfile_path=file_path,
+            secretfile_content=secretfile_content,
+            var_file_paths=var_file_paths,
+            dry_run=dry_run,
+            debug=debug,
+            host=host,
+            port=port,
+            port_min=agent_cfg.web_port_min,
+            port_max=agent_cfg.web_port_max,
+            bootstrap_token=bootstrap,
+            tls_certfile=tls_cert_path,
+            tls_keyfile=tls_key_path,
+            tls_self_signed=tls_self_signed,
+            tls_extra_sans=[*tls_san],
+            timeout=timeout,
+            on_ready=_on_ready,
+        )
+    except TimeoutError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    console.print("[green]Web session ended.[/green]")
+
+    if not dry_run:
+        lock.save(lockfile_path)
 
 
 # ---------------------------------------------------------------------------

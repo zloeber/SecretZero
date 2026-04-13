@@ -63,6 +63,30 @@ def test_static_generator_validation_pattern():
     assert "does not match validation pattern" in str(exc_info.value)
 
 
+def test_inject_static_values_drops_default_so_value_is_not_shadowed() -> None:
+    """Web/UI inject must override ``default: ${VAR}`` placeholders (StaticGenerator prefers default)."""
+    from secretzero.agent_webui import _inject_static_values
+    from secretzero.models import Secret, Secretfile
+
+    sf = Secretfile(
+        version="1.0",
+        secrets=[
+            Secret(
+                name="pypi_prod_api_token",
+                kind="static",
+                config={"default": "${PYPI_PROD_API_TOKEN}", "prompt_on_empty": False},
+                targets=[],
+            )
+        ],
+    )
+    merged = _inject_static_values(sf, {"pypi_prod_api_token": "pypi-token-from-form"})
+    sec = merged.secrets[0]
+    assert sec.config.get("value") == "pypi-token-from-form"
+    assert "default" not in sec.config
+    gen = StaticGenerator(sec.config)
+    assert gen.generate() == "pypi-token-from-form"
+
+
 def test_static_generator_unresolved_variable_with_prompt():
     """Test that unresolved variables would prompt when prompting enabled."""
     config = {"value": "${UNSET_VAR}", "prompt_on_empty": True}  # Would prompt in interactive mode

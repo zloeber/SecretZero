@@ -29,6 +29,7 @@ Troubleshoot `secretzero sync` by isolating boundary: config parse/interpolation
 5. `secretzero status` for lockfile and secretfile drift/change context.
 
 ## Common Failure Patterns
+- **Lockfile unchanged after sync** -> If you use `--format json`, ensure you are on a version where JSON sync persists the lockfile; otherwise use text output or omit `--format json`. Also confirm you did not use `--dry-run` or `--plan` (both skip lockfile writes). `secretzero web --dry-run` also skips persisting the lockfile.
 - **Unknown generator/target kind** -> registration missing or optional dependency not installed.
 - **No accessible targets found** -> provider auth/config/connectivity issue.
 - **Provider not initialized** -> target references provider alias not defined in `providers:`.

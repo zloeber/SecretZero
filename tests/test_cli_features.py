@@ -201,6 +201,8 @@ templates: {{}}
         assert payload["secrets_stored"] == 1
         assert len(payload["details"]) == 1
         assert payload["details"][0]["name"] == "test_secret"
+        assert lock.exists(), "JSON sync must persist the lockfile like text mode"
+        assert "test_secret" in lock.read_text()
 
 
 def test_rotate_json_output_dry_run(runner: CliRunner) -> None:

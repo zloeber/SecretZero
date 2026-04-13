@@ -1,5 +1,6 @@
 """Secret synchronization engine."""
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -65,6 +66,48 @@ class SyncEngine:
             identifier = target_config.config.get("name", "")
 
         return f"{provider}/{kind}/{identifier}"
+
+    def _is_target_tracked(self, target_config: Any, tracked_targets: set[str]) -> bool:
+        """Return True if *target_config* appears in the lockfile target map."""
+        target_id = self._build_target_id(target_config)
+        if target_id in tracked_targets:
+            return True
+        if target_config.kind == "file":
+            old_target_id = f"{target_config.provider}/{target_config.kind}/"
+            if old_target_id in tracked_targets:
+                return True
+        return False
+
+    def _retrieve_candidates_for_partial_sync(
+        self,
+        all_target_configs: list[Any],
+        targets_to_sync: list[Any],
+        tracked_targets: set[str],
+    ) -> list[Any]:
+        """Order targets to try for read-back during partial sync.
+
+        Tries ``targets_to_sync`` first (including targets not yet in the lockfile,
+        e.g. a local file that already holds the value), then any remaining
+        lockfile-tracked targets. This avoids failing when the only readable
+        copy is an untracked destination or when non-retrievable tracked targets
+        (e.g. some cloud secrets) are listed before a file target.
+        """
+        seen: set[str] = set()
+        ordered: list[Any] = []
+        for tc in targets_to_sync:
+            tid = self._build_target_id(tc)
+            if tid in seen:
+                continue
+            seen.add(tid)
+            ordered.append(tc)
+        for tc in all_target_configs:
+            tid = self._build_target_id(tc)
+            if tid in seen:
+                continue
+            if self._is_target_tracked(tc, tracked_targets):
+                seen.add(tid)
+                ordered.append(tc)
+        return ordered
 
     def _initialize_providers(self) -> None:
         """Initialize providers from secretfile configuration."""
@@ -166,6 +209,7 @@ class SyncEngine:
         force_rotation: bool = False,
         secret_names: list[str] | None = None,
         ignore_foreign_context_targets: bool = False,
+        force_targets: dict[str, frozenset[str]] | None = None,
     ) -> dict[str, Any]:
         """Synchronize all secrets to their targets.
 
@@ -173,6 +217,8 @@ class SyncEngine:
             dry_run: If True, only simulate without making changes
             force_rotation: If True, regenerate secrets even if they exist
             secret_names: If provided, only sync secrets with these names
+            force_targets: Optional map of secret name -> target IDs (from
+                :meth:`_build_target_id`) to push to again even when already tracked.
 
         Returns:
             Dictionary with sync results and statistics
@@ -232,11 +278,15 @@ class SyncEngine:
 
         for secret in secrets_to_sync:
             try:
+                fti: frozenset[str] | None = None
+                if force_targets and secret.name in force_targets:
+                    fti = force_targets[secret.name]
                 result = self._sync_secret(
                     secret,
                     dry_run,
                     force_rotation,
                     ignore_foreign_context_targets=ignore_foreign_context_targets,
+                    force_target_ids=fti,
                 )
                 results["secrets_processed"] += 1
                 results["details"].append(result)
@@ -268,6 +318,7 @@ class SyncEngine:
         dry_run: bool,
         force_rotation: bool = False,
         ignore_foreign_context_targets: bool = False,
+        force_target_ids: frozenset[str] | None = None,
     ) -> dict[str, Any]:
         """Sync a single secret.
 
@@ -275,6 +326,8 @@ class SyncEngine:
             secret: Secret definition
             dry_run: If True, only simulate
             force_rotation: If True, regenerate even if exists
+            force_target_ids: If set, these target IDs are synced even when already
+                in the lockfile (re-push current value).
 
         Returns:
             Dictionary with sync details for this secret
@@ -300,6 +353,7 @@ class SyncEngine:
                     dry_run,
                     force_rotation,
                     ignore_foreign_context_targets=ignore_foreign_context_targets,
+                    force_target_ids=force_target_ids,
                 )
 
         # Check if secret needs generation (one_time check)
@@ -322,7 +376,8 @@ class SyncEngine:
 
         for target_config in secret.targets:
             target_id = self._build_target_id(target_config)
-            needs_sync = force_rotation or target_id not in tracked_targets
+            force_this = bool(force_target_ids and target_id in force_target_ids)
+            needs_sync = force_rotation or target_id not in tracked_targets or force_this
 
             # For file targets, also check if the file actually exists
             if (
@@ -349,28 +404,33 @@ class SyncEngine:
 
         # For partial sync (secret exists, not forcing), try to retrieve from existing target
         if secret_exists and not force_rotation and tracked_targets:
-            for target_config in secret.targets:
-                target_id = self._build_target_id(target_config)
+            candidates = self._retrieve_candidates_for_partial_sync(
+                secret.targets, targets_to_sync, tracked_targets
+            )
+            for target_config in candidates:
+                secret_value = self._retrieve_from_target(secret.name, target_config)
+                if secret_value:
+                    result["retrieved_from_existing"] = True
+                    break
 
-                # Check if target is tracked (support old lockfile format for file targets)
-                is_tracked = target_id in tracked_targets
-                if not is_tracked and target_config.kind == "file":
-                    # Check old format (with empty name instead of path)
-                    old_target_id = f"{target_config.provider}/{target_config.kind}/"
-                    is_tracked = old_target_id in tracked_targets
-
-                if is_tracked:
-                    # Try to retrieve from this target
-                    secret_value = self._retrieve_from_target(secret.name, target_config)
-                    if secret_value:
-                        result["retrieved_from_existing"] = True
-                        break
+            if not secret_value and force_target_ids:
+                env_val = os.environ.get(secret.name.upper())
+                if env_val:
+                    secret_value = env_val
 
             if not secret_value:
                 result["skipped"] = True
-                result["reason"] = (
-                    "Cannot retrieve existing value for partial sync. Use --force-rotation to regenerate."
-                )
+                if force_target_ids:
+                    result["reason"] = (
+                        "Cannot obtain plaintext for force-target sync (read-back failed for all "
+                        "candidates). Set "
+                        f"{secret.name.upper()} in the environment, use a retrievable target "
+                        "(e.g. local file), or use --force-rotation to regenerate."
+                    )
+                else:
+                    result["reason"] = (
+                        "Cannot retrieve existing value for partial sync. Use --force-rotation to regenerate."
+                    )
                 result["errors"].append(
                     f"{secret.name}: Unable to retrieve from existing targets for partial sync"
                 )
@@ -439,6 +499,7 @@ class SyncEngine:
         dry_run: bool,
         force_rotation: bool = False,
         ignore_foreign_context_targets: bool = False,
+        force_target_ids: frozenset[str] | None = None,
     ) -> dict[str, Any]:
         """Sync a template-based secret with multiple fields.
 
@@ -447,6 +508,7 @@ class SyncEngine:
             template: Template definition
             dry_run: If True, only simulate
             force_rotation: If True, regenerate even if exists
+            force_target_ids: Re-push field values to these target IDs when set.
 
         Returns:
             Dictionary with sync details
@@ -491,7 +553,8 @@ class SyncEngine:
 
             for target_config in all_targets:
                 target_id = self._build_target_id(target_config)
-                if force_rotation or target_id not in tracked_targets:
+                force_this = bool(force_target_ids and target_id in force_target_ids)
+                if force_rotation or target_id not in tracked_targets or force_this:
                     targets_to_sync.append(target_config)
 
             # If no targets need syncing, skip
@@ -505,21 +568,20 @@ class SyncEngine:
 
             # For partial sync, try to retrieve from existing target
             if field_exists and not force_rotation and tracked_targets:
-                for target_config in all_targets:
-                    target_id = self._build_target_id(target_config)
+                candidates = self._retrieve_candidates_for_partial_sync(
+                    all_targets, targets_to_sync, tracked_targets
+                )
+                for target_config in candidates:
+                    field_value = self._retrieve_from_target(field_name, target_config)
+                    if field_value:
+                        field_result["retrieved_from_existing"] = True
+                        break
 
-                    # Check if target is tracked (support old lockfile format for file targets)
-                    is_tracked = target_id in tracked_targets
-                    if not is_tracked and target_config.kind == "file":
-                        # Check old format (with empty name instead of path)
-                        old_target_id = f"{target_config.provider}/{target_config.kind}/"
-                        is_tracked = old_target_id in tracked_targets
-
-                    if is_tracked:
-                        field_value = self._retrieve_from_target(field_name, target_config)
-                        if field_value:
-                            field_result["retrieved_from_existing"] = True
-                            break
+                if not field_value and force_target_ids:
+                    env_key = f"{secret.name.upper()}_{field_name.upper()}"
+                    env_val = os.environ.get(env_key)
+                    if env_val:
+                        field_value = env_val
 
                 if not field_value:
                     field_result["skipped"] = True
