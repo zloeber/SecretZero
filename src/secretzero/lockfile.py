@@ -110,10 +110,18 @@ class Lockfile(BaseModel):
     )
     metadata: dict[str, Any] = Field(default_factory=dict)
 
+    def is_semantically_empty(self) -> bool:
+        """Return True when the lockfile has no persisted state.
+
+        A lockfile with no secret entries, no tracked source metadata, and no
+        extra metadata should not be written to disk as an empty skeleton.
+        """
+        return not self.secrets and self.secretfile is None and not self.metadata
+
     def add_secret(
         self,
         secret_name: str,
-        secret_value: str,
+        secret_value: Any,
         target_id: str | None = None,
         is_rotation: bool = False,
     ) -> None:
@@ -175,7 +183,7 @@ class Lockfile(BaseModel):
         """
         return secret_name in self.secrets
 
-    def should_update(self, secret_name: str, new_value: str) -> bool:
+    def should_update(self, secret_name: str, new_value: Any) -> bool:
         """Check if a secret should be updated.
 
         Args:
@@ -331,7 +339,13 @@ class Lockfile(BaseModel):
         if self.secretfile.var_files != current_var_files:
             return True
 
-        # Compare variables hash
+        # No variables baseline (legacy lockfile or not yet persisted): we cannot detect a
+        # *change* in merged variables vs last sync, so do not treat as changed. Otherwise
+        # ``variables_hash: null`` compares unequal to every computed hash and forces
+        # ``ignore_foreign_context_targets`` on every run (spurious re-generation / prompts).
+        if self.secretfile.variables_hash is None:
+            return False
+
         variables_json = json.dumps(variables, sort_keys=True, default=str)
         current_hash = self._hash_value(variables_json)
         if self.secretfile.variables_hash != current_hash:
@@ -368,16 +382,21 @@ class Lockfile(BaseModel):
             entry.target_provenance[target_id] = history[-3:]
 
     @staticmethod
-    def _hash_value(value: str) -> str:
+    def _hash_value(value: Any) -> str:
         """Create a one-way hash of a secret value.
 
         Args:
-            value: Value to hash
+            value: Value to hash (string or structured value)
 
         Returns:
             SHA-256 hash string
         """
-        return hashlib.sha256(value.encode()).hexdigest()
+        if isinstance(value, str):
+            normalized = value
+        else:
+            # Use canonical JSON for stable hashing of dict/list values.
+            normalized = json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
+        return hashlib.sha256(normalized.encode()).hexdigest()
 
     @classmethod
     def load(cls, path: Path) -> "Lockfile":
@@ -401,5 +420,11 @@ class Lockfile(BaseModel):
         Args:
             path: Path to save lockfile
         """
+        if self.is_semantically_empty():
+            # Never persist an empty skeleton lockfile. If one already exists,
+            # remove it so sync processing cannot leave behind empty files.
+            if path.exists():
+                path.unlink()
+            return
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(self.model_dump_json(indent=2))

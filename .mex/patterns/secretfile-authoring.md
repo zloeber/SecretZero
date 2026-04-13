@@ -33,6 +33,8 @@ This pattern covers edits to `Secretfile.yml` structure (`variables`, `providers
 - Var-file ordering matters; later `--var-file` overrides earlier values.
 - A typo in interpolated key paths can silently produce wrong/empty rendered values in downstream config.
 - Secretfile root `version` is no longer required; manifest spec versioning is tracked in `.gitsecrets.lock` under `secretfile.manifest_spec_version`.
+- Prefer defining whole secrets first; use templates only for stable multi-field credentials that are consumed together.
+- Prefer template-level targets over per-field targets unless a field must go to a different destination.
 
 ## Verify
 - [ ] Render output contains expected provider paths and secret target config.

@@ -446,6 +446,39 @@ class TestGeneratorProviderInjectionAttributes:
 
 
 # ---------------------------------------------------------------------------
+# SyncEngine – provider alias when kind omitted
+# ---------------------------------------------------------------------------
+
+
+class TestSyncEngineProviderKindFallback:
+    def test_provider_without_explicit_kind_uses_alias_name(self) -> None:
+        """YAML may declare ``providers.aws`` with only ``auth:``; kind must resolve to aws."""
+        from secretzero.lockfile import Lockfile
+        from secretzero.models import Provider, Secret, Secretfile, TargetConfig
+        from secretzero.sync import SyncEngine
+
+        sf = Secretfile(
+            providers={"aws": Provider()},
+            secrets=[
+                Secret(
+                    name="x",
+                    kind="random_password",
+                    config={"length": 8},
+                    targets=[
+                        TargetConfig(
+                            provider="aws",
+                            kind="ssm_parameter",
+                            config={"name": "/test/x"},
+                        )
+                    ],
+                )
+            ],
+        )
+        engine = SyncEngine(sf, Lockfile())
+        assert engine._get_provider("aws") is not None
+
+
+# ---------------------------------------------------------------------------
 # SyncEngine integration – _resolve_provider_in_config
 # ---------------------------------------------------------------------------
 

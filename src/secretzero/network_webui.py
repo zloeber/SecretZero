@@ -371,7 +371,7 @@ def create_network_web_app(
             unsynced_count=unsynced_count,
             list_filter=list_filter,
             tools_available=tools_available,
-            manifest=build_manifest_rows(state.lockfile, secretfile_path),
+            manifest=build_manifest_rows(state.lockfile, secretfile_path, state.secretfile),
             dry_run=dry_run,
             debug=debug,
             debug_log_text=debug_log_text,

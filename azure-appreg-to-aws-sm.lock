@@ -1,0 +1,84 @@
+{
+  "version": "1.0",
+  "secrets": {
+    "entra_app_registration": {
+      "hash": "e8f998bb3171a29d84ea30389b725f5564d8efd2b176e199af4d43174774044e",
+      "created_at": "2026-04-13T21:28:16.455263+00:00",
+      "updated_at": "2026-04-13T21:41:05.630238+00:00",
+      "last_rotated": "2026-04-13T21:41:05.630238+00:00",
+      "rotation_count": 1,
+      "targets": {
+        "aws/secrets_manager/itops/aws-publish/prod/entra-app-registration": "e8f998bb3171a29d84ea30389b725f5564d8efd2b176e199af4d43174774044e"
+      },
+      "target_provenance": {
+        "aws/secrets_manager/itops/aws-publish/prod/entra-app-registration": [
+          {
+            "updated_at": "2026-04-13T21:28:16.455467+00:00",
+            "actor": {
+              "client": "cli",
+              "secretzero_version": "0.4.1.dev2+gbf85846d8.d20260413",
+              "working_directory": "/Users/zacharyloeber/Projects/SecretZero",
+              "os_user": "zacharyloeber",
+              "os_uid": 501,
+              "os_euid": 501,
+              "hostname": "ip-10-167-48-1.us-east-2.compute.internal",
+              "host_fqdn": "ip-10-167-48-1.us-east-2.compute.internal",
+              "platform": "macOS-26.3.1-arm64-arm-64bit-Mach-O",
+              "git_user_name": "Zachary Loeber",
+              "git_user_email": "zloeber@gmail.com",
+              "git_commit_sha": "7a06a03"
+            }
+          },
+          {
+            "updated_at": "2026-04-13T21:41:05.630390+00:00",
+            "actor": {
+              "client": "cli",
+              "secretzero_version": "0.4.1.dev2+gbf85846d8.d20260413",
+              "working_directory": "/Users/zacharyloeber/Projects/SecretZero",
+              "os_user": "zacharyloeber",
+              "os_uid": 501,
+              "os_euid": 501,
+              "hostname": "ip-10-167-48-1.us-east-2.compute.internal",
+              "host_fqdn": "ip-10-167-48-1.us-east-2.compute.internal",
+              "platform": "macOS-26.3.1-arm64-arm-64bit-Mach-O",
+              "git_user_name": "Zachary Loeber",
+              "git_user_email": "zloeber@gmail.com",
+              "git_commit_sha": "7a06a03"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "secretfile": {
+    "filename": "azure-appreg-to-aws-sm.yml",
+    "hash": "a8e56a93720c21c2d99b191564d2444b340753fc8b61834f38e778237a68d5a7",
+    "synced_at": "2026-04-13T21:40:56.891629+00:00",
+    "var_files": [],
+    "variables_hash": "b53bf6555672086d2533d4d606a5eba9656ab351854b1aeb93e62fa47dd227aa",
+    "sync_identity": {
+      "client": "cli",
+      "secretzero_version": "0.4.1.dev2+gbf85846d8.d20260413",
+      "working_directory": "/Users/zacharyloeber/Projects/SecretZero",
+      "os_user": "zacharyloeber",
+      "os_uid": 501,
+      "os_euid": 501,
+      "hostname": "ip-10-167-48-1.us-east-2.compute.internal",
+      "host_fqdn": "ip-10-167-48-1.us-east-2.compute.internal",
+      "platform": "macOS-26.3.1-arm64-arm-64bit-Mach-O",
+      "environment_label": null,
+      "git_user_name": "Zachary Loeber",
+      "git_user_email": "zloeber@gmail.com",
+      "git_commit_sha": "7a06a03",
+      "ci_system": null,
+      "ci_actor": null,
+      "ci_repository": null,
+      "ci_job_id": null,
+      "ci_run_url": null,
+      "ci_workflow_name": null,
+      "ci_pipeline_name": null
+    },
+    "manifest_spec_version": "1"
+  },
+  "metadata": {}
+}

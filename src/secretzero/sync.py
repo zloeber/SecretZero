@@ -181,7 +181,9 @@ class SyncEngine:
         Returns:
             Provider instance or None
         """
-        provider_kind = config.get("kind", name)
+        # model_dump() may include ``kind: null`` when omitted in YAML; dict.get
+        # would return None instead of falling back to the provider alias (e.g. aws).
+        provider_kind = config.get("kind") or name
         provider_class = self._bundle_registry.get_provider_class(provider_kind)
         if provider_class is not None:
             try:

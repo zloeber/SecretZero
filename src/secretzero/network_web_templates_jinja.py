@@ -59,6 +59,12 @@ main {
   border-radius: 8px;
   border: 1px solid var(--border);
 }
+.pi-status { font-weight: 600; font-size: 0.82rem; }
+.pi-status--ok { color: #1a7f37; }
+.pi-status--local { color: var(--muted); }
+.pi-status--unauthenticated { color: #9a6700; }
+.pi-status--error, .pi-status--unregistered, .pi-status--unknown { color: #cf222e; }
+.pi-ident code { font-size: 0.85em; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; align-items: center; }
 .toolbar--secondary { margin-bottom: 0.65rem; }
 .toolbar form { display: inline; margin: 0; }
@@ -506,6 +512,26 @@ TEMPLATES = {
     <div><strong>Manifest hash (lock)</strong> {{ manifest.secretfile_hash }}</div>
     <div><strong>Var files</strong> {{ manifest.var_files }}</div>
   </div>
+  {% if manifest.provider_rows %}
+  <div class="manifest-meta" style="margin-top:0.5rem;">
+    <div><strong>Provider identity</strong> <span style="font-weight:400;">— who your configured credentials resolve to (no secret values shown)</span></div>
+    <div class="table-wrap" style="margin-top:0.5rem;">
+      <table class="sz" role="table" aria-label="Provider authentication identity">
+        <thead><tr><th>Provider</th><th>Kind</th><th>Status</th><th>Identity</th></tr></thead>
+        <tbody>
+          {% for p in manifest.provider_rows %}
+          <tr>
+            <td><strong>{{ p.alias }}</strong></td>
+            <td><code>{{ p.kind }}</code></td>
+            <td><span class="pi-status pi-status--{{ p.status }}">{{ p.status }}</span></td>
+            <td class="pi-ident">{{ p.primary }}{% if p.secondary %}<br/><span style="font-size:0.92em;opacity:0.9;">{{ p.secondary }}</span>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
   <div class="toolbar">
     <form method="post" action="/action/sync-all">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>

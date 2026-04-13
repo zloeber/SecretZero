@@ -24,6 +24,7 @@ from secretzero.graph import generate_graph
 from secretzero.lockfile import Lockfile
 from secretzero.models import SECRETFILE_MANIFEST_SPEC_VERSION, AgentMode, Secretfile
 from secretzero.policy import PolicyEngine
+from secretzero.provider_identity import collect_provider_identity_rows
 from secretzero.rotation import should_rotate_secret
 from secretzero.sync import SyncEngine
 from secretzero.terraform_export import (
@@ -42,6 +43,36 @@ EXIT_AUTH_FAILURE = 3
 EXIT_DRIFT_DETECTED = 4
 EXIT_CONFIG_ERROR = 5
 EXIT_UNKNOWN_ERROR = 127
+
+
+def _print_provider_identity_panel(
+    secretfile: Secretfile, rows: list[dict[str, Any]] | None = None
+) -> None:
+    """Rich table: configured providers and resolved authenticated identity."""
+    rows = rows or collect_provider_identity_rows(secretfile)
+    if not rows:
+        return
+    table = Table(title="Provider identity", box=box.ROUNDED)
+    table.add_column("Provider", style="cyan", no_wrap=True)
+    table.add_column("Kind", style="dim")
+    table.add_column("Status", justify="center", width=10)
+    table.add_column("Identity")
+    for r in rows:
+        st = r["status"]
+        if st == "ok":
+            st_txt = "[green]ok[/green]"
+        elif st == "local":
+            st_txt = "[dim]local[/dim]"
+        elif st == "unauthenticated":
+            st_txt = "[yellow]no auth[/yellow]"
+        else:
+            st_txt = "[red]issue[/red]"
+        ident = str(r.get("primary") or "—")
+        if r.get("secondary"):
+            ident = f"{ident}\n[dim]{r['secondary']}[/dim]"
+        table.add_row(r["alias"], r["kind"], st_txt, ident)
+    console.print(table)
+    console.print()
 
 
 @click.group(context_settings={"help_option_names": ["-h", "--help"]})
@@ -218,7 +249,8 @@ def init(file: str, install: bool, dry_run: bool) -> None:
     installed = []
 
     for provider_name, provider_config in config.providers.items():
-        provider_kind = provider_config.kind or ""
+        # When ``kind:`` is omitted, use the provider alias (e.g. providers.aws → aws).
+        provider_kind = provider_config.kind or provider_name
 
         provider_class = GLOBAL_PROVIDER_REGISTRY.get_provider_class(provider_kind)
         if provider_class is not None and provider_class.required_package is not None:
@@ -540,6 +572,7 @@ def status(file: str, lockfile: str, verbose: bool, output_format: str) -> None:
             "synced": sum(1 for s in secrets_data if s["status"] == "synced"),
             "lockfile": str(lockfile_path),
             "lockfile_exists": lockfile_path.exists(),
+            "provider_identity": collect_provider_identity_rows(config),
             "secretfile": {
                 "path": str(file_path),
                 "current_hash": current_secretfile_hash,
@@ -553,10 +586,11 @@ def status(file: str, lockfile: str, verbose: bool, output_format: str) -> None:
                 "changed": secretfile_changed,
             },
         }
-        click.echo(json.dumps(result, indent=2))
+        click.echo(json.dumps(result, indent=2, default=str))
         return
 
     console.print("[bold]Secret Synchronization Status:[/bold]\n")
+    _print_provider_identity_panel(config)
 
     if not config.secrets:
         console.print("[dim]No secrets configured[/dim]")
@@ -2059,6 +2093,10 @@ def sync(
         prompt_on_empty=not no_prompt,
     )
 
+    provider_identity_rows = collect_provider_identity_rows(config)
+    if output_format == "text":
+        _print_provider_identity_panel(config, provider_identity_rows)
+
     if dry_run and output_format == "text":
         if plan:
             console.print("[cyan]PLAN:[/cyan] Showing execution plan without applying changes\n")
@@ -2122,6 +2160,7 @@ def sync(
                 "errors": results.get("errors", []),
                 "details": results.get("details", []),
                 "variable_context_changed": variable_context_changed,
+                "provider_identity": provider_identity_rows,
             }
             if plan_details is not None:
                 json_result["plan_details"] = plan_details
@@ -2131,8 +2170,10 @@ def sync(
             # Mirror text mode: persist lockfile after sync (JSON path used to return here without saving).
             if not dry_run:
                 if results["secrets_stored"] > 0 or cleaned_entries:
+                    lock.track_variable_context(var_file_paths or [], dict(config.variables or {}))
                     lock.save(lockfile_path)
                 elif results.get("secretfile_changed") is not None:
+                    lock.track_variable_context(var_file_paths or [], dict(config.variables or {}))
                     lock.save(lockfile_path)
             if results.get("errors"):
                 sys.exit(EXIT_UNKNOWN_ERROR)
@@ -2330,12 +2371,14 @@ def sync(
         # Save lockfile if not dry run and secrets were stored
         if not dry_run:
             if results["secrets_stored"] > 0 or cleaned_entries:
+                lock.track_variable_context(var_file_paths or [], dict(config.variables or {}))
                 lock.save(lockfile_path)
                 console.print(f"\n[green]✓[/green] Lockfile saved: {lockfile_path}")
             else:
                 # Check if lockfile was modified (secretfile tracking)
                 if results.get("secretfile_changed") is not None:
                     # Lockfile exists and secretfile was tracked
+                    lock.track_variable_context(var_file_paths or [], dict(config.variables or {}))
                     lock.save(lockfile_path)
                     console.print(
                         f"\n[dim]Lockfile updated (secretfile tracking only): {lockfile_path}[/dim]"
@@ -2764,6 +2807,13 @@ def show(secret_name: str | None, file: str, lockfile: str, detailed: bool) -> N
     default="text",
     help="Output format (text or json)",
 )
+@click.option(
+    "--secret",
+    "-s",
+    "secrets",
+    multiple=True,
+    help="Rotate only this secret by name (repeat for multiple secrets)",
+)
 @click.argument("secret_name", required=False)
 def rotate(
     file: str,
@@ -2772,12 +2822,16 @@ def rotate(
     dry_run: bool,
     show_input: bool,
     output_format: str,
+    secrets: tuple[str, ...],
     secret_name: str | None,
 ) -> None:
     """Rotate secrets based on rotation policies.
 
     This command checks which secrets need rotation and regenerates them.
     Respects rotation_period settings and one_time flags.
+
+    Limit to specific secrets with ``--secret`` / ``-s`` (repeatable) or a single
+    optional ``SECRET_NAME`` positional argument — not both.
     """
     file_path = Path(file)
     lockfile_path = Path(lockfile)
@@ -2799,16 +2853,37 @@ def rotate(
     if output_format == "text":
         console.print("[bold]Checking secrets for rotation...[/bold]\n")
 
-    # Filter secrets
+    if secrets and secret_name:
+        msg = "Use either --secret/-s or SECRET_NAME positional argument, not both."
+        if output_format == "json":
+            click.echo(json.dumps({"error": msg}))
+        else:
+            console.print(f"[red]Error:[/red] {msg}")
+        sys.exit(EXIT_VALIDATION_ERROR)
+
+    # Filter secrets (--secret/-s, optional positional, or all)
+    names_filter: list[str] | None = None
+    if secrets:
+        names_filter = list(dict.fromkeys(secrets))
+    elif secret_name:
+        names_filter = [secret_name]
+
     secrets_to_check = config.secrets
-    if secret_name:
-        secrets_to_check = [s for s in config.secrets if s.name == secret_name]
-        if not secrets_to_check:
+    if names_filter is not None:
+        known = {s.name for s in config.secrets}
+        missing = [n for n in names_filter if n not in known]
+        if missing:
+            miss = ", ".join(repr(n) for n in missing)
             if output_format == "json":
-                click.echo(json.dumps({"error": f"Secret '{secret_name}' not found"}))
+                click.echo(json.dumps({"error": f"Secret(s) not found in Secretfile: {miss}"}))
             else:
-                console.print(f"[red]Error:[/red] Secret '{secret_name}' not found")
+                console.print(f"[red]Error:[/red] Secret(s) not found in Secretfile: {miss}")
             sys.exit(EXIT_VALIDATION_ERROR)
+        order = {n: i for i, n in enumerate(names_filter)}
+        secrets_to_check = sorted(
+            [s for s in config.secrets if s.name in order],
+            key=lambda s: order[s.name],
+        )
 
     secrets_to_rotate = []
     rotation_details = []

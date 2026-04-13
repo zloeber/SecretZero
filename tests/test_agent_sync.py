@@ -199,6 +199,51 @@ class TestAgentSecretSynchronizer:
         result = AgentSecretSynchronizer(sf, lock, dry_run=True).sync()
         assert "k" in result.synced_secrets
 
+    def test_static_dict_fully_set_is_auto_synced(self) -> None:
+        from secretzero.lockfile import Lockfile
+
+        sf = _make_secretfile(
+            [
+                _make_secret(
+                    "k",
+                    "static",
+                    config={
+                        "value": {
+                            "tenant_id": "t1",
+                            "client_id": "c1",
+                            "client_secret": "s1",
+                        }
+                    },
+                )
+            ]
+        )
+        lock = Lockfile()
+        result = AgentSecretSynchronizer(sf, lock, dry_run=True).sync()
+        assert "k" in result.synced_secrets
+
+    def test_static_dict_with_null_goes_to_pending(self) -> None:
+        """Structured static with missing leaves is not auto-synced."""
+        from secretzero.lockfile import Lockfile
+
+        instructions = AgentInstructions(
+            summary="Provide Entra credentials",
+            steps=[AgentInstructionStep(action="Azure Portal", description="Copy IDs")],
+        )
+        sf = _make_secretfile(
+            [
+                _make_secret(
+                    "entra",
+                    "static",
+                    config={"value": {"tenant_id": None, "client_id": "x", "client_secret": ""}},
+                    agent_instructions=instructions,
+                )
+            ]
+        )
+        lock = Lockfile()
+        result = AgentSecretSynchronizer(sf, lock, dry_run=True).sync()
+        assert "entra" in result.pending_secrets
+        assert "entra" not in result.synced_secrets
+
     def test_static_without_value_with_instructions_goes_to_pending(self) -> None:
         """Static secret with no value but with instructions ends up in pending."""
         from secretzero.lockfile import Lockfile
@@ -466,3 +511,38 @@ templates: {}
             assert data["synced_secrets"] == []
             assert data["pending_secrets"] == {}
             assert data["failed_secrets"] == {}
+
+    def test_manual_only_agent_sync_does_not_create_empty_lockfile(self, runner: CliRunner) -> None:
+        """Non-dry-run agent sync should not write an empty skeleton lockfile."""
+        with TemporaryDirectory() as tmpdir:
+            sf = Path(tmpdir) / "Secretfile.yml"
+            lock = Path(tmpdir) / ".gitsecrets.lock"
+            sf.write_text("""version: '1.0'
+variables: {}
+providers: {}
+secrets:
+  - name: stripe_key
+    kind: static
+    config: {}
+    agent_instructions:
+      summary: Sign up for Stripe
+      steps:
+        - action: Visit https://dashboard.stripe.com/register
+          description: Create account
+templates: {}
+""")
+
+            result = runner.invoke(
+                main,
+                [
+                    "agent",
+                    "sync",
+                    "--file",
+                    str(sf),
+                    "--lockfile",
+                    str(lock),
+                    "--json",
+                ],
+            )
+            assert result.exit_code == 0, result.output
+            assert not lock.exists()

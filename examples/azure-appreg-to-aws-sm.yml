@@ -1,0 +1,148 @@
+# yaml-language-server: $schema=../Secretfile.schema.json
+# Secretfile.yml for AWS Publisher - Claude Artifact Publishing System
+# Environment variables that can be overridden at runtime
+
+variables:
+  environment: prod  # dev or prod
+  aws_region: us-east-2
+  aws_auth: ambient
+  project_prefix: itops/aws-publish
+
+# Optional metadata about the project
+metadata:
+  project: claude-artifacts-publisher
+  owner: itops
+  environments:
+    - dev
+    - prod
+  compliance:
+    - soc2
+    - iso27001
+
+# Provider configurations
+providers:
+  aws:
+    kind: aws
+    auth:
+      kind: "{{var.aws_auth or 'ambient'}}"
+      fallback_generator: static
+      config:
+        region: "{{var.aws_region or 'us-east-2'}}"
+      profiles:
+        default:
+          kind: ambient
+        admin:
+          kind: assume_role
+          config:
+            role_arn: arn:aws:iam::ACCOUNT_ID:role/SecretAdmin
+
+# Secret definitions for Entra ID authentication
+secrets:
+  - name: entra_app_registration
+    description: "Complete Entra ID app registration with tenant ID, client ID, and client secret"
+    kind: static
+    one_time: false
+    rotation_period: 180d  # Rotate every 6 months based on client secret lifecycle
+    config:
+      # null leaves: interactive `secretzero sync` prompts once per field (sorted: client_id, client_secret, tenant_id).
+      # Use a gitignored .szvar / --var-file with these keys set instead if you do not want prompts.
+      value:
+        tenant_id: null
+        client_id: null
+        client_secret: null
+    agent_instructions:
+      summary: "Complete Entra ID app registration setup with all required credentials"
+      steps:
+        - action: "Login to Azure Portal (https://portal.azure.com)"
+          description: "Access your Azure AD tenant with app admin rights"
+        - action: "Navigate to Azure Active Directory > Overview"
+          description: "Get tenant information"
+        - action: "Copy the Tenant ID (GUID format)"
+          description: "This is your Entra ID tenant identifier"
+        - action: "Navigate to Azure Active Directory > App registrations"
+          description: "Find your registered application"
+        - action: "Select your Claude Artifacts app registration"
+          description: "Click on the application name"
+        - action: "Copy the Application (client) ID from Overview page"
+          description: "This is the OAuth client identifier"
+        - action: "Go to Certificates & secrets > Client secrets"
+          description: "Manage application secrets"
+        - action: "Create new client secret if needed"
+          description: "Click 'New client secret', set description as 'Claude Artifacts API - {{var.environment}}', set expiration to 6 months"
+        - action: "Copy the client secret VALUE immediately"
+          description: "Secret value is only shown once after creation"
+        - action: "Run `secretzero sync` interactively (omit --no-prompt) or merge a gitignored .szvar"
+          description: "Sync prompts for tenant_id, client_id, and client_secret when they are null in the manifest; never paste live secrets into the committed file"
+    targets:
+      - provider: aws
+        kind: secrets_manager
+        config:
+          name: "{{var.project_prefix}}/{{var.environment}}/entra-app-registration"
+          description: "Complete Entra ID app registration for {{var.environment}} environment OAuth"
+          recovery_window_in_days: 7
+          tags:
+            Project: claude-artifact-publisher
+            Environment: "{{var.environment}}"
+            SecretType: entra-app-registration
+            Sensitive: "true"
+
+# Secret templates (for future extensibility)
+templates:
+  entra_app_registration:
+    description: "Complete Entra ID app registration template"
+    fields:
+      tenant_id:
+        description: "Azure AD tenant identifier (GUID format)"
+        generator:
+          kind: static
+          config:
+            validation: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      client_id:
+        description: "Azure AD application client identifier (GUID format)" 
+        generator:
+          kind: static
+          config:
+            validation: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      client_secret:
+        description: "Azure AD application client secret"
+        generator:
+          kind: static
+          config:
+            validation: "^[A-Za-z0-9._~-]{30,}$"
+            rotation_period: 180d
+
+# Policies for compliance and security
+policies:
+  rotation:
+    enforce: true
+    default_period: 90d
+    exceptions:
+      - secret: entra_app_registration
+        reason: "App registration rotates every 180 days based on client secret lifecycle"
+        period: 180d
+
+  compliance:
+    soc2:
+      enforce: true
+      requirements:
+        - "All secrets must have rotation periods <= 365 days"
+        - "App registration secrets must rotate every 180 days or less"
+        - "All secrets must be stored in approved secret stores (AWS Secrets Manager)"
+    iso27001:
+      enforce: true
+      requirements:
+        - "Access to secrets must be logged and auditable"
+        - "Secret values must never appear in configuration files or logs"
+        - "Recovery window for deleted secrets must be >= 7 days"
+
+# Labels for organization and filtering
+labels:
+  service: claude-artifacts
+  team: itops
+  criticality: high
+
+# Annotations for additional metadata
+annotations:
+  documentation: "https://github.com/sram/aws-publisher/blob/main/docs/DEPLOYMENT_GUIDE.md"
+  runbook: "https://wiki.sram.com/runbooks/claude-artifacts-secrets"
+  support_contact: "itops@sram.com"
