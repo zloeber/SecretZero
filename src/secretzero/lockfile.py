@@ -34,6 +34,46 @@ class SecretLockEntry(BaseModel):
     )
 
 
+class LockfileSyncIdentity(BaseModel):
+    """Who and what environment performed the last successful lockfile write (no secret values)."""
+
+    client: str = Field(description="Invocation surface (cli, api, agent, network_web, …)")
+    secretzero_version: str | None = Field(
+        default=None, description="secretzero package version when the sync ran"
+    )
+    working_directory: str | None = Field(
+        default=None, description="Process working directory at sync time (resolved)"
+    )
+    os_user: str | None = Field(default=None, description="OS login name (e.g. getpass.getuser())")
+    os_uid: int | None = Field(default=None, description="Real user id when available (Unix)")
+    os_euid: int | None = Field(default=None, description="Effective user id when available (Unix)")
+    hostname: str | None = Field(default=None, description="Short hostname from the OS")
+    host_fqdn: str | None = Field(
+        default=None, description="Fully qualified hostname when available"
+    )
+    platform: str | None = Field(default=None, description="platform.platform() string")
+    environment_label: str | None = Field(
+        default=None,
+        description="Optional deploy/env label from SZ_SYNC_ENVIRONMENT, ENVIRONMENT, ENV, …",
+    )
+    git_user_name: str | None = Field(default=None, description="git config user.name at sync cwd")
+    git_user_email: str | None = Field(
+        default=None, description="git config user.email at sync cwd"
+    )
+    git_commit_sha: str | None = Field(
+        default=None, description="Short git HEAD commit at sync cwd when in a repo"
+    )
+    ci_system: str | None = Field(
+        default=None, description="Detected CI vendor (github_actions, gitlab_ci, …)"
+    )
+    ci_actor: str | None = Field(default=None, description="CI user or bot that triggered the job")
+    ci_repository: str | None = Field(default=None, description="Repository slug or path in CI")
+    ci_job_id: str | None = Field(default=None, description="Pipeline / build / run identifier")
+    ci_run_url: str | None = Field(default=None, description="Link to the CI run when available")
+    ci_workflow_name: str | None = Field(default=None, description="Workflow or job name in CI")
+    ci_pipeline_name: str | None = Field(default=None, description="Pipeline or project name in CI")
+
+
 class SecretfileMetadata(BaseModel):
     """Metadata about the source Secretfile and variable context."""
 
@@ -47,6 +87,10 @@ class SecretfileMetadata(BaseModel):
     variables_hash: str | None = Field(
         default=None,
         description="SHA-256 hash of merged variables dict used on last sync",
+    )
+    sync_identity: LockfileSyncIdentity | None = Field(
+        default=None,
+        description="Identity context for the operator or automation that last updated this lockfile",
     )
 
 
@@ -168,12 +212,19 @@ class Lockfile(BaseModel):
             return True
         return False
 
-    def track_secretfile(self, secretfile_path: Path, secretfile_content: str) -> None:
+    def track_secretfile(
+        self,
+        secretfile_path: Path,
+        secretfile_content: str,
+        *,
+        sync_identity: LockfileSyncIdentity | None = None,
+    ) -> None:
         """Track the Secretfile definition for change detection.
 
         Args:
             secretfile_path: Path to the Secretfile
             secretfile_content: Content of the Secretfile (typically YAML text)
+            sync_identity: Optional captured operator / environment identity for this sync
         """
         relative_filename = secretfile_path.name  # Use only the filename, not full path
         content_hash = self._hash_value(secretfile_content)
@@ -184,12 +235,15 @@ class Lockfile(BaseModel):
                 filename=relative_filename,
                 hash=content_hash,
                 synced_at=now,
+                sync_identity=sync_identity,
             )
         else:
             # Preserve any existing variable context fields
             self.secretfile.filename = relative_filename
             self.secretfile.hash = content_hash
             self.secretfile.synced_at = now
+            if sync_identity is not None:
+                self.secretfile.sync_identity = sync_identity
 
     def secretfile_changed(self, secretfile_path: Path, secretfile_content: str) -> bool:
         """Check if the Secretfile has changed since the last sync.

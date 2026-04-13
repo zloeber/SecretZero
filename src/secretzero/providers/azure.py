@@ -1,11 +1,27 @@
 """Azure provider implementation for SecretZero."""
 
+import base64
+import json
 import os
 import secrets
 import string
 from typing import Any
 
 from secretzero.providers.base import BaseProvider, ProviderAuth
+
+
+def _decode_jwt_payload_unverified(token: str) -> dict[str, Any]:
+    """Parse JWT payload without verifying the signature (identity metadata only)."""
+    parts = token.split(".")
+    if len(parts) != 3:
+        return {}
+    payload = parts[1] + "=" * (-len(parts[1]) % 4)
+    try:
+        raw = base64.urlsafe_b64decode(payload.encode("ascii"))
+        data = json.loads(raw.decode("utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (ValueError, json.JSONDecodeError, OSError):
+        return {}
 
 
 class AzureAuth(ProviderAuth):
@@ -123,6 +139,35 @@ class AzureAuth(ProviderAuth):
             Azure credential instance or None
         """
         return self._credential
+
+    def get_token_info(self) -> dict[str, Any]:
+        """Return Azure AD principal hints from an access token (metadata only)."""
+        if not self._credential:
+            raise RuntimeError("Not authenticated with Azure")
+        try:
+            token = self._credential.get_token("https://vault.azure.net/.default")
+        except Exception as e:
+            raise RuntimeError(f"Azure token acquisition failed: {e}") from e
+        claims = _decode_jwt_payload_unverified(token.token)
+        upn = claims.get("upn") or claims.get("unique_name") or claims.get("preferred_username")
+        appid = claims.get("appid") or claims.get("azp")
+        oid = claims.get("oid")
+        name = upn or oid or appid
+        scopes_raw = claims.get("scp") or claims.get("roles") or ""
+        if isinstance(scopes_raw, str):
+            scopes = [s for s in scopes_raw.split() if s]
+        elif isinstance(scopes_raw, list):
+            scopes = [str(s) for s in scopes_raw]
+        else:
+            scopes = []
+        return {
+            "user": name,
+            "app_id": appid,
+            "object_id": oid,
+            "tenant_id": claims.get("tid"),
+            "scopes": scopes,
+            "token_type": "azure_ad",
+        }
 
 
 class AzureProvider(BaseProvider):

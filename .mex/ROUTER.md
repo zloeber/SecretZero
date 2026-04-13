@@ -14,7 +14,7 @@ edges:
     condition: when setting up the dev environment or running the project for the first time
   - target: patterns/INDEX.md
     condition: when starting a task — check the pattern index for a matching pattern file
-last_updated: 2026-04-12
+last_updated: 2026-04-13
 ---
 
 # Session Bootstrap
@@ -31,6 +31,8 @@ Then read this file fully before doing anything else in this session.
 - Policy/status/drift/terraform command families and comprehensive pytest suite.
 - Task-based verification workflow (`lint:fix`, `format`, `schema:update`, `test`, `security:scan`, `test:validations`).
 - **`secretzero web`:** one-shot, bindable FastAPI UI over the network (bootstrap token, session + CSRF, optional TLS): dashboard with manifest/lock metadata, per-secret sync/rotate, **per-target “Force to target”** when multiple targets exist and another lane is already synced (`SyncEngine.sync(..., force_targets=...)`), static value edit (forces target writes), optional `--debug` sync log panel, sync-all, logout, shutdown. CLI parity: `secretzero sync -s <name> --force-target <target_id>` (repeatable). See `.mex/patterns/secretzero-web.md`.
+- **Lockfile sync identity:** On each non–dry-run sync that updates secretfile tracking, `.gitsecrets.lock` → `secretfile.sync_identity` records client surface (`cli`, `api`, `agent`, `network_web`), OS user/host/platform, git `user.*` + short `HEAD` at the Secretfile directory, optional env label (`SZ_SYNC_ENVIRONMENT`, `ENVIRONMENT`, `ENV`), and detected CI actor/repo/run URL when present. Each successful target write also appends to `target_provenance` (same snapshot, last 3 per target). See `.mex/patterns/lockfile-sync-identity.md`.
+- **Provider token introspection:** All built-in providers now implement `ProviderAuth.get_token_info()` (or `InfisicalProvider.get_token_info()`) where the upstream API supports it—AWS STS, Azure JWT claims, Vault `lookup-self`, GitLab user, Jenkins `get_whoami`, Kubernetes kubeconfig host/context, Ansible Vault password *mode* (never the password), plus existing GitHub. `BaseProvider.get_actor_info()` merges this into sync `actor` metadata on target writes.
 
 **Not yet built:**
 - Autonomous/scheduled secret rotation service (rotation is operator-invoked).

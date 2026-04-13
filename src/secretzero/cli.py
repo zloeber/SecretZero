@@ -2896,7 +2896,14 @@ def rotate(
     if output_format == "text":
         console.print("\n[bold]Rotating secrets...[/bold]\n")
 
-    engine = SyncEngine(config, lock, hide_input=not show_input)
+    secretfile_content = file_path.read_text()
+    engine = SyncEngine(
+        config,
+        lock,
+        secretfile_path=file_path,
+        secretfile_content=secretfile_content,
+        hide_input=not show_input,
+    )
 
     # Filter secrets for rotation
     original_secrets = config.secrets

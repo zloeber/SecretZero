@@ -101,6 +101,28 @@ class KubernetesAuth(ProviderAuth):
             self.authenticate()
         return self._api_client
 
+    def get_token_info(self) -> dict[str, Any]:
+        """Return kube-apiserver endpoint and auth mode (no secret material)."""
+        if not self.is_authenticated():
+            if not self.authenticate():
+                raise RuntimeError("Not authenticated with Kubernetes")
+        try:
+            from kubernetes import client
+        except ImportError as e:
+            raise RuntimeError("kubernetes client library not installed") from e
+        cfg = client.Configuration.get_default_copy()
+        mode = "in_cluster" if self.config.get("in_cluster") else "kubeconfig"
+        user_hint = cfg.username or None
+        if not user_hint and cfg.api_key:
+            user_hint = "api_key"
+        return {
+            "user": user_hint,
+            "cluster_host": cfg.host,
+            "context": self.config.get("context"),
+            "scopes": [],
+            "token_type": mode,
+        }
+
 
 class KubernetesProvider(BaseProvider):
     """Kubernetes provider for cluster secret management."""
@@ -168,15 +190,9 @@ class KubernetesProvider(BaseProvider):
     def get_actor_info(self) -> dict[str, Any]:
         """Return information about the current Kubernetes context."""
         info = super().get_actor_info()
-
-        # Enrich with namespace/context when available
         namespace = (self.config or {}).get("namespace")
-        context = (self.config or {}).get("context")
         if namespace:
             info.setdefault("namespace", namespace)
-        if context:
-            info.setdefault("context", context)
-
         return info
 
     def test_connection(self) -> tuple[bool, str | None]:

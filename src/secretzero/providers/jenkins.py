@@ -82,6 +82,25 @@ class JenkinsAuth(ProviderAuth):
             self.authenticate()
         return self._client
 
+    def get_token_info(self) -> dict[str, Any]:
+        """Return Jenkins user identity from the authenticated session."""
+        client = self._client
+        if not client:
+            if not self.authenticate():
+                raise RuntimeError("Jenkins authentication failed")
+            client = self._client
+        try:
+            who = client.get_whoami()
+        except Exception as e:
+            raise RuntimeError(f"Jenkins identity lookup failed: {e}") from e
+        full_name = who.get("fullName")
+        return {
+            "user": who.get("id") or full_name,
+            "name": full_name,
+            "scopes": [],
+            "token_type": "jenkins_api_token",
+        }
+
 
 class JenkinsProvider(BaseProvider):
     """Jenkins provider for credentials."""
@@ -153,18 +172,9 @@ class JenkinsProvider(BaseProvider):
     def get_actor_info(self) -> dict[str, Any]:
         """Return information about the current Jenkins user/context."""
         info = super().get_actor_info()
-
-        # Jenkins typically authenticates as a user; config may carry username.
-        username = (self.config or {}).get("username") or (
-            self.auth.config.get("username") if self.auth else None
-        )
         url = (self.config or {}).get("url") or (self.auth.config.get("url") if self.auth else None)
-
-        if username:
-            info.setdefault("user", username)
         if url:
             info.setdefault("url", url)
-
         return info
 
     def test_connection(self) -> tuple[bool, str | None]:

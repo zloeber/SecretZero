@@ -368,4 +368,5 @@ def make_sync_engine(
         secretfile_content=secretfile_content,
         hide_input=True,
         prompt_on_empty=False,
+        sync_client="network_web",
     )

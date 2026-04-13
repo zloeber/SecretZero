@@ -66,6 +66,21 @@ class AnsibleVaultAuth(ProviderAuth):
         env_var = self.config.get("vault_password_env", self.ENV_PASSWORD)
         return os.environ.get(env_var)
 
+    def get_token_info(self) -> dict[str, Any]:
+        """Describe Ansible Vault auth without exposing the password."""
+        if not self.authenticate():
+            raise RuntimeError(
+                "No Ansible Vault password configured (vault_password or password env var)"
+            )
+        env_var = str(self.config.get("vault_password_env", self.ENV_PASSWORD))
+        return {
+            "user": None,
+            "scopes": [],
+            "token_type": "ansible_vault_password",
+            "password_source": "config" if self.config.get("vault_password") else "environment",
+            "password_env_var": env_var,
+        }
+
 
 class AnsibleVaultProvider(BaseProvider):
     """Local file provider that transparently encrypts/decrypts files with Ansible Vault.

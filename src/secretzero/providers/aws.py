@@ -126,6 +126,27 @@ class AWSAuth(ProviderAuth):
             return self._session.client(service)
         return None
 
+    def get_token_info(self) -> dict[str, Any]:
+        """Return the current IAM principal from STS GetCallerIdentity."""
+        if not self._session:
+            raise RuntimeError("Not authenticated with AWS")
+        try:
+            sts = self._session.client("sts")
+            ident = sts.get_caller_identity()
+        except Exception as e:
+            raise RuntimeError(f"AWS identity lookup failed: {e}") from e
+        arn = ident.get("Arn", "")
+        uid = ident.get("UserId")
+        return {
+            "user": arn,
+            "arn": arn,
+            "account": ident.get("Account"),
+            "principal_id": uid,
+            "user_id": uid,
+            "scopes": [],
+            "token_type": "aws_iam",
+        }
+
 
 class AWSProvider(BaseProvider):
     """AWS provider for SecretZero."""
@@ -227,23 +248,9 @@ class AWSProvider(BaseProvider):
     def get_actor_info(self) -> dict[str, Any]:
         """Return information about the current AWS identity."""
         info = super().get_actor_info()
-
-        # Attempt to call STS GetCallerIdentity to enrich actor info
-        try:
-            if isinstance(self.auth, AWSAuth):
-                sts_client = self.auth.get_client("sts")
-            else:
-                sts_client = None
-
-            if sts_client is not None:
-                identity = sts_client.get_caller_identity()
-                info.setdefault("account", identity.get("Account"))
-                info.setdefault("arn", identity.get("Arn"))
-                info.setdefault("user_id", identity.get("UserId"))
-        except Exception:
-            # Best-effort enrichment; fall back to base info on failure
-            pass
-
+        region = (self.config or {}).get("region") or os.environ.get(AWSAuth.ENV_REGION)
+        if region:
+            info.setdefault("region", region)
         return info
 
     def test_connection(self) -> tuple[bool, str | None]:

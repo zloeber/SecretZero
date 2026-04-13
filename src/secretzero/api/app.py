@@ -302,7 +302,14 @@ def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
             loader = ConfigLoader()
             config = loader.load_file(config_path)
             lockfile = Lockfile.load(Path(".gitsecrets.lock"))
-            sync_engine = SyncEngine(config, lockfile)
+            secretfile_content = config_path.read_text()
+            sync_engine = SyncEngine(
+                config,
+                lockfile,
+                secretfile_path=config_path,
+                secretfile_content=secretfile_content,
+                sync_client="api",
+            )
 
             generated = []
             skipped = []
@@ -573,7 +580,14 @@ def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
             loader = ConfigLoader()
             config = loader.load_file(config_path)
             lockfile = Lockfile.load(Path(".gitsecrets.lock"))
-            sync_engine = SyncEngine(config, lockfile)
+            secretfile_content = config_path.read_text()
+            sync_engine = SyncEngine(
+                config,
+                lockfile,
+                secretfile_path=config_path,
+                secretfile_content=secretfile_content,
+                sync_client="api",
+            )
 
             rotated = []
             failed = []
@@ -592,7 +606,11 @@ def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
                 for secret in config.secrets:
                     entry = lockfile.get_secret_info(secret.name)
                     if entry and secret.rotation_period:
-                        should_rotate, _ = should_rotate_secret(secret, entry)
+                        should_rotate, _ = should_rotate_secret(
+                            secret.rotation_period,
+                            entry.last_rotated,
+                            entry.created_at,
+                        )
                         if should_rotate or request.force:
                             secrets_to_rotate.append(secret)
 

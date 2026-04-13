@@ -190,6 +190,7 @@ class AgentSecretSynchronizer:
                 secretfile_content=self.secretfile_content,
                 hide_input=True,
                 prompt_on_empty=False,
+                sync_client="agent",
             )
             try:
                 sync_results = engine.sync(dry_run=self.dry_run, secret_names=auto_secrets)
