@@ -84,7 +84,9 @@ def format_sync_results_for_debug(results: dict[str, Any]) -> str:
         "secrets_skipped": results.get("secrets_skipped"),
         "secrets_processed": results.get("secrets_processed"),
         "errors": results.get("errors"),
-        "details": [_simplify_detail(x) for x in results.get("details") or [] if isinstance(x, dict)],
+        "details": [
+            _simplify_detail(x) for x in results.get("details") or [] if isinstance(x, dict)
+        ],
     }
     return json.dumps(payload, indent=2)
 
@@ -966,7 +968,7 @@ def run_network_blocking_web_session(
 
     scheme = "https" if ssl_cert else "http"
     base = f"{scheme}://{host}:{chosen}/"
-    if host == "0.0.0.0":
+    if host == "0.0.0.0":  # nosec B104
         base = f"{scheme}://127.0.0.1:{chosen}/"
 
     if on_ready is not None:

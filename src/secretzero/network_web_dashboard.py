@@ -340,9 +340,9 @@ def build_secret_rows(secretfile: Secretfile, lockfile: Lockfile) -> list[dict[s
                 "target_groups": target_groups,
                 "hash_preview": (entry.hash[:18] + "…") if entry and entry.hash else "—",
                 "updated_at": _fmt_ts(entry.updated_at) if entry else "—",
-                "last_rotated": _fmt_ts(entry.last_rotated)
-                if entry and entry.last_rotated
-                else "—",
+                "last_rotated": (
+                    _fmt_ts(entry.last_rotated) if entry and entry.last_rotated else "—"
+                ),
                 "rotation_count": entry.rotation_count if entry else 0,
                 "in_lock": in_lock,
                 "is_unsynced": is_unsynced,

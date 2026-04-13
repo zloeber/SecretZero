@@ -18,8 +18,7 @@ def secretfile_two_file_targets(tmp_path: Path) -> Path:
     a.write_text("shared_secret=abcdefgh\n")
     b.write_text("shared_secret=abcdefgh\n")
     p = tmp_path / "Secretfile.yml"
-    p.write_text(
-        f"""
+    p.write_text(f"""
 version: '1.0'
 providers:
   local:
@@ -40,12 +39,13 @@ secrets:
         config:
           path: {b}
           format: dotenv
-"""
-    )
+""")
     return p
 
 
-def test_sync_skips_when_all_targets_tracked(secretfile_two_file_targets: Path, tmp_path: Path) -> None:
+def test_sync_skips_when_all_targets_tracked(
+    secretfile_two_file_targets: Path, tmp_path: Path
+) -> None:
     loader = ConfigLoader()
     config = loader.load_file(secretfile_two_file_targets)
     sec = config.secrets[0]
@@ -78,7 +78,9 @@ def test_sync_skips_when_all_targets_tracked(secretfile_two_file_targets: Path, 
     assert "already synced" in (r["details"][0].get("reason") or "")
 
 
-def test_force_target_repushes_despite_tracked(secretfile_two_file_targets: Path, tmp_path: Path) -> None:
+def test_force_target_repushes_despite_tracked(
+    secretfile_two_file_targets: Path, tmp_path: Path
+) -> None:
     loader = ConfigLoader()
     config = loader.load_file(secretfile_two_file_targets)
     sec = config.secrets[0]

@@ -3928,7 +3928,7 @@ def audit(
 )
 @click.option(
     "--host",
-    default="0.0.0.0",
+    default="0.0.0.0",  # nosec B104
     show_default=True,
     help="Address to bind (use 127.0.0.1 for local-only)",
 )
@@ -4048,7 +4048,7 @@ def web_command(
     )
 
     try:
-        result = synchronizer.sync(sz_agent=False)
+        synchronizer.sync(sz_agent=False)
     except Exception as exc:
         console.print(f"[red]Agent sync failed:[/red] {exc}")
         raise click.ClickException(str(exc)) from exc
