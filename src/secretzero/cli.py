@@ -22,7 +22,7 @@ from secretzero.config import ConfigLoader
 from secretzero.drift import DriftDetector
 from secretzero.graph import generate_graph
 from secretzero.lockfile import Lockfile
-from secretzero.models import AgentMode, SECRETFILE_MANIFEST_SPEC_VERSION, Secretfile
+from secretzero.models import SECRETFILE_MANIFEST_SPEC_VERSION, AgentMode, Secretfile
 from secretzero.policy import PolicyEngine
 from secretzero.rotation import should_rotate_secret
 from secretzero.sync import SyncEngine

@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from secretzero.models import SECRETFILE_MANIFEST_SPEC_VERSION
 
+
 class TargetUpdate(BaseModel):
     """Provenance information for a single target update."""
 
