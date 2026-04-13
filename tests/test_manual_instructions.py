@@ -335,7 +335,7 @@ class TestSyncEngineManualInstructionsOnFailure:
         from secretzero.sync import SyncEngine
 
         secret = Secret(name="test_secret", kind=kind, config=config)
-        secretfile = Secretfile(version="1", secrets=[secret])
+        secretfile = Secretfile(secrets=[secret])
         lockfile = Lockfile()
         return SyncEngine(
             secretfile=secretfile,
@@ -384,7 +384,7 @@ class TestSyncEngineManualInstructionsOnFailure:
             config={"provider": "github"},
             agent_instructions=custom_instructions,
         )
-        secretfile = Secretfile(version="1", secrets=[secret])
+        secretfile = Secretfile(secrets=[secret])
         lockfile = Lockfile()
         engine = SyncEngine(
             secretfile=secretfile,

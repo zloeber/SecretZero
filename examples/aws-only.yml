@@ -1,7 +1,6 @@
 # AWS-Only Example
 # Simple example using only AWS SSM Parameter Store
 
-version: '1.0'
 
 variables:
   aws_region: us-east-1

@@ -14,7 +14,6 @@
 # ## Configuration
 
 # ```yaml
-version: '1.0'
 
 variables:
   # GitHub variables

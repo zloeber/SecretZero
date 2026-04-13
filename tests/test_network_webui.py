@@ -18,12 +18,11 @@ from secretzero.network_webui import (
 
 
 def _minimal_secretfile() -> Secretfile:
-    return Secretfile(version="1.0", secrets=[])
+    return Secretfile(secrets=[])
 
 
 def _secretfile_one_static() -> Secretfile:
     return Secretfile(
-        version="1.0",
         secrets=[
             Secret(name="s1", kind="static", config={"value": "x"}, targets=[]),
         ],

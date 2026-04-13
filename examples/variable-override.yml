@@ -1,7 +1,6 @@
 # Example Secretfile demonstrating variable override with .szvar files
 # This file shows how to use variables that can be overridden by .szvar files
 
-version: '1.0'
 
 # Base variables (can be overridden by .szvar files)
 variables:

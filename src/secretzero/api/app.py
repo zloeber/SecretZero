@@ -8,6 +8,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError
 
 from secretzero import __version__, generators, targets
 from secretzero.agent import (
@@ -157,16 +158,18 @@ def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
         audit_logger = get_audit_logger()
 
         try:
-            # Try to load and validate the config
-            # For now, we just check if it can be parsed
-            errors = []
+            errors: list[str] = []
             warnings = []
 
-            # Basic validation
-            if "version" not in request.config:
-                errors.append("Missing required field: version")
-            if "secrets" not in request.config:
-                errors.append("Missing required field: secrets")
+            try:
+                Secretfile.model_validate(request.config)
+            except ValidationError as exc:
+                errors.extend(
+                    [
+                        f"{'.'.join(str(part) for part in err['loc'])}: {err['msg']}"
+                        for err in exc.errors()
+                    ]
+                )
 
             valid = len(errors) == 0
 

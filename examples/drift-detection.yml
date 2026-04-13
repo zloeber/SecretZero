@@ -1,7 +1,6 @@
 # Example: Drift Detection
 # Demonstrates how to detect and remediate drift in secrets
 
-version: '1.0'
 
 metadata:
   project: drift-demo

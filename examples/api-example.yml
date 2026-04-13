@@ -1,7 +1,6 @@
 # Example Secretfile for API Usage
 # This demonstrates a complete configuration for managing secrets via the API
 
-version: '1.0'
 
 # Variables for configuration
 variables:

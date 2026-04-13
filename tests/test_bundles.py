@@ -456,7 +456,7 @@ class TestSyncEngineProviderInjection:
         from secretzero.models import Secretfile
         from secretzero.sync import SyncEngine
 
-        sf = Secretfile(version="1.0", secrets=[])
+        sf = Secretfile(secrets=[])
         lf = Lockfile()
         return SyncEngine(sf, lf)
 
@@ -515,7 +515,7 @@ class TestSyncEngineGenerateViaRegistry:
         from secretzero.models import Secretfile
         from secretzero.sync import SyncEngine
 
-        sf = Secretfile(version="1.0", secrets=[])
+        sf = Secretfile(secrets=[])
         lf = Lockfile()
         return SyncEngine(sf, lf)
 
@@ -561,7 +561,7 @@ class TestSyncEngineStoreViaRegistry:
         from secretzero.models import Secretfile
         from secretzero.sync import SyncEngine
 
-        sf = Secretfile(version="1.0", secrets=[])
+        sf = Secretfile(secrets=[])
         lf = Lockfile()
         return SyncEngine(sf, lf)
 
@@ -633,7 +633,7 @@ class TestSyncEngineCreateProviderViaRegistry:
         from secretzero.models import Secretfile
         from secretzero.sync import SyncEngine
 
-        sf = Secretfile(version="1.0", secrets=[])
+        sf = Secretfile(secrets=[])
         lf = Lockfile()
         return SyncEngine(sf, lf)
 

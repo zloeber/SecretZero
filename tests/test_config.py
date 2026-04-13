@@ -55,7 +55,6 @@ templates: {}
 
     try:
         config = loader.load_file(path)
-        assert config.version == "1.0"
         assert config.variables["environment"] == "test"
         assert "local" in config.providers
         assert len(config.secrets) == 1

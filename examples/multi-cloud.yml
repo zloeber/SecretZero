@@ -1,7 +1,6 @@
 # SecretZero Example: Multi-Cloud Secret Distribution
 # This example demonstrates how to distribute secrets across AWS, Azure, and HashiCorp Vault
 
-version: '1.0'
 
 # Variables can be overridden at runtime
 variables:

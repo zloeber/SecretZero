@@ -8,6 +8,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from secretzero.models import SECRETFILE_MANIFEST_SPEC_VERSION
 
 class TargetUpdate(BaseModel):
     """Provenance information for a single target update."""
@@ -91,6 +92,10 @@ class SecretfileMetadata(BaseModel):
     sync_identity: LockfileSyncIdentity | None = Field(
         default=None,
         description="Identity context for the operator or automation that last updated this lockfile",
+    )
+    manifest_spec_version: str | None = Field(
+        default=None,
+        description="Secretfile manifest spec version captured during lockfile tracking",
     )
 
 
@@ -236,12 +241,14 @@ class Lockfile(BaseModel):
                 hash=content_hash,
                 synced_at=now,
                 sync_identity=sync_identity,
+                manifest_spec_version=SECRETFILE_MANIFEST_SPEC_VERSION,
             )
         else:
             # Preserve any existing variable context fields
             self.secretfile.filename = relative_filename
             self.secretfile.hash = content_hash
             self.secretfile.synced_at = now
+            self.secretfile.manifest_spec_version = SECRETFILE_MANIFEST_SPEC_VERSION
             if sync_identity is not None:
                 self.secretfile.sync_identity = sync_identity
 
@@ -297,6 +304,7 @@ class Lockfile(BaseModel):
                 filename="",
                 hash="",
                 synced_at=now,
+                manifest_spec_version=SECRETFILE_MANIFEST_SPEC_VERSION,
             )
 
         # Store only basenames to keep the lockfile stable across machines

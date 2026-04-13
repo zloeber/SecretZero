@@ -22,7 +22,7 @@ from secretzero.config import ConfigLoader
 from secretzero.drift import DriftDetector
 from secretzero.graph import generate_graph
 from secretzero.lockfile import Lockfile
-from secretzero.models import AgentMode, Secretfile
+from secretzero.models import AgentMode, SECRETFILE_MANIFEST_SPEC_VERSION, Secretfile
 from secretzero.policy import PolicyEngine
 from secretzero.rotation import should_rotate_secret
 from secretzero.sync import SyncEngine
@@ -341,7 +341,7 @@ def validate(file: str, var_files: tuple[str, ...], output_format: str) -> None:
             try:
                 config = loader.load_file(file_path, var_files=var_file_paths)
                 result["config"] = {
-                    "version": config.version,
+                    "manifest_spec_version": SECRETFILE_MANIFEST_SPEC_VERSION,
                     "variables_count": len(config.variables),
                     "providers_count": len(config.providers),
                     "secrets_count": len(config.secrets),
@@ -364,7 +364,7 @@ def validate(file: str, var_files: tuple[str, ...], output_format: str) -> None:
         # Show summary of configuration
         config = loader.load_file(file_path, var_files=var_file_paths)
         console.print("\n[bold]Configuration Summary:[/bold]")
-        console.print(f"  Version: {config.version}")
+        console.print(f"  Manifest spec version: {SECRETFILE_MANIFEST_SPEC_VERSION}")
         console.print(f"  Variables: {len(config.variables)}")
         console.print(f"  Providers: {len(config.providers)}")
         console.print(f"  Secrets: {len(config.secrets)}")

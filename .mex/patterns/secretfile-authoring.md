@@ -13,7 +13,7 @@ edges:
     condition: when command usage or environment setup is needed
   - target: patterns/add-secret.md
     condition: when authoring includes adding/changing secret entries
-last_updated: 2026-04-10
+last_updated: 2026-04-13
 ---
 
 # Secretfile Authoring
@@ -32,6 +32,7 @@ This pattern covers edits to `Secretfile.yml` structure (`variables`, `providers
 - `${VAR}` interpolation is based on merged variable context in config flow, not implicit shell env substitution.
 - Var-file ordering matters; later `--var-file` overrides earlier values.
 - A typo in interpolated key paths can silently produce wrong/empty rendered values in downstream config.
+- Secretfile root `version` is no longer required; manifest spec versioning is tracked in `.gitsecrets.lock` under `secretfile.manifest_spec_version`.
 
 ## Verify
 - [ ] Render output contains expected provider paths and secret target config.

@@ -76,7 +76,6 @@ curl -X POST http://localhost:8000/config/validate \
   -H "X-API-Key: your-api-key-here" \
   -d '{
     "config": {
-      "version": "1.0",
       "secrets": [
         {
           "name": "example",

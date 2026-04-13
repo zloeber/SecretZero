@@ -6,6 +6,7 @@ from pathlib import Path
 
 from secretzero.config import ConfigLoader
 from secretzero.drift import DriftDetector
+from secretzero.models import SECRETFILE_MANIFEST_SPEC_VERSION
 
 
 def run_validate_manifest(secretfile_path: Path, var_files: list[Path] | None) -> str:
@@ -25,7 +26,7 @@ def run_validate_manifest(secretfile_path: Path, var_files: list[Path] | None) -
                 [
                     "",
                     "Summary:",
-                    f"  Version: {cfg.version}",
+                    f"  Manifest spec version: {SECRETFILE_MANIFEST_SPEC_VERSION}",
                     f"  Variables: {len(cfg.variables)}",
                     f"  Providers: {len(cfg.providers)}",
                     f"  Secrets: {len(cfg.secrets)}",

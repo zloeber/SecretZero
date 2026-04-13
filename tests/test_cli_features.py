@@ -279,7 +279,7 @@ def test_validate_failure_exit_code(runner: CliRunner) -> None:
     """Test that validate returns exit code 1 on validation error."""
     with TemporaryDirectory() as tmpdir:
         sf = Path(tmpdir) / "Secretfile.yml"
-        sf.write_text("invalid: no version")
+        sf.write_text("secrets: invalid")
 
         result = runner.invoke(main, ["validate", "--file", str(sf)])
         assert result.exit_code == EXIT_VALIDATION_ERROR

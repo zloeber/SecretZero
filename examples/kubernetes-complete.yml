@@ -1,7 +1,6 @@
 # Kubernetes Complete Example
 # Comprehensive example with multiple secret types and patterns
 
-version: '1.0'
 
 variables:
   cluster: production

@@ -29,7 +29,7 @@ Validating: Secretfile.yml
 ✓ Configuration is valid
 
 Configuration Summary:
-  Version: 1.0
+  Manifest spec version: 1
   Variables: 3
   Providers: 2
   Secrets: 5
@@ -40,7 +40,7 @@ Configuration Summary:
 
 ```
 Validating: Secretfile.yml
-✗ Validation failed: missing required field 'version'
+✗ Validation failed: secrets.0.name: Field required
 ```
 
 ### Required Fields
@@ -48,39 +48,25 @@ Validating: Secretfile.yml
 The minimum valid Secretfile:
 
 ```yaml
-version: '1.0'
-
 secrets: []
 ```
 
 ### Common Schema Errors
 
-#### Missing Version
+#### Missing Required Secret Fields
 
 **Error:**
 
 ```
-Validation failed: missing required field 'version'
+Validation failed: secrets.0.name: Field required
 ```
 
 **Fix:**
 
 ```yaml
-version: '1.0'  # Add version field
-```
-
-#### Invalid Version
-
-**Error:**
-
-```
-Validation failed: unsupported version '2.0'
-```
-
-**Fix:**
-
-```yaml
-version: '1.0'  # Use supported version
+secrets:
+  - name: api_key
+    kind: random_password
 ```
 
 #### Missing Secret Name

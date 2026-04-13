@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from secretzero.lockfile import Lockfile, LockfileSyncIdentity
+from secretzero.models import SECRETFILE_MANIFEST_SPEC_VERSION
 from secretzero.sync_identity import collect_lockfile_sync_identity
 
 
@@ -36,10 +37,11 @@ class TestCollectLockfileSyncIdentity:
             git_commit_sha="abc1234",
         )
         sf = tmp_path / "Secretfile.yml"
-        sf.write_text("version: '1.0'\nsecrets: []\n")
+        sf.write_text("secrets: []\n")
         lock.track_secretfile(sf, sf.read_text(), sync_identity=custom)
         assert lock.secretfile is not None
         assert lock.secretfile.sync_identity is not None
+        assert lock.secretfile.manifest_spec_version == SECRETFILE_MANIFEST_SPEC_VERSION
         assert lock.secretfile.sync_identity.client == "test"
         assert lock.secretfile.sync_identity.os_user == "alice"
 
@@ -53,11 +55,12 @@ class TestCollectLockfileSyncIdentity:
         lock = Lockfile()
         first = LockfileSyncIdentity(client="cli", os_user="bob")
         sf = tmp_path / "Secretfile.yml"
-        content = "version: '1.0'\nsecrets: []\n"
+        content = "secrets: []\n"
         sf.write_text(content)
         lock.track_secretfile(sf, content, sync_identity=first)
         lock.track_secretfile(sf, content + "\n# x\n", sync_identity=None)
         assert lock.secretfile is not None
+        assert lock.secretfile.manifest_spec_version == SECRETFILE_MANIFEST_SPEC_VERSION
         assert lock.secretfile.sync_identity is not None
         assert lock.secretfile.sync_identity.os_user == "bob"
 

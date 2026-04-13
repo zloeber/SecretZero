@@ -1,7 +1,6 @@
 # Example: Secret Rotation with Policies
 # This example demonstrates rotation policies and compliance requirements
 
-version: '1.0'
 
 # Metadata with compliance requirements
 metadata:
