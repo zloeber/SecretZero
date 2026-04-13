@@ -3,7 +3,10 @@
 import tempfile
 from pathlib import Path
 
-from secretzero.lockfile import Lockfile
+import json
+from datetime import UTC, datetime
+
+from secretzero.lockfile import Lockfile, SecretfileMetadata
 
 
 class TestLockfile:
@@ -91,6 +94,16 @@ class TestLockfile:
         assert "local/file" in entry.targets
         assert entry.targets["local/file"] == entry.hash
 
+    def test_add_secret_with_dict_value(self):
+        """Lockfile hashing should support structured secret values."""
+        lock = Lockfile()
+        value = {"tenant_id": "t1", "client_id": "c1", "client_secret": "s1"}
+
+        lock.add_secret("entra_app_registration", value)
+
+        assert lock.has_secret("entra_app_registration")
+        assert len(lock.get_secret_hash("entra_app_registration") or "") == 64
+
     def test_save_and_load_lockfile(self):
         """Test saving and loading lockfile."""
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -140,3 +153,44 @@ class TestLockfile:
         hash2 = lock.get_secret_hash("secret2")
 
         assert hash1 != hash2
+
+    def test_variable_context_unchanged_when_variables_hash_missing(self) -> None:
+        """``variables_hash: null`` must not compare unequal to every current hash forever."""
+        lock = Lockfile()
+        lock.secretfile = SecretfileMetadata(
+            filename="Secretfile.yml",
+            hash="abc",
+            synced_at=datetime.now(UTC).isoformat(),
+            var_files=[],
+            variables_hash=None,
+        )
+        assert not lock.variable_context_changed([], {"environment": "prod"})
+
+    def test_variable_context_changed_when_variables_hash_differs(self) -> None:
+        lock = Lockfile()
+        vars_a = {"environment": "prod"}
+        vars_hash = lock._hash_value(json.dumps(vars_a, sort_keys=True, default=str))
+        lock.secretfile = SecretfileMetadata(
+            filename="Secretfile.yml",
+            hash="abc",
+            synced_at=datetime.now(UTC).isoformat(),
+            var_files=[],
+            variables_hash=vars_hash,
+        )
+        assert not lock.variable_context_changed([], vars_a)
+        assert lock.variable_context_changed([], {"environment": "dev"})
+
+    def test_variable_context_changed_when_var_files_differ(self) -> None:
+        lock = Lockfile()
+        lock.secretfile = SecretfileMetadata(
+            filename="Secretfile.yml",
+            hash="abc",
+            synced_at=datetime.now(UTC).isoformat(),
+            var_files=["previous.szvar"],
+            variables_hash="deadbeef",
+        )
+        assert lock.variable_context_changed([], {"a": 1})
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "other.szvar"
+            p.write_text("x: y\n", encoding="utf-8")
+            assert lock.variable_context_changed([p], {"a": 1})

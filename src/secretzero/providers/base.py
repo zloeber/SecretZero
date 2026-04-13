@@ -58,9 +58,9 @@ class ProviderAuth(ABC):
     def get_token_info(self) -> dict[str, Any]:
         """Return information about the current authentication token.
 
-        Providers that support token introspection should override this method
-        to return details such as user identity, scopes/permissions, and token
-        type.
+        Built-in providers override this when the upstream API exposes safe
+        identity metadata; third-party auth classes should do the same when
+        practical. Return user identity, scopes/permissions, and token kind.
 
         Returns:
             Dictionary with at least:

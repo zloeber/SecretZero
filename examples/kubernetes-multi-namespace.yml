@@ -1,7 +1,6 @@
 # Kubernetes Multi-Namespace Example
 # Deploy secrets across multiple namespaces in a cluster
 
-version: '1.0'
 
 variables:
   cluster: production

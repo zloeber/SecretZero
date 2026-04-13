@@ -106,33 +106,119 @@ Verify: `secretzero --help`
 
 Default lockfile: `.gitsecrets.lock` (derived automatically from the manifest filename).
 
-## Authoring `Secretfile.yml` (Schema-Driven)
+## Authoring `Secretfile.yml` Rules (Whole Secrets First)
 
-Use the CLI as the single source of truth.
+Use the schema as the source of truth, and keep definitions predictable for humans and agents.
 
-**Useful commands:**
-- `secretzero schema export -o Secretfile.schema.json` — Export JSON Schema for IDE support.
-- `secretzero validate [--format json]` — Validate your manifest.
-- `secretzero create --template-type basic` — Scaffold a new manifest (also supports `aws`, `azure`, etc.).
-- `secretzero secret-types [--type <kind>] --verbose` — List available generators and options.
+### Rule 1: Model secrets as whole units by default
+- Prefer one secret entry per real secret value (`DB_PASSWORD`, `JWT_SIGNING_KEY`, `API_TOKEN`).
+- Keep each secret self-contained: `name`, `kind`, `config`, and `targets` in the same item.
+- Do not split one logical secret across multiple entries unless targets force it.
+- Use `templates.<name>` only when several fields must travel together as one credential set.
 
-**Best practices for agent-friendly secrets:**
-- For any secret that cannot be fully automated, define `agent_instructions` with:
-  - `summary`: Short human-readable description.
-  - `steps`: Ordered list of actions (supports templating with `{{secret_name}}`, `{{target.xxx}}`, etc.).
-- Templated instructions are automatically rendered with Secretfile variables and target details.
+### Rule 2: Choose the simplest valid generator
+- `random_password` for passwords.
+- `random_string` for opaque tokens/ids.
+- `static` for seeded values coming from controlled external inputs (variables, provider-backed reads, human seeding).
+- `script`/`api` only when built-in generators cannot represent the source.
+- Keep `config` minimal; avoid adding options that do not change behavior you need.
 
-Example structure for a manual secret:
+### Rule 3: Keep template usage straightforward
+- Use templates for stable multi-field bundles (for example host/user/password, OAuth client_id/client_secret).
+- Keep template `fields` flat and explicit; avoid over-nesting.
+- Prefer template-level `targets`; add field-level targets only when a field truly needs a different destination.
+- Avoid using templates for single-value secrets.
+- Avoid chaining complexity (template + many per-field overrides + heavy interpolation) unless strictly required.
+
+### Rule 4: Keep interpolation and templating boring
+- Prefer direct values and simple `${VAR}` style substitutions for manifest-time values.
+- Use `{{ ... }}` only in `agent_instructions` text (summary/steps/etc.) where agent context rendering is intended.
+- Keep templated instructions short, deterministic, and action-oriented.
+- Avoid hidden magic from deeply composed templates; if a human cannot read it quickly, simplify it.
+
+### Rule 5: Keep provider and target mappings explicit
+- Define provider aliases once under `providers:` and reference the same alias in every target.
+- Every secret should have clear targets unless intentionally deferred.
+- Prefer one canonical target path/name per secret; duplicate targets only for real distribution needs.
+- Avoid ambiguous naming in target config (for example inconsistent key/path conventions across similar secrets).
+
+### Rule 6: Use `agent_instructions` whenever humans must act
+- If a secret cannot be fully automated, include `agent_instructions` to avoid `failed_secrets`.
+- Include at least:
+  - `summary`: one-sentence purpose.
+  - `steps`: ordered steps with concrete actions.
+- Optionally include: `prerequisites`, `automation_hint`, `fallback`, `required_tools`, `documentation_url`.
+- Use placeholders sparingly (`{{ secret_name }}`, `{{ target.kind }}`, target config keys) and keep instructions readable when rendered.
+
+### Rule 7: Keep naming and structure consistent
+- Secret names should be stable and environment-agnostic where possible.
+- Use `vars` only for true per-secret overrides, not as a second general config store.
+- Keep global defaults in `variables`; keep secret-specific behavior in each secret's `config`.
+- Group related secrets together in the list to improve reviewability.
+
+### Rule 8: Validate every edit through the same loop
+1. `secretzero validate`
+2. `secretzero render` (when interpolation or `agent_instructions` templating is involved)
+3. `secretzero sync --dry-run`
+4. `secretzero agent sync --json` (or `--web`) when testing human-in-the-loop flows
+
+### Practical default pattern
+Use this shape unless you have a concrete reason not to:
+
 ```yaml
+variables:
+  env: production
+
+providers:
+  aws:
+    kind: aws
+    auth:
+      kind: ambient
+
 secrets:
-  external_api_key:
-    kind: static
-    agent_instructions:
-      summary: "Create a new API key in the Example.com console"
-      steps:
-        - "Go to https://console.example.com/api-keys and create a key named {{secret_name}} for this environment."
-        - "Run `secretzero sync -s {{secret_name}}` locally to seed it."
-        - "Confirm to the agent when complete."
+  - name: db_password
+    kind: random_password
+    config:
+      length: 32
+      special: true
+    rotation_period: 90d
+    targets:
+      - provider: aws
+        kind: secrets_manager
+        config:
+          name: /${env}/db/password
+```
+
+### When to use templates
+Use templates only for multi-field credentials that are consumed together:
+
+```yaml
+templates:
+  database_credentials:
+    description: Application database credentials
+    fields:
+      username:
+        description: Service user name
+        generator:
+          kind: static
+          config:
+            default: appuser
+      password:
+        description: Service user password
+        generator:
+          kind: random_password
+          config:
+            length: 32
+            special: true
+    targets:
+      - provider: aws
+        kind: secrets_manager
+        config:
+          name: /production/database
+
+secrets:
+  - name: app_database
+    kind: templates.database_credentials
 ```
 
 ## Common Pitfalls to Avoid

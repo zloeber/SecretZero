@@ -1,8 +1,6 @@
 """Tests for SecretZero data models."""
 
 import pytest
-from pydantic import ValidationError
-
 from secretzero.models import (
     AuthKind,
     AuthProfile,
@@ -111,7 +109,6 @@ def test_metadata_creation() -> None:
 def test_secretfile_creation() -> None:
     """Test creating a Secretfile."""
     secretfile = Secretfile(
-        version="1.0",
         variables={"environment": "dev"},
         providers={
             "local": Provider(kind="local", config={}),
@@ -126,16 +123,15 @@ def test_secretfile_creation() -> None:
             )
         ],
     )
-    assert secretfile.version == "1.0"
     assert "environment" in secretfile.variables
     assert "local" in secretfile.providers
     assert len(secretfile.secrets) == 1
 
 
-def test_secretfile_version_required() -> None:
-    """Test that version is required."""
-    with pytest.raises(ValidationError):
-        Secretfile(version="")
+def test_secretfile_allows_missing_version() -> None:
+    """Test that Secretfile no longer requires a root version field."""
+    secretfile = Secretfile(secrets=[])
+    assert secretfile.secrets == []
 
 
 def test_secret_with_rotation() -> None:

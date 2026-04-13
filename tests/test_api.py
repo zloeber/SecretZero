@@ -167,7 +167,6 @@ class TestConfigValidation:
     def test_validate_valid_config(self, authenticated_client):
         """Test validating a valid configuration."""
         config = {
-            "version": "1.0",
             "secrets": [
                 {
                     "name": "test",
@@ -182,22 +181,22 @@ class TestConfigValidation:
         assert data["valid"] is True
         assert len(data["errors"]) == 0
 
-    def test_validate_invalid_config_missing_version(self, authenticated_client):
-        """Test validating config without version."""
+    def test_validate_invalid_config_missing_name(self, authenticated_client):
+        """Test validating config with invalid secret entry."""
         config = {
-            "secrets": [{"name": "test"}],
+            "secrets": [{"kind": "random_password"}],
         }
 
         response = authenticated_client.post("/config/validate", json={"config": config})
         assert response.status_code == 200
         data = response.json()
         assert data["valid"] is False
-        assert "version" in str(data["errors"])
+        assert "name" in str(data["errors"])
 
     def test_validate_invalid_config_missing_secrets(self, authenticated_client):
-        """Test validating config without secrets."""
+        """Test validating config with an invalid secrets list type."""
         config = {
-            "version": "1.0",
+            "secrets": "invalid",
         }
 
         response = authenticated_client.post("/config/validate", json={"config": config})
@@ -451,7 +450,7 @@ class TestConfigRenderEndpoint:
         assert "config" in data
         config = data["config"]
         assert "secrets" in config
-        assert "version" in config
+        assert "version" not in config
 
     def test_render_config_includes_variables(self, authenticated_client):
         """Test that rendered config includes variables."""

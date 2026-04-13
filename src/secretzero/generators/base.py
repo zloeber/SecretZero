@@ -23,11 +23,11 @@ class BaseGenerator(ABC):
         self.manual_instructions: AgentInstructions | None = None
 
     @abstractmethod
-    def generate(self) -> str:
+    def generate(self) -> Any:
         """Generate a secret value.
 
         Returns:
-            Generated secret value as a string
+            Generated secret value (typically a string; static may return a dict)
         """
         pass
 

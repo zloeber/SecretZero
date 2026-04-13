@@ -206,7 +206,6 @@ Validate a Secretfile configuration.
 
 ```python
 config = {
-    "version": "1.0",
     "secrets": [
         {
             "name": "test_secret",

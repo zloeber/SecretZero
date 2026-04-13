@@ -106,6 +106,50 @@ class VaultAuth(ProviderAuth):
         """
         return self._client
 
+    def get_token_info(self) -> dict[str, Any]:
+        """Return Vault token metadata via ``lookup-self`` (no secret values)."""
+        if not self._client:
+            raise RuntimeError("Not authenticated with Vault")
+        if not self.is_authenticated():
+            raise RuntimeError("Vault client is not authenticated")
+        try:
+            resp = self._client.auth.token.lookup_self()
+        except Exception as e:
+            raise RuntimeError(f"Vault token lookup-self failed: {e}") from e
+        body: dict[str, Any]
+        try:
+            if hasattr(resp, "status_code") and getattr(resp, "status_code", 200) != 200:
+                raise RuntimeError(f"Vault lookup-self HTTP {resp.status_code}")
+            if hasattr(resp, "json"):
+                parsed = resp.json()
+            elif isinstance(resp, dict):
+                parsed = resp
+            else:
+                raise RuntimeError("Unexpected Vault lookup-self response shape")
+            if not isinstance(parsed, dict):
+                raise RuntimeError("Unexpected Vault lookup-self response shape")
+            body = parsed
+        except RuntimeError:
+            raise
+        except Exception as e:
+            raise RuntimeError(f"Vault lookup-self parse failed: {e}") from e
+
+        data = body.get("data", body)
+        if not isinstance(data, dict):
+            data = {}
+        policies: list[str] = []
+        for key in ("policies", "identity_policies"):
+            p = data.get(key)
+            if isinstance(p, list):
+                policies.extend(str(x) for x in p)
+        user = data.get("display_name") or data.get("entity_id") or data.get("id")
+        return {
+            "user": user,
+            "scopes": sorted(set(policies)),
+            "token_type": str(data.get("type", "vault_token")),
+            "renewable": data.get("renewable"),
+        }
+
 
 class VaultProvider(BaseProvider):
     """HashiCorp Vault provider for SecretZero."""

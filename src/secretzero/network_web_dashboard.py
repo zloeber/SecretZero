@@ -265,26 +265,36 @@ def _fmt_ts(iso: str | None) -> str:
         return iso[:22] if len(iso) > 22 else iso
 
 
-def build_manifest_rows(lockfile: Lockfile, secretfile_path: Path | None) -> dict[str, Any]:
+def build_manifest_rows(
+    lockfile: Lockfile,
+    secretfile_path: Path | None,
+    secretfile: Secretfile | None = None,
+) -> dict[str, Any]:
     """Secretfile / lockfile metadata for the dashboard header."""
+    from secretzero.provider_identity import collect_provider_identity_rows
+
     sf = lockfile.secretfile
     name = str(secretfile_path) if secretfile_path else "—"
+    base: dict[str, Any]
     if not sf:
-        return {
+        base = {
             "secretfile_display": name,
             "synced_at": "—",
             "secretfile_hash": "—",
             "var_files": "—",
         }
-    vf = ", ".join(sf.var_files) if sf.var_files else "—"
-    h = sf.hash
-    hp = (h[:20] + "…") if h and len(h) > 20 else (h or "—")
-    return {
-        "secretfile_display": name,
-        "synced_at": _fmt_ts(sf.synced_at),
-        "secretfile_hash": hp,
-        "var_files": vf,
-    }
+    else:
+        vf = ", ".join(sf.var_files) if sf.var_files else "—"
+        h = sf.hash
+        hp = (h[:20] + "…") if h and len(h) > 20 else (h or "—")
+        base = {
+            "secretfile_display": name,
+            "synced_at": _fmt_ts(sf.synced_at),
+            "secretfile_hash": hp,
+            "var_files": vf,
+        }
+    base["provider_rows"] = collect_provider_identity_rows(secretfile) if secretfile else []
+    return base
 
 
 def build_secret_rows(secretfile: Secretfile, lockfile: Lockfile) -> list[dict[str, Any]]:
@@ -368,4 +378,5 @@ def make_sync_engine(
         secretfile_content=secretfile_content,
         hide_input=True,
         prompt_on_empty=False,
+        sync_client="network_web",
     )

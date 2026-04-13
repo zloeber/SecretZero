@@ -17,7 +17,6 @@
 #   POST /app/installations/{id}/access_tokens with only the permissions
 #   listed below.  The resulting token is stored in the configured targets.
 
-version: '1.0'
 
 variables:
   github_org: my-org

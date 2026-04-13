@@ -60,6 +60,23 @@ class TestInfisicalProvider:
         """Test provider returns correct kind."""
         assert infisical_provider.provider_kind == "infisical"
 
+    @patch.dict(os.environ, {"INFISICAL_TOKEN": "test-token"})
+    def test_get_token_info(self, infisical_provider: InfisicalProvider) -> None:
+        """Token introspection returns workspace context (no secret values)."""
+        with patch("httpx.Client") as mock_client_class:
+            mock_client = MagicMock()
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {"workspace": {"name": "Acme"}}
+            mock_client.get.return_value = mock_response
+            mock_client_class.return_value = mock_client
+
+            info = infisical_provider.get_token_info()
+            assert info["token_type"] == "infisical_token"
+            assert info["workspace_id"] == "test-workspace-123"
+            assert info["workspace_name"] == "Acme"
+            assert info["environment"] == "dev"
+
     def test_get_auth_token_from_env(self, infisical_provider: InfisicalProvider) -> None:
         """Test retrieving auth token from INFISICAL_TOKEN."""
         with patch.dict(os.environ, {"INFISICAL_TOKEN": "test-token-123"}):

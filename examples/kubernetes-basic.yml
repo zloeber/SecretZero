@@ -1,7 +1,6 @@
 # Kubernetes Secrets Example
 # Basic example for storing secrets in Kubernetes cluster
 
-version: '1.0'
 
 variables:
   namespace: default

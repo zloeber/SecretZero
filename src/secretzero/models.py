@@ -5,9 +5,11 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 from secretzero.cli_config import AppConfig
+
+SECRETFILE_MANIFEST_SPEC_VERSION = "1"
 
 
 class AgentMode(str, Enum):
@@ -329,7 +331,6 @@ class Metadata(BaseModel):
 class Secretfile(BaseModel):
     """Root configuration model for Secretfile.yml."""
 
-    version: str
     variables: dict[str, Any] = Field(default_factory=dict)
     metadata: Metadata | None = None
     providers: dict[str, Provider] = Field(default_factory=dict)
@@ -346,14 +347,6 @@ class Secretfile(BaseModel):
         default=None,
         description="Defaults for unified agent sync (CLI and API): mode and optional web UI port range",
     )
-
-    @field_validator("version")
-    @classmethod
-    def validate_version(cls, v: str) -> str:
-        """Validate version format."""
-        if not v:
-            raise ValueError("version is required")
-        return v
 
     def effective_agent_config(self) -> AgentConfig:
         """Return top-level agent settings with defaults when omitted."""

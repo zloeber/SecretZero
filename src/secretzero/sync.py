@@ -6,8 +6,9 @@ from typing import Any
 
 from secretzero.bundles import get_bundle_registry
 from secretzero.generators.base import BaseGenerator
-from secretzero.lockfile import Lockfile
+from secretzero.lockfile import Lockfile, LockfileSyncIdentity
 from secretzero.models import AgentInstructions, Secret, Secretfile, Template
+from secretzero.sync_identity import collect_lockfile_sync_identity
 
 # Import providers
 
@@ -23,6 +24,10 @@ class SyncEngine:
         secretfile_content: str | None = None,
         hide_input: bool = True,
         prompt_on_empty: bool = True,
+        *,
+        sync_client: str = "cli",
+        sync_identity: LockfileSyncIdentity | None = None,
+        sync_identity_cwd: Path | None = None,
     ) -> None:
         """Initialize sync engine.
 
@@ -33,6 +38,9 @@ class SyncEngine:
             secretfile_content: Raw content of the Secretfile (for change detection)
             hide_input: If True, mask user input when prompting for secrets (default: True)
             prompt_on_empty: If True, prompt for values when empty/unresolved (default: True)
+            sync_client: Logical caller surface (cli, api, agent, network_web) for lockfile metadata
+            sync_identity: When set, persisted as lockfile sync identity instead of auto-collection
+            sync_identity_cwd: Optional directory for git identity probes (defaults to Secretfile parent)
         """
         self.secretfile = secretfile
         self.lockfile = lockfile
@@ -40,10 +48,48 @@ class SyncEngine:
         self.secretfile_content = secretfile_content
         self.hide_input = hide_input
         self.prompt_on_empty = prompt_on_empty
+        self.sync_client = sync_client
+        self.sync_identity_override = sync_identity
+        self.sync_identity_cwd = sync_identity_cwd
+        self._sync_identity_snapshot: LockfileSyncIdentity | None = None
+        self._lockfile_source_recorded = False
         self._bundle_registry = get_bundle_registry()
         self._providers: dict[str, Any] = {}
         self._template_targets: dict[str, Any] = {}  # Track template targets and their secrets
         self._initialize_providers()
+
+    def _git_identity_cwd(self) -> Path | None:
+        if self.sync_identity_cwd is not None:
+            return self.sync_identity_cwd
+        if self.secretfile_path is not None:
+            return self.secretfile_path.parent
+        return None
+
+    def _resolve_sync_identity(self) -> LockfileSyncIdentity:
+        if self.sync_identity_override is not None:
+            return self.sync_identity_override
+        if self._sync_identity_snapshot is None:
+            self._sync_identity_snapshot = collect_lockfile_sync_identity(
+                client=self.sync_client,
+                cwd=self._git_identity_cwd(),
+            )
+        return self._sync_identity_snapshot
+
+    def _sync_actor_dict(self) -> dict[str, Any]:
+        return self._resolve_sync_identity().model_dump(mode="json", exclude_none=True)
+
+    def _record_lockfile_source_state(self, dry_run: bool) -> None:
+        """Update secretfile tracking and sync identity once per engine run (non–dry-run only)."""
+        if dry_run or not self.secretfile_path or not self.secretfile_content:
+            return
+        if self._lockfile_source_recorded:
+            return
+        self.lockfile.track_secretfile(
+            self.secretfile_path,
+            self.secretfile_content,
+            sync_identity=self._resolve_sync_identity(),
+        )
+        self._lockfile_source_recorded = True
 
     @staticmethod
     def _build_target_id(target_config) -> str:
@@ -135,7 +181,9 @@ class SyncEngine:
         Returns:
             Provider instance or None
         """
-        provider_kind = config.get("kind", name)
+        # model_dump() may include ``kind: null`` when omitted in YAML; dict.get
+        # would return None instead of falling back to the provider alias (e.g. aws).
+        provider_kind = config.get("kind") or name
         provider_class = self._bundle_registry.get_provider_class(provider_kind)
         if provider_class is not None:
             try:
@@ -253,6 +301,9 @@ class SyncEngine:
             "secretfile_changed": False,
         }
 
+        self._sync_identity_snapshot = None
+        self._lockfile_source_recorded = False
+
         # Track secretfile for change detection (if tracking info provided)
         if self.secretfile_path and self.secretfile_content:
             secretfile_changed = self.lockfile.secretfile_changed(
@@ -260,9 +311,8 @@ class SyncEngine:
             )
             results["secretfile_changed"] = secretfile_changed
 
-            # Track the secretfile in the lockfile
-            if not dry_run:
-                self.lockfile.track_secretfile(self.secretfile_path, self.secretfile_content)
+            # Track the secretfile in the lockfile (identity captured once per sync)
+            self._record_lockfile_source_state(dry_run)
 
         # Filter secrets by name if specified
         secrets_to_sync = self.secretfile.secrets
@@ -341,6 +391,8 @@ class SyncEngine:
             "targets": [],
             "errors": [],
         }
+
+        self._record_lockfile_source_state(dry_run)
 
         # Check if this is a template-based secret
         if secret.kind.startswith("templates."):
@@ -469,6 +521,9 @@ class SyncEngine:
                     self.lockfile.add_secret(
                         secret.name, secret_value, target_id=target_id, is_rotation=force_rotation
                     )
+                    self.lockfile.record_target_update(
+                        secret.name, target_id, actor=self._sync_actor_dict()
+                    )
 
             # If secret was generated but has no targets, still add to lockfile
             if len(targets_to_sync) == 0 and result.get("generated"):
@@ -523,6 +578,8 @@ class SyncEngine:
             "skipped": False,
             "errors": [],
         }
+
+        self._record_lockfile_source_state(dry_run)
 
         # Process each field in the template
         for field_name, field_def in template.fields.items():
@@ -621,6 +678,9 @@ class SyncEngine:
                         target_id = self._build_target_id(target_config)
                         self.lockfile.add_secret(
                             field_secret_name, field_value, target_id=target_id
+                        )
+                        self.lockfile.record_target_update(
+                            field_secret_name, target_id, actor=self._sync_actor_dict()
                         )
 
                 if all_targets_ok:

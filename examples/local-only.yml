@@ -1,7 +1,6 @@
 # Local Development Example
 # Simple example for local development without cloud providers
 
-version: '1.0'
 
 variables:
   environment: local

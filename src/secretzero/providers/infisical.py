@@ -49,17 +49,46 @@ class InfisicalProvider(BaseProvider):
         """Return provider type identifier."""
         return "infisical"
 
+    def get_token_info(self) -> dict[str, Any]:
+        """Return non-secret context for the configured Infisical token."""
+        try:
+            self._get_auth_token()
+        except ValueError as e:
+            raise RuntimeError(str(e)) from e
+
+        token_type = (
+            "infisical_service_token" if os.getenv("INFISICAL_SERVICE_TOKEN") else "infisical_token"
+        )
+        info: dict[str, Any] = {
+            "user": None,
+            "scopes": [],
+            "token_type": token_type,
+            "auth_kind": self.config.auth_kind.value,
+            "workspace_id": self.config.workspace_id,
+            "project_id": self.config.project_id or None,
+            "environment": self.config.environment,
+            "api_url": self.config.api_url,
+        }
+        try:
+            client = self._get_client()
+            response = client.get(f"/v1/workspaces/{self.config.workspace_id}")
+            if response.status_code == 200:
+                payload = response.json()
+                ws = payload.get("workspace", payload)
+                if isinstance(ws, dict) and ws.get("name"):
+                    info["workspace_name"] = ws["name"]
+        except Exception:
+            pass
+        return info
+
     def get_actor_info(self) -> dict[str, Any]:
-        """Return information about the current Infisical workspace/context."""
+        """Return information about the current Infisical workspace/context (no extra HTTP)."""
         info = super().get_actor_info()
-
-        workspace_id = getattr(self.config, "workspace_id", None)
-        api_url = getattr(self.config, "api_url", None)
-        if workspace_id:
-            info.setdefault("workspace_id", workspace_id)
-        if api_url:
-            info.setdefault("api_url", api_url)
-
+        info.setdefault("workspace_id", self.config.workspace_id)
+        info.setdefault("api_url", self.config.api_url)
+        info.setdefault("environment", self.config.environment)
+        if self.config.project_id:
+            info.setdefault("project_id", self.config.project_id)
         return info
 
     def _get_client(self) -> object:

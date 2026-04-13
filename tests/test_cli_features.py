@@ -7,6 +7,8 @@ from tempfile import TemporaryDirectory
 import pytest
 from click.testing import CliRunner
 
+from secretzero.lockfile import Lockfile
+
 from secretzero.cli import (
     EXIT_CONFIG_ERROR,
     EXIT_DRIFT_DETECTED,
@@ -222,6 +224,139 @@ def test_rotate_json_output_dry_run(runner: CliRunner) -> None:
         assert payload["dry_run"] is True
 
 
+def test_rotate_secret_flag_filters_by_name(runner: CliRunner) -> None:
+    """``--secret`` / ``-s`` limits rotation checks to named secret(s)."""
+    with TemporaryDirectory() as tmpdir:
+        sf = Path(tmpdir) / "Secretfile.yml"
+        sf.write_text("""
+version: '1.0'
+variables: {}
+providers:
+  local:
+    kind: local
+secrets:
+  - name: db_password
+    kind: random_password
+    rotation_period: 90d
+    config:
+      length: 16
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: .env.test
+          format: dotenv
+  - name: redis_cache
+    kind: random_string
+    rotation_period: 30d
+    config:
+      length: 8
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: .env.redis
+          format: dotenv
+templates: {}
+""")
+        lock = Path(tmpdir) / ".lock"
+        lo = Lockfile()
+        lo.add_secret("db_password", "v1")
+        lo.add_secret("redis_cache", "v2")
+        lo.save(lock)
+
+        result = runner.invoke(
+            main,
+            [
+                "rotate",
+                "--file",
+                str(sf),
+                "--lockfile",
+                str(lock),
+                "--secret",
+                "db_password",
+                "--dry-run",
+                "--format",
+                "json",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["dry_run"] is True
+        names = {d["name"] for d in payload["details"]}
+        assert names == {"db_password"}
+
+        result_all = runner.invoke(
+            main,
+            [
+                "rotate",
+                "--file",
+                str(sf),
+                "--lockfile",
+                str(lock),
+                "--dry-run",
+                "--format",
+                "json",
+            ],
+        )
+        assert result_all.exit_code == 0, result_all.output
+        payload_all = json.loads(result_all.output)
+        assert {d["name"] for d in payload_all["details"]} == {"db_password", "redis_cache"}
+
+
+def test_rotate_secret_flag_unknown_name(runner: CliRunner) -> None:
+    """Unknown ``--secret`` name exits with validation error."""
+    with TemporaryDirectory() as tmpdir:
+        sf = Path(tmpdir) / "Secretfile.yml"
+        sf.write_text(SECRETFILE_WITH_SECRETS)
+        lock = Path(tmpdir) / ".lock"
+
+        result = runner.invoke(
+            main,
+            [
+                "rotate",
+                "--file",
+                str(sf),
+                "--lockfile",
+                str(lock),
+                "--secret",
+                "not_in_manifest",
+                "--format",
+                "json",
+            ],
+        )
+        assert result.exit_code == EXIT_VALIDATION_ERROR, result.output
+        payload = json.loads(result.output)
+        assert "not found" in payload["error"].lower()
+
+
+def test_rotate_secret_flag_conflicts_with_positional(runner: CliRunner) -> None:
+    """Cannot combine ``--secret`` and positional secret name."""
+    with TemporaryDirectory() as tmpdir:
+        sf = Path(tmpdir) / "Secretfile.yml"
+        sf.write_text(SECRETFILE_WITH_SECRETS)
+        lock = Path(tmpdir) / ".lock"
+
+        result = runner.invoke(
+            main,
+            [
+                "rotate",
+                "--file",
+                str(sf),
+                "--lockfile",
+                str(lock),
+                "--secret",
+                "db_password",
+                "db_password",
+                "--format",
+                "json",
+            ],
+        )
+        assert result.exit_code == EXIT_VALIDATION_ERROR, result.output
+        payload = json.loads(result.output)
+        assert "not both" in payload["error"].lower()
+
+
 def test_policy_json_output_compliant(runner: CliRunner) -> None:
     """Test policy command JSON output when compliant."""
     with TemporaryDirectory() as tmpdir:
@@ -279,7 +414,7 @@ def test_validate_failure_exit_code(runner: CliRunner) -> None:
     """Test that validate returns exit code 1 on validation error."""
     with TemporaryDirectory() as tmpdir:
         sf = Path(tmpdir) / "Secretfile.yml"
-        sf.write_text("invalid: no version")
+        sf.write_text("secrets: invalid")
 
         result = runner.invoke(main, ["validate", "--file", str(sf)])
         assert result.exit_code == EXIT_VALIDATION_ERROR

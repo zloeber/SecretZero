@@ -190,6 +190,7 @@ class AgentSecretSynchronizer:
                 secretfile_content=self.secretfile_content,
                 hide_input=True,
                 prompt_on_empty=False,
+                sync_client="agent",
             )
             try:
                 sync_results = engine.sync(dry_run=self.dry_run, secret_names=auto_secrets)
@@ -231,12 +232,15 @@ class AgentSecretSynchronizer:
         if secret.kind in _AUTO_GENERATOR_KINDS:
             return True
 
-        # Static secrets need a value to be present
+        # Static secrets: auto-sync only when no interactive fill is required
         if secret.kind == "static":
-            value = secret.config.get("value")
-            if value:
-                return True
-            return False
+            from secretzero.generators.static import static_payload_needs_prompt
+
+            if "default" in secret.config:
+                value = secret.config["default"]
+            else:
+                value = secret.config.get("value")
+            return not static_payload_needs_prompt(value, nested=False)
 
         # Script / api generators may succeed — attempt them
         if secret.kind in {"script", "api"}:

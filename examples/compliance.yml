@@ -1,7 +1,6 @@
 # Example: Compliance-Driven Secret Management
 # Demonstrates SOC2 and ISO27001 compliance with strict policies
 
-version: '1.0'
 
 metadata:
   project: compliance-demo

@@ -79,6 +79,24 @@ class GitLabAuth(ProviderAuth):
             self.authenticate()
         return self._client
 
+    def get_token_info(self) -> dict[str, Any]:
+        """Return the GitLab user for the configured personal access token."""
+        if not self._client:
+            if not self.authenticate():
+                raise RuntimeError("GitLab authentication failed")
+        try:
+            user = self._client.user
+        except Exception as e:
+            raise RuntimeError(f"GitLab user lookup failed: {e}") from e
+        return {
+            "user": getattr(user, "username", None),
+            "name": getattr(user, "name", None),
+            "email": getattr(user, "email", None),
+            "user_id": getattr(user, "id", None),
+            "scopes": [],
+            "token_type": "gitlab_pat",
+        }
+
 
 class GitLabProvider(BaseProvider):
     """GitLab provider for CI/CD variables."""
@@ -152,17 +170,12 @@ class GitLabProvider(BaseProvider):
     def get_actor_info(self) -> dict[str, Any]:
         """Return information about the current GitLab user."""
         info = super().get_actor_info()
-
-        try:
-            client = self.auth.get_client() if self.auth else None
-            if client is not None and getattr(client, "user", None) is not None:
-                user = client.user
-                info.setdefault("user", getattr(user, "username", None))
-                info.setdefault("name", getattr(user, "name", None))
-                info.setdefault("email", getattr(user, "email", None))
-        except Exception:
-            pass
-
+        url = (
+            (self.config or {}).get("url")
+            or os.environ.get(GitLabAuth.ENV_URL)
+            or "https://gitlab.com"
+        )
+        info.setdefault("api_url", url)
         return info
 
     def test_connection(self) -> tuple[bool, str | None]:
