@@ -4353,8 +4353,14 @@ def web_command(
 
     tls_cert_path = Path(tls_cert) if tls_cert else None
     tls_key_path = Path(tls_key) if tls_key else None
+    http_mode = not (tls_cert_path and tls_key_path) and not tls_self_signed
 
     console.print("[bold cyan]SecretZero network web[/bold cyan]")
+    if http_mode:
+        console.print(
+            "[bold yellow]Warning:[/bold yellow] running in HTTP mode (no TLS). "
+            "Use only on trusted networks or with an external TLS tunnel/proxy."
+        )
     console.print(
         "[dim]Share the URL and bootstrap token while the server is running. "
         "The token works once; self-signed TLS shows a browser warning—verify the "
@@ -4469,6 +4475,12 @@ def agent() -> None:
     help="Collect manual secret values via a temporary localhost web form (Vector 2)",
 )
 @click.option(
+    "--web-host",
+    default="127.0.0.1",
+    show_default=True,
+    help="Listening address for --web form (set 0.0.0.0 to allow remote browser access)",
+)
+@click.option(
     "--verbose",
     "-V",
     is_flag=True,
@@ -4482,6 +4494,7 @@ def agent_sync(
     output_json: bool,
     interactive: bool,
     web: bool,
+    web_host: str,
     verbose: bool,
 ) -> None:
     """Agent-aware secret synchronisation with guided instructions.
@@ -4567,6 +4580,11 @@ def agent_sync(
         console.print(
             "[dim]Note: --web takes precedence over --interactive for collecting values.[/dim]"
         )
+    if web and web_host == "0.0.0.0":  # nosec B104
+        console.print(
+            "[bold yellow]Warning:[/bold yellow] agent web mode is using HTTP on 0.0.0.0. "
+            "Anyone with network access can reach the form."
+        )
 
     synchronizer = AgentSecretSynchronizer(
         secretfile,
@@ -4594,6 +4612,7 @@ def agent_sync(
                 dry_run=dry_run,
                 port_min=agent_cfg.web_port_min,
                 port_max=agent_cfg.web_port_max,
+                host=web_host,
                 open_browser=not _is_non_interactive(),
             )
         except Exception as exc:

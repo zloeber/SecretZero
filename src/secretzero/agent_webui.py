@@ -99,6 +99,52 @@ def operator_context_banner_html(secretfile_path: Path | None) -> str:
     return f'<p class="note" style="margin-top:0.5rem;"><strong>Session</strong> — {inner}</p>'
 
 
+def _format_actor_key_value_row(key: str, value: Any) -> str:
+    label = _escape_html(key.replace("_", " ").title())
+    text = _escape_html(str(value))
+    return f"<li><strong>{label}:</strong> {text}</li>"
+
+
+def target_provenance_actor_html(
+    *,
+    secret_name: str,
+    lockfile: Lockfile,
+    max_targets: int = 3,
+) -> str:
+    """HTML list for recent target provenance actors (no secret values)."""
+    entry = lockfile.secrets.get(secret_name)
+    if entry is None or not entry.target_provenance:
+        return ""
+
+    items: list[str] = []
+    for target_id, updates in list(entry.target_provenance.items())[:max_targets]:
+        if not updates:
+            continue
+        actor = updates[-1].actor if updates[-1].actor else {}
+        if not isinstance(actor, dict) or not actor:
+            continue
+        actor_rows = "\n".join(
+            _format_actor_key_value_row(k, actor[k])
+            for k in sorted(actor.keys())
+            if actor[k] not in (None, "")
+        )
+        if not actor_rows:
+            continue
+        items.append(
+            '<details style="margin-top:0.5rem;">'
+            f"<summary><code>{_escape_html(target_id)}</code></summary>"
+            f'<ul style="margin-top:0.35rem;">{actor_rows}</ul>'
+            "</details>"
+        )
+    if not items:
+        return ""
+    return (
+        '<div class="note" style="margin-top:0.75rem;">'
+        "<strong>Recent target actor metadata</strong>"
+        '<div style="margin-top:0.35rem;">' + "".join(items) + "</div></div>"
+    )
+
+
 def _set_nested_leaf(tree: dict[str, Any], path: tuple[str, ...], value: str) -> None:
     cur: dict[str, Any] = tree
     for i, key in enumerate(path):
@@ -189,14 +235,18 @@ def normalize_scalar_network_form(secret_name: str, form_values: dict[str, Any])
 
 
 def static_secret_edit_template_vars(
-    secret: Secret, secretfile_path: Path | None
+    secret: Secret, secretfile_path: Path | None, lockfile: Lockfile | None = None
 ) -> dict[str, Any]:
     """Context for ``secretzero web`` static edit page (structured vs scalar)."""
     banner = operator_context_banner_html(secretfile_path)
+    actor_html = (
+        target_provenance_actor_html(secret_name=secret.name, lockfile=lockfile) if lockfile else ""
+    )
     if not static_dict_needs_leaf_prompts(secret):
         return {
             "structured": False,
             "operator_banner_html": banner,
+            "target_actor_html": actor_html,
             "dict_leaves": [],
             "json_field_name": None,
         }
@@ -205,6 +255,7 @@ def static_secret_edit_template_vars(
         return {
             "structured": False,
             "operator_banner_html": banner,
+            "target_actor_html": actor_html,
             "dict_leaves": [],
             "json_field_name": None,
         }
@@ -220,6 +271,7 @@ def static_secret_edit_template_vars(
     return {
         "structured": True,
         "operator_banner_html": banner,
+        "target_actor_html": actor_html,
         "dict_leaves": leaves_out,
         "json_field_name": json_bulk_field_key(secret.name),
     }
@@ -273,18 +325,19 @@ class WebSessionRegistry:
 web_session_registry = WebSessionRegistry()
 
 
-def _pick_port(port_min: int, port_max: int) -> int:
-    """Return a free TCP port in the inclusive range."""
+def _pick_port(host: str, port_min: int, port_max: int) -> int:
+    """Return a free TCP port in the inclusive range for the requested host."""
+    family = socket.AF_INET6 if host == "::" else socket.AF_INET
     for _ in range(64):
         port = secrets.randbelow(port_max - port_min + 1) + port_min
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        with socket.socket(family, socket.SOCK_STREAM) as s:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             try:
-                s.bind(("127.0.0.1", port))
+                s.bind((host, port))
                 return port
             except OSError:
                 continue
-    raise RuntimeError(f"No free port in range {port_min}-{port_max}")
+    raise RuntimeError(f"No free port in range {port_min}-{port_max} on host {host!r}")
 
 
 def _escape_html(s: str) -> str:
@@ -294,6 +347,7 @@ def _escape_html(s: str) -> str:
 def _build_form_html(
     pending_secret_names: list[str],
     secretfile: Secretfile,
+    lockfile: Lockfile,
     secretfile_path: Path | None,
     title: str = "SecretZero — manual secrets",
 ) -> str:
@@ -344,6 +398,20 @@ def _build_form_html(
             )
     body = "\n".join(sections)
     banner = operator_context_banner_html(secretfile_path)
+    actors: list[str] = []
+    for name in pending_secret_names:
+        actor_html = target_provenance_actor_html(secret_name=name, lockfile=lockfile)
+        if actor_html:
+            actors.append(
+                f'<section style="margin-top:0.75rem;"><h3 style="margin-bottom:0.25rem;">{_escape_html(name)}</h3>{actor_html}</section>'
+            )
+    actors_block = (
+        '<div style="margin-top:1rem;"><strong>Existing target provenance actor metadata</strong>'
+        + "".join(actors)
+        + "</div>"
+        if actors
+        else ""
+    )
     return f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"/><title>{_escape_html(title)}</title>
 <style>
@@ -356,6 +424,7 @@ p.note {{ color: #444; font-size: 0.9rem; }}
 <h1>{_escape_html(title)}</h1>
 <p class="note">Values are sent only to this local process and are not echoed to the agent or logs.</p>
 {banner}
+{actors_block}
 <form method="post" action="/submit" id="sz-agent-form">
 {body}
 <button type="submit">Submit</button>
@@ -446,6 +515,7 @@ def run_blocking_web_agent_form(
     dry_run: bool,
     port_min: int,
     port_max: int,
+    host: str,
     open_browser: bool,
 ) -> AgentSyncResult:
     """Start a one-shot localhost server, block until the form is submitted or timeout.
@@ -465,7 +535,7 @@ def run_blocking_web_agent_form(
         )
         return synchronizer.sync()
 
-    port = _pick_port(port_min, port_max)
+    port = _pick_port(host, port_min, port_max)
     done = threading.Event()
     error_box: list[str] = []
     result_holder: list[Any] = []
@@ -474,7 +544,7 @@ def run_blocking_web_agent_form(
 
     @app.get("/", response_class=HTMLResponse)
     async def form() -> str:
-        return _build_form_html(pending_secret_names, secretfile, secretfile_path)
+        return _build_form_html(pending_secret_names, secretfile, lockfile, secretfile_path)
 
     @app.post("/submit")
     async def submit(request: Request) -> HTMLResponse:
@@ -505,7 +575,7 @@ def run_blocking_web_agent_form(
             "<html><body><p>Submitted. You can close this window.</p></body></html>"
         )
 
-    config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning")
+    config = uvicorn.Config(app, host=host, port=port, log_level="warning")
     server = uvicorn.Server(config)
 
     def _run_server() -> None:
@@ -518,7 +588,8 @@ def run_blocking_web_agent_form(
     thread = threading.Thread(target=_run_server, daemon=True)
     thread.start()
 
-    url = f"http://127.0.0.1:{port}/"
+    url_host = "127.0.0.1" if host == "0.0.0.0" else host
+    url = f"http://{url_host}:{port}/"
     logger.info("Agent web UI listening on %s", url)
     if open_browser:
         try:
@@ -560,7 +631,7 @@ def create_web_app_for_session(
 
     @app.get("/", response_class=HTMLResponse)
     async def form() -> str:
-        return _build_form_html(pending_secret_names, secretfile, secretfile_path)
+        return _build_form_html(pending_secret_names, secretfile, lockfile, secretfile_path)
 
     @app.post("/submit")
     async def submit(request: Request) -> HTMLResponse:
@@ -610,10 +681,11 @@ def start_web_session_server(
     dry_run: bool,
     port_min: int,
     port_max: int,
+    host: str = "127.0.0.1",
     registry: WebSessionRegistry,
 ) -> tuple[str, int]:
     """Run a localhost server in a daemon thread; return (base_url, port)."""
-    port = _pick_port(port_min, port_max)
+    port = _pick_port(host, port_min, port_max)
     app = create_web_app_for_session(
         session_id=session_id,
         pending_secret_names=pending_secret_names,
@@ -625,11 +697,12 @@ def start_web_session_server(
         dry_run=dry_run,
         registry=registry,
     )
-    config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning")
+    config = uvicorn.Config(app, host=host, port=port, log_level="warning")
     server = uvicorn.Server(config)
 
     def _run() -> None:
         asyncio.run(server.serve())
 
     threading.Thread(target=_run, daemon=True).start()
-    return f"http://127.0.0.1:{port}/", port
+    public_host = "127.0.0.1" if host == "0.0.0.0" else host
+    return f"http://{public_host}:{port}/", port

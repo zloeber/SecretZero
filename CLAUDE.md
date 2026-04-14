@@ -47,13 +47,24 @@ Detailed guidance, `agent_instructions` (with templating support), top-level `ag
 Run **in order** from the repository root before any push or merge:
 
 ```bash
-task lint:fix && task format && task schema:update
-task test
-task security:scan
-task test:validations
+./scripts/agent.pre-commit.sh --mode full
 ```
 
-Fix all issues. If schema or lint tasks change files, commit them and re-run the checklist. Verify changes work via both CLI and API where applicable.
+Fix all issues. If schema or lint tasks change files, the script exits with instructions; commit those changes and re-run at least `task test` and `task security:scan`. Verify changes work via both CLI and API where applicable.
+
+## End-of-Work Prompt
+
+At the end of any coding task, run a fast local gate:
+
+```bash
+./scripts/agent.pre-commit.sh --mode fast --quiet
+```
+
+Before any push/merge, run the full gate:
+
+```bash
+./scripts/agent.pre-commit.sh --mode full
+```
 
 ## Other Workflows
 

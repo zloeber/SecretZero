@@ -196,7 +196,6 @@ def collect_lockfile_sync_identity(
     return LockfileSyncIdentity(
         client=client,
         secretzero_version=__version__,
-        working_directory=str(Path.cwd().resolve()),
         os_user=getpass.getuser(),
         os_uid=uid,
         os_euid=euid,

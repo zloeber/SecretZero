@@ -4,6 +4,7 @@ import json
 from datetime import UTC
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 import pytest
 from click.testing import CliRunner
@@ -546,3 +547,47 @@ templates: {}
             )
             assert result.exit_code == 0, result.output
             assert not lock.exists()
+
+    def test_web_host_option_warns_for_http_0_0_0_0(self, runner: CliRunner) -> None:
+        with TemporaryDirectory() as tmpdir:
+            sf = Path(tmpdir) / "Secretfile.yml"
+            sf.write_text("""version: '1.0'
+variables: {}
+providers: {}
+secrets:
+  - name: stripe_key
+    kind: static
+    config: {}
+    agent_instructions:
+      summary: Sign up for Stripe
+      steps:
+        - action: Visit https://dashboard.stripe.com/register
+          description: Create account
+templates: {}
+""")
+
+            fake_result = AgentSyncResult(
+                synced_secrets=[],
+                pending_secrets={},
+                failed_secrets={},
+                already_synced=[],
+                automation_summary={},
+            )
+            with patch("secretzero.agent.AgentSecretSynchronizer") as sync_cls:
+                sync_cls.return_value.sync.return_value = fake_result
+                result = runner.invoke(
+                    main,
+                    [
+                        "agent",
+                        "sync",
+                        "--file",
+                        str(sf),
+                        "--web",
+                        "--web-host",
+                        "0.0.0.0",
+                        "--dry-run",
+                    ],
+                )
+            assert result.exit_code == 0, result.output
+            assert "Warning:" in result.output
+            assert "0.0.0.0" in result.output

@@ -5,8 +5,8 @@ Use when extending **who / where / CI** metadata persisted on sync (not secret v
 ## Where it lives
 
 - **Schema:** `LockfileSyncIdentity` and `SecretfileMetadata.sync_identity` in `src/secretzero/lockfile.py`
-- **Collection:** `collect_lockfile_sync_identity()` in `src/secretzero/sync_identity.py` (host, user, git config/HEAD at Secretfile parent, CI env — **no tokens**)
-- **Wiring:** `SyncEngine` (`sync_client`, optional `sync_identity` override, `sync_identity_cwd`) calls `Lockfile.track_secretfile(..., sync_identity=...)` once per run and passes the same snapshot into `record_target_update` for per-target provenance
+- **Collection:** `collect_lockfile_sync_identity()` in `src/secretzero/sync_identity.py` (host, user, git config/HEAD at Secretfile parent, CI env — **no tokens**, and no working-directory path)
+- **Wiring:** `SyncEngine` (`sync_client`, optional `sync_identity` override, `sync_identity_cwd`) calls `Lockfile.track_secretfile(..., sync_identity=...)` once per run and merges that snapshot with target/provider actor metadata before `record_target_update` for per-target provenance
 
 ## Verify
 

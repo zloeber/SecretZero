@@ -80,6 +80,15 @@ class SyncEngine:
     def _sync_actor_dict(self) -> dict[str, Any]:
         return self._resolve_sync_identity().model_dump(mode="json", exclude_none=True)
 
+    def _target_provenance_actor(self, target_actor: dict[str, Any] | None) -> dict[str, Any]:
+        """Merge sync identity with target/provider actor metadata for provenance."""
+        actor = self._sync_actor_dict()
+        if isinstance(target_actor, dict):
+            # Provider/target actor metadata wins for overlapping keys and may include
+            # auth/introspection details (account IDs, token mode, usernames, etc).
+            actor.update(target_actor)
+        return actor
+
     def _record_lockfile_source_state(self, dry_run: bool) -> None:
         """Update secretfile tracking and sync identity once per engine run (non–dry-run only)."""
         if dry_run or not self.secretfile_path or not self.secretfile_content:
@@ -615,7 +624,9 @@ class SyncEngine:
                         secret.name, secret_value, target_id=target_id, is_rotation=force_rotation
                     )
                     self.lockfile.record_target_update(
-                        secret.name, target_id, actor=self._sync_actor_dict()
+                        secret.name,
+                        target_id,
+                        actor=self._target_provenance_actor(target_result.get("actor")),
                     )
 
             # If secret was generated but has no targets, still add to lockfile
@@ -773,7 +784,9 @@ class SyncEngine:
                             field_secret_name, field_value, target_id=target_id
                         )
                         self.lockfile.record_target_update(
-                            field_secret_name, target_id, actor=self._sync_actor_dict()
+                            field_secret_name,
+                            target_id,
+                            actor=self._target_provenance_actor(target_result.get("actor")),
                         )
 
                 if all_targets_ok:

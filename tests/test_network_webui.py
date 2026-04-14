@@ -271,6 +271,36 @@ def test_apply_static_calls_sync_with_force_rotation(tmp_path: Path) -> None:
         assert ca.kwargs.get("secret_names") == ["s1"]
 
 
+def test_secret_edit_shows_target_provenance_actor(tmp_path: Path) -> None:
+    auth = NetworkWebSessionStore.from_bootstrap_token("acttok")
+    lk_path = tmp_path / "a.lock"
+    lk_path.write_text(
+        '{"version":"1.0","secrets":{"s1":{"hash":"h","created_at":"t","updated_at":"t",'
+        '"target_provenance":{"local/file/.env":[{"updated_at":"t","actor":{"provider":"local","os_user":"alice"}}]}}}}\n'
+    )
+    lk = Lockfile.load(lk_path)
+    app = create_network_web_app(
+        secretfile=_secretfile_one_static(),
+        lockfile=lk,
+        lockfile_path=lk_path,
+        secretfile_path=None,
+        secretfile_content=None,
+        var_file_paths=None,
+        dry_run=True,
+        debug=False,
+        auth=auth,
+        use_tls=False,
+        on_shutdown=lambda: None,
+    )
+    c = TestClient(app)
+    r0 = c.post("/auth", data={"access_token": "acttok"}, follow_redirects=False)
+    assert r0.status_code == 302
+    edit = c.get("/secret/s1/edit", cookies=r0.cookies)
+    assert edit.status_code == 200
+    assert "Recent target actor metadata" in edit.text
+    assert "alice" in edit.text
+
+
 def test_dashboard_includes_debug_panel_when_enabled(tmp_path: Path) -> None:
     auth = NetworkWebSessionStore.from_bootstrap_token("dbg")
     lk_path = tmp_path / "d.lock"
