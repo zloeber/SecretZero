@@ -25,6 +25,7 @@ from pydantic import BaseModel, Field
 
 from secretzero.bundles import get_bundle_registry
 from secretzero.bundles.registry import BundleRegistry, TerraformProviderConfig
+from secretzero.generators.traits import secret_prompts_like_static
 from secretzero.models import Secret, Secretfile, TargetConfig
 
 
@@ -329,7 +330,7 @@ def _build_generator_expression(
         project.resources.append(resource)
         return f"${{{res_type}.{safe_name}.result}}"
 
-    if kind == "static":
+    if secret_prompts_like_static(secret, registry=get_bundle_registry()):
         if not options.include_static_secrets:
             return None
         default = secret.config.get("default")

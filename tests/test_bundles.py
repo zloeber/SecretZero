@@ -302,7 +302,7 @@ class TestGetBundleRegistry:
 
     def test_builtin_generators_registered(self) -> None:
         reg = get_bundle_registry()
-        for kind in ("random_password", "random_string", "static", "script"):
+        for kind in ("random_password", "random_string", "static", "script", "azure_app_reg"):
             assert reg.get_generator_class(kind) is not None, f"Missing generator: {kind}"
 
     def test_builtin_targets_registered(self) -> None:

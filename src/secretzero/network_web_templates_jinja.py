@@ -682,17 +682,49 @@ TEMPLATES = {
 {% block body %}
   <h1>{{ title }}</h1>
   <p class="lead">New value is merged as a static secret and synced to targets for <code>{{ secret_name }}</code>.</p>
+  {{ operator_banner_html | safe }}
   {% if error_message %}
   <div class="alert" role="alert">{{ error_message }}</div>
   {% endif %}
   {% with agent_instructions=agent_instructions %}
   {% include "agent_instructions_partial.html" %}
   {% endwith %}
-  <form method="post" action="/secret/{{ secret_name | uquote }}/apply" autocomplete="off">
+  <form method="post" action="/secret/{{ secret_name | uquote }}/apply" autocomplete="off" id="sz-static-edit-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
     <input type="hidden" name="list_filter" value="{{ list_filter }}"/>
+    {% if structured %}
+    <fieldset style="border:1px solid var(--border);padding:1rem;border-radius:6px;margin-top:1rem;">
+      <legend style="font-weight:600;">Structured fields</legend>
+      <p style="font-size:0.9rem;color:var(--muted);margin:0 0 0.75rem;">Enter each missing field (same order as <code>secretzero sync</code>), or paste a full JSON object below.</p>
+      {% for row in dict_leaves %}
+      <label for="sz-leaf-{{ loop.index0 }}"><strong>{{ secret_name }}</strong> — {{ row.label }}</label>
+      <input id="sz-leaf-{{ loop.index0 }}" name="{{ row.field_name }}" type="password" autocomplete="off" required/>
+      {% endfor %}
+    </fieldset>
+    <details style="margin-top:1rem;">
+      <summary style="cursor:pointer;font-weight:600;">Paste full JSON instead</summary>
+      <label for="sz-json-bulk" style="display:block;margin-top:0.75rem;">JSON object</label>
+      <textarea id="sz-json-bulk" name="{{ json_field_name }}" rows="8" style="width:100%;font-family:ui-monospace,monospace;" placeholder="{}"></textarea>
+      <p style="font-size:0.85rem;color:var(--muted);">If you provide JSON, per-field inputs can be left empty.</p>
+    </details>
+    <script>
+    (function () {
+      var form = document.getElementById("sz-static-edit-form");
+      if (!form) return;
+      form.addEventListener("submit", function () {
+        var ta = form.querySelector("textarea[name='{{ json_field_name }}']");
+        if (ta && ta.value && String(ta.value).trim() !== "") {
+          form.querySelectorAll("fieldset input[type=password]").forEach(function (inp) {
+            inp.removeAttribute("required");
+          });
+        }
+      });
+    })();
+    </script>
+    {% else %}
     <label for="value">New value</label>
     <input id="value" name="value" type="password" required autocomplete="off"/>
+    {% endif %}
     <button type="submit" class="btn btn-primary" style="margin-top:1rem;width:auto;">Apply and sync</button>
   </form>
   <p style="margin-top:1.25rem;"><a href="/dashboard?filter={{ list_filter }}">← Back to manifest</a></p>

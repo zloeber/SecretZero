@@ -40,7 +40,7 @@ providers:
 secrets:
   - name: entra_app_registration
     description: "Complete Entra ID app registration with tenant ID, client ID, and client secret"
-    kind: static
+    kind: azure_app_reg
     one_time: false
     rotation_period: 180d  # Rotate every 6 months based on client secret lifecycle
     config:

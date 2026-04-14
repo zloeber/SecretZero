@@ -232,10 +232,11 @@ class AgentSecretSynchronizer:
         if secret.kind in _AUTO_GENERATOR_KINDS:
             return True
 
-        # Static secrets: auto-sync only when no interactive fill is required
-        if secret.kind == "static":
-            from secretzero.generators.static import static_payload_needs_prompt
+        # Static-like secrets: auto-sync only when no interactive fill is required
+        from secretzero.generators.static import static_payload_needs_prompt
+        from secretzero.generators.traits import secret_prompts_like_static
 
+        if secret_prompts_like_static(secret):
             if "default" in secret.config:
                 value = secret.config["default"]
             else:

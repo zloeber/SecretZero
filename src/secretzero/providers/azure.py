@@ -480,12 +480,14 @@ def _get_bundle_manifest() -> "BundleManifest":  # noqa: F821
         name="azure",
         version="1.0.0",
         provider_class="secretzero.providers.azure:AzureProvider",
-        generators={},
+        generators={
+            "azure_app_reg": "secretzero.generators.azure_app_reg:AzureAppRegGenerator",
+        },
         targets={
             "azure_keyvault": "secretzero.targets.azure:KeyVaultTarget",
             "key_vault": "secretzero.targets.azure:KeyVaultTarget",
         },
-        generator_kinds=[],
+        generator_kinds=["azure_app_reg"],
         target_kinds=["azure_keyvault", "key_vault"],
         terraform_provider={
             "name": "azurerm",
