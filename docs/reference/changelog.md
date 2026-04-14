@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `var_files` request support to API `/sync` and `/agent/sync` endpoints to mirror CLI-style `.szvar` workflows in API automation.
 - Added a dedicated workflow-diagram documentation section for Tavern API scenarios in `docs/user-guide/agent-sync.md`.
 - Added a dedicated GitHub Actions `e2e-tests` job so Tavern E2E runs in parallel with unit tests.
+- Added `secretzero get` CLI command for provider-backed retrieval with sandbox gating (`SZ_SANDBOX` / `SZ_ALLOW_GET_IN_SANDBOX`), policy preflight, and metadata-first output (`--reveal` required for plaintext).
+- Added Terraform export support to always emit sensitive variables for static/static-like secrets; `--include-static-secrets` now controls inclusion of static defaults in generated variable blocks.
 
 ### Planned
 - Web UI for secret management

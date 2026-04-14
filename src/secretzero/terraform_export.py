@@ -331,12 +331,20 @@ def _build_generator_expression(
         return f"${{{res_type}.{safe_name}.result}}"
 
     if secret_prompts_like_static(secret, registry=get_bundle_registry()):
-        if not options.include_static_secrets:
-            return None
-        default = secret.config.get("default")
-        if default is None:
-            return None
-        return default
+        var_name = f"secret_{safe_name}"
+        static_default = secret.config.get("default", secret.config.get("value"))
+        variable_body: dict[str, Any] = {
+            "description": f"Value for static secret '{secret.name}'.",
+            "sensitive": True,
+        }
+        if isinstance(static_default, (dict, list)):
+            variable_body["type"] = "any"
+        else:
+            variable_body["type"] = "string"
+        if options.include_static_secrets and static_default is not None:
+            variable_body["default"] = static_default
+        project.variables.setdefault(var_name, variable_body)
+        return f"${{var.{var_name}}}"
 
     return None
 

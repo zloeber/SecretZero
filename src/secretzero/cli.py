@@ -5489,7 +5489,7 @@ def _scaffold_bundle_impl(
 @click.option(
     "--include-static-secrets/--no-include-static-secrets",
     default=False,
-    help="Include static secret values directly in Terraform (may embed secrets in code).",
+    help="Include default values for static-secret Terraform variables (may embed secrets in code).",
 )
 @click.option(
     "--dry-run",

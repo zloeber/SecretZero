@@ -56,3 +56,69 @@ def test_generate_terraform_from_secretfile_test() -> None:
         assert main_file.exists()
         data = main_file.read_text()
         assert '"resource"' in data or '"provider"' in data or '"terraform"' in data
+
+
+def test_terraform_always_creates_static_secret_variable() -> None:
+    """Static secrets should always render Terraform variables."""
+    with TemporaryDirectory() as tmpdir:
+        secretfile_path = Path(tmpdir) / "Secretfile.yml"
+        secretfile_path.write_text("""
+version: "1.0"
+providers:
+  aws:
+    kind: aws
+secrets:
+  - name: static_api_key
+    kind: static
+    config:
+      default: keep-me-out-of-code
+    targets:
+      - provider: aws
+        kind: ssm_parameter
+        config:
+          name: /test/static_api_key
+""")
+        loader = ConfigLoader()
+        secretfile = loader.load_file(secretfile_path)
+        registry = get_bundle_registry()
+        options = TerraformGeneratorOptions(
+            output_dir=Path(tmpdir),
+            format=TerraformOutputFormat.JSON,
+            include_static_secrets=False,
+        )
+        project = generate_terraform(secretfile, options, registry=registry)
+
+    static_secret = next(s for s in secretfile.secrets if str(s.kind) == "static")
+    var_cfg = next(
+        cfg
+        for cfg in project.variables.values()
+        if cfg.get("description") == f"Value for static secret '{static_secret.name}'."
+    )
+    assert var_cfg["sensitive"] is True
+    assert var_cfg["type"] == "string"
+    assert "default" not in var_cfg
+
+
+def test_terraform_static_dict_variable_type_and_default() -> None:
+    """Static dict secrets should map to `any` variable type and keep default when requested."""
+    secretfile_path = _project_root() / "examples" / "azure-appreg-to-aws-sm.yml"
+    loader = ConfigLoader()
+    secretfile = loader.load_file(secretfile_path)
+    registry = get_bundle_registry()
+
+    with TemporaryDirectory() as tmpdir:
+        options = TerraformGeneratorOptions(
+            output_dir=Path(tmpdir),
+            format=TerraformOutputFormat.JSON,
+            include_static_secrets=True,
+        )
+        project = generate_terraform(secretfile, options, registry=registry)
+
+    azure_secret = next(s for s in secretfile.secrets if str(s.kind) == "azure_app_reg")
+    var_cfg = next(
+        cfg
+        for cfg in project.variables.values()
+        if cfg.get("description") == f"Value for static secret '{azure_secret.name}'."
+    )
+    assert var_cfg["type"] == "any"
+    assert isinstance(var_cfg.get("default"), dict)
