@@ -1,0 +1,71 @@
+---
+test_name: provider identity policy validation via API
+
+stages:
+  - name: validate rejects unknown identity_policies reference on target
+    request:
+      url: "{tavern.env_vars.SECRETZERO_E2E_BASE}/config/validate"
+      method: POST
+      headers:
+        Content-Type: application/json
+      json:
+        config:
+          variables: {}
+          providers:
+            local:
+              kind: local
+          policies: {}
+          secrets:
+            - name: policy_ref_e2e
+              kind: random_string
+              config:
+                length: 8
+              targets:
+                - provider: local
+                  kind: file
+                  identity_policies:
+                    - this_policy_does_not_exist
+                  config:
+                    path: ./e2e-policy-ref.env
+                    format: dotenv
+    response:
+      status_code: 200
+      verify_response_with:
+        - function: e2e.tavern_helpers:assert_validate_errors_contain_identity_ref
+
+  - name: validate rejects provider_identity rule with two matchers
+    request:
+      url: "{tavern.env_vars.SECRETZERO_E2E_BASE}/config/validate"
+      method: POST
+      headers:
+        Content-Type: application/json
+      json:
+        config:
+          variables: {}
+          providers:
+            local:
+              kind: local
+          policies:
+            bad_rule:
+              kind: provider_identity
+              providers:
+                - local
+              rules:
+                - field: x
+                  glob: "*"
+                  regex: ".*"
+          secrets:
+            - name: policy_shape_e2e
+              kind: random_string
+              config:
+                length: 8
+              targets:
+                - provider: local
+                  kind: file
+                  config:
+                    path: ./e2e-policy-shape.env
+                    format: dotenv
+    response:
+      status_code: 200
+      verify_response_with:
+        - function: e2e.tavern_helpers:assert_validate_errors_contain_provider_identity_rule

@@ -1067,7 +1067,14 @@ def schema() -> None:
 )
 def schema_export(output: str) -> None:
     """Export JSON Schema for Secretfile.yml."""
+    from secretzero.policy import ProviderIdentityPolicy
+
     schema_json = Secretfile.model_json_schema()
+    pi_json = ProviderIdentityPolicy.model_json_schema()
+    defs = schema_json.setdefault("$defs", {})
+    for key, val in pi_json.get("$defs", {}).items():
+        defs[key] = val
+    defs["ProviderIdentityPolicy"] = {k: v for k, v in pi_json.items() if k != "$defs"}
     payload = json.dumps(schema_json, indent=2)
 
     if output == "-" or not output:

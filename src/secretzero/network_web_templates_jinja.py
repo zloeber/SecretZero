@@ -65,6 +65,33 @@ main {
 .pi-status--unauthenticated { color: #9a6700; }
 .pi-status--error, .pi-status--unregistered, .pi-status--unknown { color: #cf222e; }
 .pi-ident code { font-size: 0.85em; }
+.identity-preflight-wrap strong { color: var(--text); }
+.identity-preflight {
+  margin-top: 0.45rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+.identity-preflight--ok {
+  background: rgba(25, 135, 84, 0.12);
+  border: 1px solid rgba(25, 135, 84, 0.35);
+}
+.identity-preflight--bad {
+  background: rgba(207, 34, 46, 0.1);
+  border: 1px solid rgba(207, 34, 46, 0.4);
+}
+.identity-preflight--neutral {
+  background: rgba(127, 127, 127, 0.08);
+  border: 1px solid var(--border);
+}
+.pi-pf-status { font-weight: 600; font-size: 0.8rem; text-transform: none; }
+.pi-pf-status--ok { color: #1a7f37; }
+.pi-pf-status--provider_missing,
+.pi-pf-status--auth_failed,
+.pi-pf-status--actor_failed,
+.pi-pf-status--policy_failed { color: #cf222e; }
+td.pi-pf-detail { font-size: 0.82rem; word-break: break-word; max-width: 28rem; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; align-items: center; }
 .toolbar--secondary { margin-bottom: 0.65rem; }
 .toolbar form { display: inline; margin: 0; }
@@ -530,6 +557,33 @@ TEMPLATES = {
         </tbody>
       </table>
     </div>
+  </div>
+  {% endif %}
+  {% if manifest.identity_preflight %}
+  <div class="manifest-meta identity-preflight-wrap" style="margin-top:0.5rem;">
+    <div><strong>Authentication vs identity policies</strong>
+      <span style="font-weight:400;"> — live check using each provider’s <code>get_actor_info()</code> (same rules as sync)</span>
+    </div>
+    <div class="identity-preflight {% if manifest.identity_preflight.preflight_error %}identity-preflight--bad{% elif manifest.identity_preflight.has_policies %}{% if manifest.identity_preflight.all_ok %}identity-preflight--ok{% else %}identity-preflight--bad{% endif %}{% else %}identity-preflight--neutral{% endif %}" role="status">
+      {{ manifest.identity_preflight.headline }}
+    </div>
+    {% if manifest.identity_preflight.rows %}
+    <div class="table-wrap" style="margin-top:0.5rem;">
+      <table class="sz" role="table" aria-label="Provider identity policy check results">
+        <thead><tr><th>Policy</th><th>Provider</th><th>Result</th><th>Detail</th></tr></thead>
+        <tbody>
+          {% for it in manifest.identity_preflight.rows %}
+          <tr>
+            <td><code>{{ it.policy_name }}</code></td>
+            <td><code>{{ it.provider_alias }}</code></td>
+            <td><span class="pi-pf-status pi-pf-status--{{ it.status }}">{{ it.status }}</span></td>
+            <td class="pi-pf-detail">{% if it.detail %}{{ it.detail }}{% else %}—{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
   </div>
   {% endif %}
   <div class="toolbar">

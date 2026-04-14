@@ -162,7 +162,10 @@ def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
             warnings = []
 
             try:
-                Secretfile.model_validate(request.config)
+                from secretzero.policy import validate_secretfile_policy_shapes
+
+                sf = Secretfile.model_validate(request.config)
+                validate_secretfile_policy_shapes(sf)
             except ValidationError as exc:
                 errors.extend(
                     [
@@ -170,6 +173,8 @@ def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
                         for err in exc.errors()
                     ]
                 )
+            except ValueError as exc:
+                errors.append(str(exc))
 
             valid = len(errors) == 0
 

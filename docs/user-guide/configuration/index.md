@@ -289,6 +289,8 @@ policies:
     enabled: true
 ```
 
+**Provider identity** (`kind: provider_identity`) restricts sync to matching authenticated principals (AWS account, Vault policies, etc.). See [Provider identity policies →](provider-identity-policies.md).
+
 ## Configuration Validation
 
 SecretZero validates your configuration before execution:

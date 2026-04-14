@@ -12,6 +12,12 @@ SecretZero validates configuration at multiple layers:
 4. **Provider Validation** - Provider connectivity and authentication
 5. **Policy Validation** - Compliance with defined policies
 
+## Provider identity policy validation
+
+`provider_identity` entries and per-target `identity_policies` references are checked when the Secretfile is loaded (`secretzero validate`, API `POST /config/validate`, and before sync). Invalid rule shapes (for example two matchers on the same rule) or unknown policy names on targets produce clear errors. Live evaluation against your cloud identity happens at **sync** time (and on the `secretzero web` dashboard preflight panel).
+
+See [Provider identity policies](provider-identity-policies.md) for examples and when to use this feature.
+
 ## Schema Validation
 
 ### Basic Validation

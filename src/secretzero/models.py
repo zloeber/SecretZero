@@ -286,6 +286,14 @@ class TargetConfig(BaseModel):
     provider: str
     kind: TargetKind | str
     config: dict[str, Any] = Field(default_factory=dict)
+    identity_policies: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Optional names of root `policies` entries with `kind: provider_identity` to enforce "
+            "when this target participates in sync (in addition to policies that already apply via "
+            "`providers:` overlap)."
+        ),
+    )
 
 
 class TemplateField(BaseModel):
@@ -337,7 +345,14 @@ class Secretfile(BaseModel):
     providers: dict[str, Provider] = Field(default_factory=dict)
     secrets: list[Secret] = Field(default_factory=list)
     templates: dict[str, Template] = Field(default_factory=dict)
-    policies: dict[str, Any] = Field(default_factory=dict)
+    policies: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Optional policy definitions. Supported `kind` values include `rotation`, `compliance`, "
+            "`access`, and `provider_identity` (restrict sync to matching provider authentication; "
+            "see schema $defs ProviderIdentityPolicy)."
+        ),
+    )
     labels: dict[str, Any] = Field(default_factory=dict)
     annotations: dict[str, Any] = Field(default_factory=dict)
     config: AppConfig | None = Field(
