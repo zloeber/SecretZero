@@ -10,6 +10,7 @@ gitleaks = "latest"
 yq = "latest"
 npm = "latest"
 node = "latest"
+gh = "latest"
 
 [tools."github:asciinema/agg"]
 version = "latest"
