@@ -1,6 +1,7 @@
 """CLI interface for SecretZero."""
 
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -108,6 +109,41 @@ def _is_non_interactive() -> bool:
     if obj is None:
         return False
     return bool(obj.get("non_interactive", False))
+
+
+def _env_flag(name: str) -> bool:
+    """Return True when environment variable is a truthy flag."""
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _enforce_get_sandbox_policy() -> None:
+    """Block ``get`` in sandbox mode unless explicitly overridden."""
+    if not _env_flag("SZ_SANDBOX"):
+        return
+    if _env_flag("SZ_ALLOW_GET_IN_SANDBOX"):
+        return
+    raise click.ClickException(
+        "secretzero get is blocked in sandbox mode (SZ_SANDBOX=true). "
+        "Set SZ_ALLOW_GET_IN_SANDBOX=true to override intentionally."
+    )
+
+
+def _parse_get_args(raw_args: tuple[str, ...]) -> dict[str, Any]:
+    """Parse repeatable KEY=VALUE args for ``secretzero get``."""
+    parsed: dict[str, Any] = {}
+    for item in raw_args:
+        if "=" not in item:
+            raise click.ClickException(f"Invalid --arg '{item}'. Expected KEY=VALUE format.")
+        key, raw_value = item.split("=", 1)
+        key = key.strip()
+        if not key:
+            raise click.ClickException(f"Invalid --arg '{item}'. KEY cannot be empty.")
+        raw_value = raw_value.strip()
+        try:
+            parsed[key] = json.loads(raw_value)
+        except json.JSONDecodeError:
+            parsed[key] = raw_value
+    return parsed
 
 
 @main.command()
@@ -2768,6 +2804,171 @@ def show(secret_name: str | None, file: str, lockfile: str, detailed: bool) -> N
         _show_secret_detailed(secret, info, config)
     else:
         _show_secret_brief(info)
+
+
+@main.command()
+@click.option(
+    "--file",
+    "-f",
+    type=click.Path(exists=True),
+    default="Secretfile.yml",
+    help="Path to Secretfile",
+)
+@click.option(
+    "--lockfile",
+    "-l",
+    type=click.Path(),
+    default=".gitsecrets.lock",
+    help="Path to lockfile",
+)
+@click.option("--provider", required=True, help="Configured provider alias from Secretfile")
+@click.option("--secret-id", required=True, help="Provider secret identifier/path")
+@click.option(
+    "--method",
+    help="Provider retrieval method (default: retrieve_secret, fallback: get_secret)",
+)
+@click.option(
+    "--arg",
+    "method_args",
+    multiple=True,
+    help="Method argument in KEY=VALUE form (repeatable). VALUE may be JSON.",
+)
+@click.option(
+    "--reveal",
+    is_flag=True,
+    help="Include secret value in output when provider supports plaintext retrieval.",
+)
+@click.option(
+    "--policy-check/--no-policy-check",
+    default=True,
+    help="Validate policy violations before retrieval.",
+)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    help="Output format (text or json)",
+)
+def get(
+    file: str,
+    lockfile: str,
+    provider: str,
+    secret_id: str,
+    method: str | None,
+    method_args: tuple[str, ...],
+    reveal: bool,
+    policy_check: bool,
+    output_format: str,
+) -> None:
+    """Retrieve a secret value through provider bundle methods.
+
+    This command is sandbox-protected:
+    - ``SZ_SANDBOX=true`` blocks retrieval.
+    - ``SZ_ALLOW_GET_IN_SANDBOX=true`` explicitly overrides the block.
+
+    By default, output is metadata-only. Pass ``--reveal`` to include plaintext
+    when the provider API returns a revealable value.
+    """
+    file_path = Path(file)
+    lockfile_path = Path(lockfile)
+    loader = ConfigLoader()
+
+    try:
+        _enforce_get_sandbox_policy()
+        config = loader.load_file(file_path)
+    except click.ClickException as e:
+        if output_format == "json":
+            click.echo(json.dumps({"error": str(e)}))
+        else:
+            console.print(f"[red]Error:[/red] {e}")
+        sys.exit(EXIT_VALIDATION_ERROR)
+    except Exception as e:
+        if output_format == "json":
+            click.echo(json.dumps({"error": str(e)}))
+        else:
+            console.print(f"[red]Error loading Secretfile:[/red] {e}")
+        sys.exit(EXIT_CONFIG_ERROR)
+
+    lock = Lockfile.load(lockfile_path) if lockfile_path.exists() else Lockfile()
+
+    if policy_check:
+        policy_engine = PolicyEngine(config)
+        violations = policy_engine.validate_all(lock)
+        blocking = [v for v in violations if v.severity == "error"]
+        if blocking:
+            payload = {
+                "error": "Policy blocked get command execution",
+                "violations": [
+                    {
+                        "policy": v.policy_name,
+                        "secret": v.secret_name,
+                        "severity": v.severity,
+                        "message": v.message,
+                        "suggestion": v.suggestion,
+                    }
+                    for v in blocking
+                ],
+            }
+            if output_format == "json":
+                click.echo(json.dumps(payload, indent=2))
+            else:
+                console.print("[red]Error:[/red] Policy blocked get command execution")
+                for item in payload["violations"]:
+                    console.print(f"  • {item['secret']}: {item['message']}")
+            sys.exit(EXIT_VALIDATION_ERROR)
+
+    engine = SyncEngine(config, lock)
+    parsed_args = _parse_get_args(method_args)
+
+    try:
+        result = engine.get_provider_secret(
+            provider_name=provider,
+            secret_id=secret_id,
+            method_name=method,
+            method_args=parsed_args,
+        )
+    except Exception as e:
+        if output_format == "json":
+            click.echo(json.dumps({"error": str(e)}, indent=2))
+        else:
+            console.print(f"[red]Error:[/red] {e}")
+        sys.exit(EXIT_UNKNOWN_ERROR)
+
+    response: dict[str, Any] = {
+        "provider": result["provider"],
+        "secret_id": secret_id,
+        "method": result["method"],
+        "retrieved": result["retrieved"],
+        "revealable": result["revealable"],
+        "notes": result.get("notes"),
+        "revealed": bool(reveal and result["revealable"]),
+    }
+    if reveal and result["revealable"]:
+        response["value"] = result["value"]
+
+    if output_format == "json":
+        click.echo(json.dumps(response, indent=2))
+        return
+
+    console.print("[bold]Secret Retrieval[/bold]")
+    console.print(f"  Provider: [cyan]{response['provider']}[/cyan]")
+    console.print(f"  Method: [cyan]{response['method']}[/cyan]")
+    console.print(f"  Secret ID: [cyan]{secret_id}[/cyan]")
+    console.print(f"  Revealable: [cyan]{response['revealable']}[/cyan]")
+    if response.get("notes"):
+        console.print(f"  Notes: [yellow]{response['notes']}[/yellow]")
+    if reveal and result["revealable"]:
+        console.print("\n[bold]Value[/bold]")
+        console.print(result["value"])
+    elif not reveal:
+        console.print(
+            "\n[dim]Value not shown. Use --reveal to print plaintext when provider allows it.[/dim]"
+        )
+    else:
+        console.print(
+            "\n[yellow]Provider does not return plaintext for this secret; showing metadata only.[/yellow]"
+        )
 
 
 @main.command()

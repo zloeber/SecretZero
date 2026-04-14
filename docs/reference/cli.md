@@ -14,4 +14,5 @@ policy enforcement.
 - [Validate](../user-guide/cli/validate.md)
 - [Sync](../user-guide/cli/sync.md)
 - [Rotate](../user-guide/cli/rotate.md)
+- [Get](../user-guide/cli/get.md)
 - [Drift](../user-guide/cli/drift.md)

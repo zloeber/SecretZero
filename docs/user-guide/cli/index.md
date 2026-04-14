@@ -37,6 +37,7 @@ These options work with all commands:
 |---------|-------------|
 | [`sync`](sync.md) | Generate and synchronize secrets to targets |
 | [`show`](show.md) | Display information about a specific secret |
+| [`get`](get.md) | Retrieve provider-backed secret metadata (or value with `--reveal`) |
 | [`rotate`](rotate.md) | Rotate secrets based on rotation policies |
 
 ### Compliance & Monitoring
@@ -159,6 +160,21 @@ secretzero show api_key --file Secretfile.yml
 ```
 
 [Learn more →](show.md)
+
+### Get Provider Secret
+
+```bash
+# Metadata only (default)
+secretzero get --provider aws --secret-id "/prod/api/token"
+
+# Reveal plaintext only when explicitly requested
+secretzero get --provider aws --secret-id "/prod/api/token" --reveal --format json
+
+# Call a specific provider retrieval method
+secretzero get --provider vault --secret-id "secret/myapp/db" --arg field=password
+```
+
+[Learn more →](get.md)
 
 ### Rotate Secrets
 

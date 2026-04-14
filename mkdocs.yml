@@ -173,6 +173,7 @@ nav:
           - validate: user-guide/cli/validate.md
           - sync: user-guide/cli/sync.md
           - show: user-guide/cli/show.md
+          - get: user-guide/cli/get.md
           - rotate: user-guide/cli/rotate.md
           - policy: user-guide/cli/policy.md
           - drift: user-guide/cli/drift.md

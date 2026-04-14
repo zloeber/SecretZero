@@ -486,6 +486,19 @@ secrets:
 
 The same value is stored in all targets.
 
+### Can dict/object secrets be auto-mapped to key/value entries in AWS targets?
+
+Not today. For AWS `secrets_manager` and `ssm_parameter` targets, dict/object secret values are stored as a single JSON string payload, not automatically exploded into separate key/value entries.
+
+What this means:
+
+- A dict source value is preserved, but as one JSON blob in the target value field.
+- SecretZero does not currently provide automatic per-attribute mapping (for example `username` -> one key, `password` -> another key) for these AWS targets.
+
+Recommended workaround:
+
+- Use template field modeling (`templates.*`) or separate secret definitions when you need explicit per-key target mapping behavior.
+
 ### What happens if one target fails?
 
 SecretZero continues with other targets and reports errors at the end:

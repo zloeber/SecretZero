@@ -150,6 +150,153 @@ templates: {{}}
         assert payload["synced"] == 1
 
 
+def test_get_json_metadata_only_default(runner: CliRunner, monkeypatch: pytest.MonkeyPatch) -> None:
+    """`get` returns metadata by default without plaintext value."""
+    with TemporaryDirectory() as tmpdir:
+        sf = Path(tmpdir) / "Secretfile.yml"
+        sf.write_text(MINIMAL_SECRETFILE)
+
+        def _fake_get(self, provider_name, secret_id, method_name=None, method_args=None):
+            return {
+                "provider": provider_name,
+                "method": method_name or "retrieve_secret",
+                "retrieved": True,
+                "revealable": True,
+                "value": "super-secret",
+                "notes": None,
+            }
+
+        monkeypatch.setattr("secretzero.cli.SyncEngine.get_provider_secret", _fake_get)
+
+        result = runner.invoke(
+            main,
+            [
+                "get",
+                "--file",
+                str(sf),
+                "--provider",
+                "local",
+                "--secret-id",
+                "app/secret",
+                "--format",
+                "json",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["provider"] == "local"
+        assert payload["revealed"] is False
+        assert "value" not in payload
+
+
+def test_get_json_reveal_includes_value(runner: CliRunner, monkeypatch: pytest.MonkeyPatch) -> None:
+    """`get --reveal` includes plaintext when revealable."""
+    with TemporaryDirectory() as tmpdir:
+        sf = Path(tmpdir) / "Secretfile.yml"
+        sf.write_text(MINIMAL_SECRETFILE)
+
+        def _fake_get(self, provider_name, secret_id, method_name=None, method_args=None):
+            return {
+                "provider": provider_name,
+                "method": "retrieve_secret",
+                "retrieved": True,
+                "revealable": True,
+                "value": "revealed-secret",
+                "notes": None,
+            }
+
+        monkeypatch.setattr("secretzero.cli.SyncEngine.get_provider_secret", _fake_get)
+
+        result = runner.invoke(
+            main,
+            [
+                "get",
+                "--file",
+                str(sf),
+                "--provider",
+                "local",
+                "--secret-id",
+                "app/secret",
+                "--reveal",
+                "--format",
+                "json",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["revealed"] is True
+        assert payload["value"] == "revealed-secret"
+
+
+def test_get_blocked_in_sandbox_without_override(
+    runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`get` is blocked when `SZ_SANDBOX=true` unless override is set."""
+    with TemporaryDirectory() as tmpdir:
+        sf = Path(tmpdir) / "Secretfile.yml"
+        sf.write_text(MINIMAL_SECRETFILE)
+        monkeypatch.setenv("SZ_SANDBOX", "true")
+        monkeypatch.delenv("SZ_ALLOW_GET_IN_SANDBOX", raising=False)
+
+        result = runner.invoke(
+            main,
+            [
+                "get",
+                "--file",
+                str(sf),
+                "--provider",
+                "local",
+                "--secret-id",
+                "app/secret",
+                "--format",
+                "json",
+            ],
+        )
+        assert result.exit_code == EXIT_VALIDATION_ERROR
+        payload = json.loads(result.output)
+        assert "blocked in sandbox mode" in payload["error"]
+
+
+def test_get_allows_sandbox_override(runner: CliRunner, monkeypatch: pytest.MonkeyPatch) -> None:
+    """`SZ_ALLOW_GET_IN_SANDBOX=true` allows `get` execution in sandbox mode."""
+    with TemporaryDirectory() as tmpdir:
+        sf = Path(tmpdir) / "Secretfile.yml"
+        sf.write_text(MINIMAL_SECRETFILE)
+        monkeypatch.setenv("SZ_SANDBOX", "true")
+        monkeypatch.setenv("SZ_ALLOW_GET_IN_SANDBOX", "true")
+
+        def _fake_get(self, provider_name, secret_id, method_name=None, method_args=None):
+            return {
+                "provider": provider_name,
+                "method": method_name or "retrieve_secret",
+                "retrieved": True,
+                "revealable": False,
+                "value": "[SECRET EXISTS]",
+                "notes": "exists-only",
+            }
+
+        monkeypatch.setattr("secretzero.cli.SyncEngine.get_provider_secret", _fake_get)
+
+        result = runner.invoke(
+            main,
+            [
+                "get",
+                "--file",
+                str(sf),
+                "--provider",
+                "local",
+                "--secret-id",
+                "app/secret",
+                "--format",
+                "json",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["revealable"] is False
+        assert payload["revealed"] is False
+
+
 def test_sync_json_output(runner: CliRunner) -> None:
     """Test sync command with --format json."""
     with TemporaryDirectory() as tmpdir:
