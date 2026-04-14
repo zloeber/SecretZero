@@ -21,6 +21,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from secretzero.agent import AgentSyncResult
+from secretzero.generators.traits import secret_prompts_like_static
 from secretzero.lockfile import Lockfile
 from secretzero.models import Secret, Secretfile
 from secretzero.sync_identity import collect_lockfile_sync_identity
@@ -54,8 +55,8 @@ def effective_static_value(secret: Secret) -> Any:
 
 
 def static_dict_needs_leaf_prompts(secret: Secret) -> bool:
-    """True when this static secret uses a dict/object value with missing leaves."""
-    if secret.kind != "static":
+    """True when this static-like secret uses a dict/object value with missing leaves."""
+    if not secret_prompts_like_static(secret):
         return False
     from secretzero.generators.static import static_payload_needs_prompt
 
@@ -111,7 +112,9 @@ def _set_nested_leaf(tree: dict[str, Any], path: tuple[str, ...], value: str) ->
             cur = nxt
 
 
-def _merge_leaf_strings_into_template(template: dict[str, Any], updates: dict[tuple[str, ...], str]) -> dict[str, Any]:
+def _merge_leaf_strings_into_template(
+    template: dict[str, Any], updates: dict[tuple[str, ...], str]
+) -> dict[str, Any]:
     out = copy.deepcopy(template)
     for path, val in updates.items():
         _set_nested_leaf(out, path, val)
@@ -132,7 +135,7 @@ def build_pending_static_values_from_form(
         sec = by_name.get(name)
         if sec is None:
             return None, f"Unknown secret {name!r}"
-        if sec.kind != "static":
+        if not secret_prompts_like_static(sec):
             raw = form_values.get(name)
             if raw is None or str(raw).strip() == "":
                 return None, f"Missing value for {name}"
@@ -185,7 +188,9 @@ def normalize_scalar_network_form(secret_name: str, form_values: dict[str, Any])
     return merged
 
 
-def static_secret_edit_template_vars(secret: Secret, secretfile_path: Path | None) -> dict[str, Any]:
+def static_secret_edit_template_vars(
+    secret: Secret, secretfile_path: Path | None
+) -> dict[str, Any]:
     """Context for ``secretzero web`` static edit page (structured vs scalar)."""
     banner = operator_context_banner_html(secretfile_path)
     if not static_dict_needs_leaf_prompts(secret):
@@ -323,7 +328,7 @@ def _build_form_html(
                 f'<label for="{jfid}" style="margin-top:0.75rem;">JSON object (optional; replaces per-field input)</label>'
                 f'<textarea id="{jfid}" name="{jfid}" rows="6" style="width:100%;font-family:monospace;'
                 f'margin-top:0.25rem;" placeholder="{{}}"></textarea>'
-                f"<p class=\"note\">If you fill JSON, leave per-field inputs empty or omit them.</p></details>"
+                f'<p class="note">If you fill JSON, leave per-field inputs empty or omit them.</p></details>'
             )
             sections.append(
                 '<fieldset style="border:1px solid #ccc;padding:1rem;margin-top:1rem;border-radius:6px;">'

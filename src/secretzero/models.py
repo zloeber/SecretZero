@@ -173,6 +173,7 @@ class GeneratorKind(str, Enum):
     """
 
     STATIC = "static"
+    AZURE_APP_REG = "azure_app_reg"
     RANDOM_PASSWORD = "random_password"
     RANDOM_STRING = "random_string"
     SCRIPT = "script"

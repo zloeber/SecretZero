@@ -31,6 +31,8 @@ def static_payload_needs_prompt(value: Any, *, nested: bool = False) -> bool:
 class StaticGenerator(BaseGenerator):
     """Generate static values with optional validation."""
 
+    PROMPTS_LIKE_STATIC = True
+
     def __init__(self, config: dict[str, Any]) -> None:
         """Initialize static generator.
 

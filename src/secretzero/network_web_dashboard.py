@@ -8,11 +8,17 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from secretzero.generators.traits import secret_prompts_like_static
 from secretzero.lockfile import Lockfile, SecretLockEntry
 from secretzero.models import AgentInstructions, Secret, Secretfile, TargetConfig
 from secretzero.sync import SyncEngine
 
 logger = logging.getLogger(__name__)
+
+
+def _secret_can_set_value_web(secret: Secret) -> bool:
+    """True when the dashboard may offer manual value entry (static-like generators)."""
+    return secret_prompts_like_static(secret)
 
 
 def format_target_line(target: TargetConfig) -> str:
@@ -356,7 +362,7 @@ def build_secret_rows(secretfile: Secretfile, lockfile: Lockfile) -> list[dict[s
                 "rotation_count": entry.rotation_count if entry else 0,
                 "in_lock": in_lock,
                 "is_unsynced": is_unsynced,
-                "can_set_value": sec.kind == "static",
+                "can_set_value": _secret_can_set_value_web(sec),
                 "agent_instructions": agent_payload,
             }
         )

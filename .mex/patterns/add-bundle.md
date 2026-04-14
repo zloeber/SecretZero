@@ -15,7 +15,7 @@ edges:
     condition: when validating why hard-coded branching is disallowed
   - target: patterns/debug-sync.md
     condition: when bundle registration succeeds but runtime dispatch fails
-last_updated: 2026-04-10
+last_updated: 2026-04-13
 ---
 
 # Add Bundle
@@ -34,6 +34,7 @@ Use this for provider/generator/target extensibility work under `src/secretzero/
 - Unknown kind errors usually mean registration path mismatch, not generator/target logic bugs.
 - Provider capability auto-discovery depends on method naming prefixes.
 - Missing optional extras can silently remove classes from runtime registration.
+- Generators that use the same manifest shape and prompting as ``StaticGenerator`` (dict/scalar ``value`` / ``default``) should set ``PROMPTS_LIKE_STATIC = True`` on the class (or subclass ``StaticGenerator``) so agent sync, Vector 2 web, ``secretzero web`` edit, and Terraform static export pick them up without new ``kind == "static"`` branches in core.
 
 ## Verify
 - [ ] New kind appears via provider/bundle listing command paths.

@@ -28,7 +28,13 @@ from fastapi import FastAPI, Form, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from jinja2 import DictLoader, Environment, select_autoescape
 
-from secretzero.agent_webui import _inject_static_values
+from secretzero.agent_webui import (
+    _inject_static_values,
+    build_pending_static_values_from_form,
+    normalize_scalar_network_form,
+    static_secret_edit_template_vars,
+)
+from secretzero.generators.traits import secret_prompts_like_static
 from secretzero.lockfile import Lockfile
 from secretzero.models import Secretfile
 from secretzero.network_web_actions import run_check_drift, run_validate_manifest
@@ -459,10 +465,10 @@ def create_network_web_app(
                 list_filter=_filter_param(request),
             )
         sec = _get_secret(name)
-        if not sec or sec.kind != "static":
+        if not sec or not secret_prompts_like_static(sec):
             return _dashboard_response(
                 request,
-                error=f"'{name}' is not a static secret (set value in YAML or use Rotate).",
+                error=f"'{name}' is not a static-like secret (set value in YAML or use Rotate).",
                 list_filter=_filter_param(request),
             )
         csrf = auth.csrf_for(sid or "")
@@ -472,6 +478,7 @@ def create_network_web_app(
         list_filter = edit_lf if edit_lf in ("all", "unsynced") else "all"
         assert sec is not None
         agent_instructions = build_agent_instructions_payload(state.secretfile, sec)
+        edit_ctx = static_secret_edit_template_vars(sec, secretfile_path)
         return _render(
             "secret_edit.html",
             title=f"Update — {name}",
@@ -480,6 +487,7 @@ def create_network_web_app(
             error_message=qe,
             agent_instructions=agent_instructions,
             list_filter=list_filter,
+            **edit_ctx,
         )
 
     @app.post("/secret/{secret_name}/apply", response_model=None)
@@ -496,18 +504,23 @@ def create_network_web_app(
             )
         name = secret_name
         sec_apply = _get_secret(name)
-        if not sec_apply or sec_apply.kind != "static":
+        if not sec_apply or not secret_prompts_like_static(sec_apply):
             return RedirectResponse(
                 dashboard_redirect_url(error="Invalid secret", list_filter=lf),
                 status_code=status.HTTP_303_SEE_OTHER,
             )
-        raw = form.get("value")
-        val = str(raw).strip() if raw is not None else ""
-        if not val:
+        merged_form = normalize_scalar_network_form(name, form)
+        parsed, perr = build_pending_static_values_from_form(
+            [name],
+            state.secretfile,
+            merged_form,
+        )
+        if perr or not parsed:
             return RedirectResponse(
-                f"/secret/{quote(name, safe='')}/edit?error={quote('Value required')}",
+                f"/secret/{quote(name, safe='')}/edit?error={quote(perr or 'Value required')}",
                 status_code=status.HTTP_303_SEE_OTHER,
             )
+        val = parsed[name]
         try:
             state.secretfile = _inject_static_values(state.secretfile, {name: val})
             eng = make_sync_engine(
@@ -696,7 +709,7 @@ def create_network_web_app(
                 status_code=status.HTTP_303_SEE_OTHER,
             )
         sec_rot = _get_secret(name)
-        if sec_rot is not None and sec_rot.kind == "static":
+        if sec_rot is not None and secret_prompts_like_static(sec_rot):
             return RedirectResponse(
                 f"/secret/{quote(name, safe='')}/edit?filter={quote(lf)}",
                 status_code=status.HTTP_303_SEE_OTHER,

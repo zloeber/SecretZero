@@ -2,7 +2,7 @@
 
 import os
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:
     from secretzero.models import AgentInstructions
@@ -10,6 +10,12 @@ if TYPE_CHECKING:
 
 class BaseGenerator(ABC):
     """Abstract base class for secret generators."""
+
+    #: When True, this kind uses the same manifest shape and prompting rules as
+    #: :class:`~secretzero.generators.static.StaticGenerator` (scalar or dict
+    #: ``value`` / ``default``). Bundle-registered generators can set this so
+    #: agent sync, CLI, and web UIs treat the secret like ``kind: static``.
+    PROMPTS_LIKE_STATIC: ClassVar[bool] = False
 
     def __init__(self, config: dict[str, Any]) -> None:
         """Initialize generator with configuration.
