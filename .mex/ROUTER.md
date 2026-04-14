@@ -51,6 +51,7 @@ Then read this file fully before doing anything else in this session.
 - Fully automated release/deployment orchestration from scaffold itself.
 
 **Unified agent sync:** Implemented — `secretzero agent sync --json [--web] [--verbose]` and `POST /agent/sync` share `AgentSecretSynchronizer`; Vector 2 web UI and `GET /agent/sync/web/{session_id}` for polling; Tavern E2E under `tests/e2e/` (`task test:e2e`).
+**Tavern workflow coverage expanded:** Added API workflow E2E scenarios for forced credential rotation, `.szvar`-driven environment targeting, single-secret forced rotation checks, cross-target sync updates, and `azure_app_reg` pending-manual requests. API request schemas now accept `var_files` for `/sync` and `/agent/sync`.
 
 **Known issues:**
 - `secretzero sync --format json` previously skipped writing the lockfile; fixed — JSON sync now persists `.gitsecrets.lock` when not `--dry-run` (same rules as text output).

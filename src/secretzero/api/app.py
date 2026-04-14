@@ -303,7 +303,8 @@ def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
                 )
 
             loader = ConfigLoader()
-            config = loader.load_file(config_path)
+            var_files = [Path(vf) for vf in request.var_files]
+            config = loader.load_file(config_path, var_files=var_files)
             lockfile = Lockfile.load(Path(".gitsecrets.lock"))
             secretfile_content = config_path.read_text()
             sync_engine = SyncEngine(
@@ -398,7 +399,8 @@ def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
 
             secretfile_content = config_path.read_text()
             loader = ConfigLoader()
-            secretfile = loader.load_file(config_path)
+            var_files = [Path(vf) for vf in body.var_files]
+            secretfile = loader.load_file(config_path, var_files=var_files)
             lock = Lockfile.load(lockfile_path)
 
             sz_eff = body.sz_agent if body.sz_agent is not None else env_sz_agent()

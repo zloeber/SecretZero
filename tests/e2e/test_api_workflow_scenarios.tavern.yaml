@@ -1,0 +1,75 @@
+---
+test_name: api workflow scenarios (rotation, szvar envs, cross-target sync)
+
+stages:
+  - name: seed rotatable_password in dev env via .szvar
+    request:
+      url: "{tavern.env_vars.SECRETZERO_E2E_BASE}/sync"
+      method: POST
+      headers:
+        Content-Type: application/json
+      json:
+        dry_run: false
+        force: true
+        secret_name: rotatable_password
+        var_files:
+          - "{tavern.env_vars.SECRETZERO_E2E_FIXTURES}/dev.szvar"
+    response:
+      status_code: 200
+      verify_response_with:
+        - function: e2e.tavern_helpers:assert_sync_writes_dev_environment_target
+
+  - name: rotate one secret explicitly through rotation execute
+    request:
+      url: "{tavern.env_vars.SECRETZERO_E2E_BASE}/rotation/execute"
+      method: POST
+      headers:
+        Content-Type: application/json
+      json:
+        secret_name: rotatable_password
+        force: true
+    response:
+      status_code: 200
+      verify_response_with:
+        - function: e2e.tavern_helpers:assert_rotation_execute_for_single_secret
+
+  - name: verify forced single-secret rotation increments rotation count
+    request:
+      url: "{tavern.env_vars.SECRETZERO_E2E_BASE}/secrets/rotatable_password/status"
+      method: GET
+    response:
+      status_code: 200
+      verify_response_with:
+        - function: e2e.tavern_helpers:assert_single_secret_rotation_count_incremented
+
+  - name: sync to prod environment through .szvar target override
+    request:
+      url: "{tavern.env_vars.SECRETZERO_E2E_BASE}/sync"
+      method: POST
+      headers:
+        Content-Type: application/json
+      json:
+        dry_run: false
+        force: true
+        secret_name: rotatable_password
+        var_files:
+          - "{tavern.env_vars.SECRETZERO_E2E_FIXTURES}/prod.szvar"
+    response:
+      status_code: 200
+      verify_response_with:
+        - function: e2e.tavern_helpers:assert_sync_writes_prod_environment_target
+
+  - name: cross-target sync update writes same secret to all targets
+    request:
+      url: "{tavern.env_vars.SECRETZERO_E2E_BASE}/sync"
+      method: POST
+      headers:
+        Content-Type: application/json
+      json:
+        dry_run: false
+        force: true
+        secret_name: cross_target_shared
+    response:
+      status_code: 200
+      verify_response_with:
+        - function: e2e.tavern_helpers:assert_cross_target_sync_updates_all_targets

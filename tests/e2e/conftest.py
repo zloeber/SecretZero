@@ -30,6 +30,10 @@ def _secretzero_e2e_api_server(tmp_path_factory: pytest.TempPathFactory) -> None
     (wd / ".gitsecrets.lock").write_text('{"version": "1.0", "secrets": {}}', encoding="utf-8")
 
     os.environ["SECRETZERO_E2E_BASE"] = f"http://127.0.0.1:{E2E_PORT}"
+    os.environ["SECRETZERO_E2E_WORKDIR"] = str(wd.resolve())
+    os.environ["SECRETZERO_E2E_FIXTURES"] = str(_FIXTURE.parent.resolve())
+    old_cwd = Path.cwd()
+    os.chdir(wd)
 
     app = create_app(secretfile_path=str(secretfile.resolve()))
 
@@ -50,3 +54,4 @@ def _secretzero_e2e_api_server(tmp_path_factory: pytest.TempPathFactory) -> None
     yield
     server.should_exit = True
     thread.join(timeout=5.0)
+    os.chdir(old_cwd)

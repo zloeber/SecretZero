@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Expanded Tavern API E2E workflow coverage with scenarios for credential rotation, `.szvar`-driven multi-environment target resolution, single-secret forced rotation, cross-target sync updates, and `azure_app_reg` pending-manual requests.
+- Added `var_files` request support to API `/sync` and `/agent/sync` endpoints to mirror CLI-style `.szvar` workflows in API automation.
+- Added a dedicated workflow-diagram documentation section for Tavern API scenarios in `docs/user-guide/agent-sync.md`.
+- Added a dedicated GitHub Actions `e2e-tests` job so Tavern E2E runs in parallel with unit tests.
+
 ### Planned
 - Web UI for secret management
 - Kubernetes Operator

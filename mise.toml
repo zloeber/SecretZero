@@ -9,7 +9,7 @@ uv = "latest"
 gitleaks = "latest"
 yq = "latest"
 npm = "latest"
-node = "latest"
+node = "22.22"
 gh = "latest"
 
 [tools."github:asciinema/agg"]

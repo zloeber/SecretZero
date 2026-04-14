@@ -43,3 +43,4 @@ node_modules
 .wrangler
 secret_reports_*
 .secretzero_audit.log
+.gitnexus

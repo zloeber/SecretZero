@@ -1,5 +1,8 @@
 {
   "devDependencies": {
     "wrangler": "^4.67.0"
+  },
+  "dependencies": {
+    "gitnexus": "^1.6.1"
   }
 }

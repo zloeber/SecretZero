@@ -309,3 +309,68 @@ prerequisites:
 - [Generator Types](generators/index.md)
 - [Target Types](targets/index.md)
 - [CLI Reference](cli/index.md)
+
+## Tavern API Workflow Scenarios
+
+The end-to-end Tavern suite now includes workflow-focused API scenarios beyond the
+core three vectors. These scenarios are designed as usage playbooks and contract
+tests for common operator workflows.
+
+### Credential Rotation Workflow
+
+Validates forced rotation through the API for a single secret and confirms status
+metadata reflects the rotation.
+
+```mermaid
+flowchart LR
+  A[POST /sync secret_name force] --> B[Seed secret in target]
+  B --> C[POST /rotation/execute secret_name force]
+  C --> D[GET /secrets/{name}/status]
+  D --> E[rotation_count incremented]
+```
+
+### Multiple Target Environments via `.szvar`
+
+Verifies the API can load `var_files` to render environment-specific target paths
+from the same Secretfile.
+
+```mermaid
+flowchart LR
+  A[POST /sync with dev.szvar] --> B[e2e-dev.env written]
+  B --> C[POST /sync with prod.szvar]
+  C --> D[e2e-prod.env written]
+```
+
+### Single-Target Forced Rotation
+
+Confirms one secret can be explicitly forced to rotate without rotating all secrets.
+
+```mermaid
+flowchart LR
+  A[POST /rotation/execute] --> B[secret_name=rotatable_password]
+  B --> C[force=true]
+  C --> D[Only requested secret appears in rotated list]
+```
+
+### Cross-Target Sync Update
+
+Ensures one generated value is propagated to multiple targets in the same sync run.
+
+```mermaid
+flowchart LR
+  A[POST /sync secret_name=cross_target_shared force=true] --> B[Generate shared value]
+  B --> C[Write target A file]
+  B --> D[Write target B file]
+```
+
+### Azure App Registration Secret Request
+
+Covers pending-manual behavior for `azure_app_reg` static-like requests, including
+agent instruction rendering without exposing secret values.
+
+```mermaid
+flowchart LR
+  A[POST /agent/sync dry_run=true] --> B[Detect azure_app_reg fields need input]
+  B --> C[Return pending_secrets entry]
+  C --> D[Expose instructions only]
+```

@@ -138,6 +138,10 @@ class SyncRequest(BaseModel):
     dry_run: bool = False
     force: bool = False
     secret_name: str | None = None
+    var_files: list[str] = Field(
+        default_factory=list,
+        description="Optional .szvar file paths merged into Secretfile variables (later entries win)",
+    )
 
 
 class SyncResponse(BaseModel):
@@ -247,6 +251,10 @@ class AgentSyncRequest(BaseModel):
     lockfile: str | None = Field(
         default=None,
         description="Path to lockfile (default: .gitsecrets.lock next to the Secretfile)",
+    )
+    var_files: list[str] = Field(
+        default_factory=list,
+        description="Optional .szvar file paths merged into Secretfile variables (later entries win)",
     )
     sz_agent: bool | None = Field(
         default=None,
