@@ -588,7 +588,7 @@ def run_blocking_web_agent_form(
     thread = threading.Thread(target=_run_server, daemon=True)
     thread.start()
 
-    url_host = "127.0.0.1" if host == "0.0.0.0" else host
+    url_host = "127.0.0.1" if host == "0.0.0.0" else host  # nosec B104
     url = f"http://{url_host}:{port}/"
     logger.info("Agent web UI listening on %s", url)
     if open_browser:
@@ -704,5 +704,5 @@ def start_web_session_server(
         asyncio.run(server.serve())
 
     threading.Thread(target=_run, daemon=True).start()
-    public_host = "127.0.0.1" if host == "0.0.0.0" else host
+    public_host = "127.0.0.1" if host == "0.0.0.0" else host  # nosec B104
     return f"http://{public_host}:{port}/", port
