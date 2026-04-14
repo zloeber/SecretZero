@@ -478,7 +478,7 @@ def create_network_web_app(
         list_filter = edit_lf if edit_lf in ("all", "unsynced") else "all"
         assert sec is not None
         agent_instructions = build_agent_instructions_payload(state.secretfile, sec)
-        edit_ctx = static_secret_edit_template_vars(sec, secretfile_path)
+        edit_ctx = static_secret_edit_template_vars(sec, secretfile_path, state.lockfile)
         return _render(
             "secret_edit.html",
             title=f"Update — {name}",

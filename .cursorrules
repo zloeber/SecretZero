@@ -17,7 +17,7 @@ A secrets-as-code management tool that validates, generates, syncs, and tracks p
 - Register new provider/generator/target capabilities through bundle manifests and the bundle registry.
 
 ## Commands
-- Dev setup: `uv sync --all-extras && source .venv/bin/activate`
+- Dev setup: `uv sync --all-extras && source ./.venv/bin/activate`
 - Validate config: `secretzero validate`
 - Run tests: `task test`
 - Lint (fix): `task lint:fix`
@@ -31,13 +31,24 @@ A secrets-as-code management tool that validates, generates, syncs, and tracks p
 Run from repository root before any `git push`:
 
 ```bash
-task lint:fix && task format && task schema:update
-task test
-task security:scan
-task test:validations
+./scripts/agent.pre-commit.sh --mode full
 ```
 
-If `schema:update` or `lint:fix` modifies files, commit those changes and rerun at least `task test` and `task security:scan` before pushing.
+If `schema:update` or `lint:fix` modifies files, the script exits with instructions. Commit those changes and rerun at least `task test` and `task security:scan` before pushing.
+
+## End-of-Work Prompt
+
+At the end of any coding task, run a fast local gate:
+
+```bash
+./scripts/agent.pre-commit.sh --mode fast --quiet
+```
+
+Before any push/merge, run the full gate:
+
+```bash
+./scripts/agent.pre-commit.sh --mode full
+```
 
 ## Merge Requests
 

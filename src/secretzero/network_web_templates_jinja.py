@@ -604,6 +604,11 @@ TEMPLATES = {
                     {% endfor %}
                   </ul>
                   {% endif %}
+                  {% if item.actor_summary %}
+                  <p class="sz-flow__actor" style="margin:0.4rem 0 0;font-size:0.82rem;opacity:0.9;">
+                    <strong>Actor</strong> {{ item.actor_summary }}
+                  </p>
+                  {% endif %}
                   {% if item.can_force_resync %}
                   <form class="sz-lane-force" method="post" action="/action/force-sync-target">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
@@ -683,6 +688,7 @@ TEMPLATES = {
   <h1>{{ title }}</h1>
   <p class="lead">New value is merged as a static secret and synced to targets for <code>{{ secret_name }}</code>.</p>
   {{ operator_banner_html | safe }}
+  {{ target_actor_html | safe }}
   {% if error_message %}
   <div class="alert" role="alert">{{ error_message }}</div>
   {% endif %}

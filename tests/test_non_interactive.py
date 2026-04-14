@@ -177,6 +177,7 @@ class TestNonInteractiveSync:
         self,
         mock_engine_cls: MagicMock,
         mock_loader_cls: MagicMock,
+        tmp_path: Path,
     ) -> None:
         """SyncEngine should receive prompt_on_empty=False under -n."""
         # Make ConfigLoader.load_config() return a minimal dict
@@ -198,9 +199,12 @@ class TestNonInteractiveSync:
         )
         mock_engine_cls.return_value = engine
 
+        secretfile = tmp_path / "Secretfile.test.yml"
+        secretfile.write_text("version: '1.0'\nproviders: {}\nsecrets: []\ntemplates: {}\n")
+
         runner.invoke(
             main,
-            ["-n", "sync", "--file", "Secretfile.test.yml"],
+            ["-n", "sync", "--file", str(secretfile)],
         )
 
         # The engine should have been constructed with prompt_on_empty=False
@@ -220,6 +224,7 @@ class TestNonInteractiveSync:
         self,
         mock_engine_cls: MagicMock,
         mock_loader_cls: MagicMock,
+        tmp_path: Path,
     ) -> None:
         """Without -n, prompt_on_empty should default to True."""
         loader = MagicMock()
@@ -239,9 +244,12 @@ class TestNonInteractiveSync:
         )
         mock_engine_cls.return_value = engine
 
+        secretfile = tmp_path / "Secretfile.test.yml"
+        secretfile.write_text("version: '1.0'\nproviders: {}\nsecrets: []\ntemplates: {}\n")
+
         runner.invoke(
             main,
-            ["sync", "--file", "Secretfile.test.yml"],
+            ["sync", "--file", str(secretfile)],
         )
 
         mock_engine_cls.assert_called_once()
@@ -259,8 +267,10 @@ class TestNonInteractiveSync:
 class TestNonInteractiveAgentSync:
     """``agent sync --interactive`` must be rejected under -n."""
 
-    def test_agent_sync_interactive_blocked(self) -> None:
+    def test_agent_sync_interactive_blocked(self, tmp_path: Path) -> None:
         """--interactive + --non-interactive triggers EXIT_CONFIG_ERROR."""
+        secretfile = tmp_path / "Secretfile.test.yml"
+        secretfile.write_text("version: '1.0'\nproviders: {}\nsecrets: []\ntemplates: {}\n")
         result = runner.invoke(
             main,
             [
@@ -269,7 +279,7 @@ class TestNonInteractiveAgentSync:
                 "sync",
                 "--interactive",
                 "--file",
-                "Secretfile.test.yml",
+                str(secretfile),
             ],
         )
         assert result.exit_code == EXIT_CONFIG_ERROR

@@ -174,6 +174,32 @@ def _sync_state_for_target(entry: SecretLockEntry | None, locked_hash: str | Non
     return "drift"
 
 
+def _target_actor_summary(entry: SecretLockEntry | None, target_id: str) -> str | None:
+    """Compact summary of last actor metadata for a target provenance lane."""
+    if entry is None:
+        return None
+    updates = entry.target_provenance.get(target_id) if entry.target_provenance else None
+    if not updates:
+        return None
+    actor = updates[-1].actor or {}
+    if not isinstance(actor, dict):
+        return None
+
+    preferred = [
+        actor.get("provider"),
+        actor.get("username"),
+        actor.get("account_id"),
+        actor.get("arn"),
+        actor.get("git_user_name"),
+        actor.get("os_user"),
+        actor.get("ci_actor"),
+    ]
+    parts = [str(v).strip() for v in preferred if v not in (None, "")]
+    if parts:
+        return " | ".join(parts[:3])
+    return None
+
+
 _ARROW_TITLE = {
     "synced": "Lockfile shows this target has the current secret value (hash matches).",
     "pending": "This target is not recorded in the lockfile yet — run Sync.",
@@ -329,6 +355,7 @@ def build_secret_rows(secretfile: Secretfile, lockfile: Lockfile) -> list[dict[s
                         "sync_state": sync_state,
                         "arrow_title": _ARROW_TITLE[sync_state],
                         "target_id": tid,
+                        "actor_summary": _target_actor_summary(entry, tid),
                     }
                 )
             for key in order:

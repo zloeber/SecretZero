@@ -41,6 +41,17 @@ def test_build_secret_rows_groups_targets_and_sync_state(tmp_path: Path) -> None
                     "local/file/.env.a": "HMAIN",
                     "local/file/.env.b": "OTHER",
                 },
+                "target_provenance": {
+                    "local/file/.env.a": [
+                        {
+                            "updated_at": "t",
+                            "actor": {
+                                "provider": "local",
+                                "os_user": "alice",
+                            },
+                        }
+                    ]
+                },
             }
         },
     }
@@ -63,6 +74,7 @@ def test_build_secret_rows_groups_targets_and_sync_state(tmp_path: Path) -> None
     lane0 = groups[0]["lanes"][0]
     assert lane0["dest"] == ".env.a"
     assert any(d["label"] == "Entry key" and d["value"] == "api_key" for d in lane0["details"])
+    assert lane0["actor_summary"] == "local | alice"
 
 
 def test_compute_is_unsynced() -> None:

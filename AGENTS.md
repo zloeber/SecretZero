@@ -70,15 +70,26 @@ Full details, `agent_instructions` authoring (with templating), top-level `agent
 Run these from the repository root **before any push or merge request**:
 
 ```bash
-task lint:fix && task format && task schema:update
-task test
-task security:scan
-task test:validations
+./scripts/agent.pre-commit.sh --mode full
 ```
 
-- If `schema:update`, `lint:fix`, or `format` modifies files, commit the changes and re-run the full checklist.
+- If `schema:update`, `lint:fix`, or `format` modifies files, the script exits with guidance. Commit those changes and re-run at least `task test` and `task security:scan`.
 - Verify feature parity: Test changes through both CLI and API (if the API sub-component is active).
 - Update `.mex/ROUTER.md` and any affected patterns in `.mex/patterns/`.
+
+## End-of-Work Prompt
+
+At the end of any coding work, run a fast local gate:
+
+```bash
+./scripts/agent.pre-commit.sh --mode fast --quiet
+```
+
+Before any push/merge, run the full gate:
+
+```bash
+./scripts/agent.pre-commit.sh --mode full
+```
 
 ## Other Workflows (Beyond the Three Agentic Vectors)
 

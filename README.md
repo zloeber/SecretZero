@@ -73,6 +73,7 @@ secretzero sync                    # Generate and sync secrets to targets
 secretzero sync --dry-run         # Preview changes without applying
 secretzero sync -s db_password    # Sync only specific secret(s)
 secretzero show '<secret>'          # Show secret metadata
+secretzero get --provider aws --secret-id '/prod/api/token'  # Provider retrieval (metadata by default)
 
 # Visualization
 secretzero graph                   # Generate visual flow diagram
@@ -97,6 +98,11 @@ secretzero providers token-info github --token ghp_xxx  # Explicit provider + to
 # API Server
 secretzero-api                     # Start REST API server
 ```
+
+`secretzero get` safety controls:
+- `SZ_SANDBOX=true` blocks retrieval by default
+- `SZ_ALLOW_GET_IN_SANDBOX=true` explicitly overrides the block
+- `--reveal` is required to print plaintext values
 
 ### API Endpoints
 ```bash

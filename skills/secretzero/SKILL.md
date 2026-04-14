@@ -227,6 +227,7 @@ secrets:
 - Forgetting `--var-file` when variables are used.
 - Running commands from the wrong directory.
 - Expecting plaintext values — always use the agent workflow instead.
+- Running `secretzero get --reveal` in an AI session; keep output metadata-only to avoid leakage.
 - Installing without the correct provider extras.
 
 ## Quick Reference Cheat Sheet

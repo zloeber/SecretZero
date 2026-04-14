@@ -43,9 +43,6 @@ class LockfileSyncIdentity(BaseModel):
     secretzero_version: str | None = Field(
         default=None, description="secretzero package version when the sync ran"
     )
-    working_directory: str | None = Field(
-        default=None, description="Process working directory at sync time (resolved)"
-    )
     os_user: str | None = Field(default=None, description="OS login name (e.g. getpass.getuser())")
     os_uid: int | None = Field(default=None, description="Real user id when available (Unix)")
     os_euid: int | None = Field(default=None, description="Effective user id when available (Unix)")

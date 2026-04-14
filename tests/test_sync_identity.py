@@ -21,6 +21,7 @@ class TestCollectLockfileSyncIdentity:
 
         ident = collect_lockfile_sync_identity(client="cli", cwd=tmp_path)
         assert ident.client == "cli"
+        assert "working_directory" not in ident.model_dump(mode="json", exclude_none=True)
         assert ident.ci_system == "github_actions"
         assert ident.ci_actor == "octocat"
         assert ident.ci_repository == "acme/demo"

@@ -1,5 +1,6 @@
 """Secret synchronization engine."""
 
+import inspect
 import os
 from pathlib import Path
 from typing import Any
@@ -8,6 +9,7 @@ from secretzero.bundles import get_bundle_registry
 from secretzero.generators.base import BaseGenerator
 from secretzero.lockfile import Lockfile, LockfileSyncIdentity
 from secretzero.models import AgentInstructions, Secret, Secretfile, Template
+from secretzero.providers.capabilities import CapabilityType
 from secretzero.sync_identity import collect_lockfile_sync_identity
 
 # Import providers
@@ -77,6 +79,15 @@ class SyncEngine:
 
     def _sync_actor_dict(self) -> dict[str, Any]:
         return self._resolve_sync_identity().model_dump(mode="json", exclude_none=True)
+
+    def _target_provenance_actor(self, target_actor: dict[str, Any] | None) -> dict[str, Any]:
+        """Merge sync identity with target/provider actor metadata for provenance."""
+        actor = self._sync_actor_dict()
+        if isinstance(target_actor, dict):
+            # Provider/target actor metadata wins for overlapping keys and may include
+            # auth/introspection details (account IDs, token mode, usernames, etc).
+            actor.update(target_actor)
+        return actor
 
     def _record_lockfile_source_state(self, dry_run: bool) -> None:
         """Update secretfile tracking and sync identity once per engine run (non–dry-run only)."""
@@ -202,6 +213,97 @@ class SyncEngine:
             Provider instance or None
         """
         return self._providers.get(provider_name)
+
+    def get_provider_secret(
+        self,
+        provider_name: str,
+        secret_id: str,
+        method_name: str | None = None,
+        method_args: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Retrieve a secret using provider bundle capability methods.
+
+        Args:
+            provider_name: Alias of the configured provider in ``secretfile.providers``.
+            secret_id: Secret identifier consumed by the provider retrieve method.
+            method_name: Optional explicit provider method to call.
+            method_args: Optional keyword arguments for the provider method.
+
+        Returns:
+            Dictionary containing retrieval metadata and the retrieved value.
+
+        Raises:
+            ValueError: If provider is unavailable, authentication fails, or retrieval fails.
+        """
+        provider = self._get_provider(provider_name)
+        if provider is None:
+            raise ValueError(f"Provider '{provider_name}' is not initialized")
+
+        if not provider.is_authenticated() and not provider.authenticate():
+            raise ValueError(f"Provider '{provider_name}' authentication failed")
+
+        args = dict(method_args or {})
+        candidate_names = [method_name] if method_name else ["retrieve_secret", "get_secret"]
+        selected_name = None
+        selected_method = None
+        for candidate in candidate_names:
+            if not candidate:
+                continue
+            method = getattr(provider, candidate, None)
+            if callable(method):
+                selected_name = candidate
+                selected_method = method
+                break
+
+        if selected_method is None or selected_name is None:
+            capabilities = provider.get_capabilities()
+            retrieve_methods = sorted(capabilities.list_methods_by_type(CapabilityType.RETRIEVE))
+            raise ValueError(
+                f"Provider '{provider_name}' does not expose retrieval method "
+                f"'{method_name or 'retrieve_secret'}'. Available retrieve methods: "
+                f"{', '.join(retrieve_methods) if retrieve_methods else 'none'}"
+            )
+
+        params = [
+            p for p in inspect.signature(selected_method).parameters.values() if p.name != "self"
+        ]
+        if params:
+            secret_param_name = params[0].name
+            if secret_param_name not in args:
+                args[secret_param_name] = secret_id
+
+        try:
+            value = selected_method(**args)
+        except TypeError as exc:
+            raise ValueError(
+                f"Invalid arguments for '{selected_name}' on provider '{provider_name}': {exc}"
+            ) from exc
+        except Exception as exc:
+            raise ValueError(
+                f"Failed to retrieve secret from provider '{provider_name}': {exc}"
+            ) from exc
+
+        text_value = value if isinstance(value, str) else str(value)
+        placeholder_values = {
+            "[SECRET EXISTS]",
+            "[CREDENTIAL EXISTS]",
+        }
+        is_placeholder = text_value in placeholder_values or text_value.startswith(
+            "[SECRET EXISTS in "
+        )
+
+        return {
+            "provider": provider_name,
+            "method": selected_name,
+            "retrieved": True,
+            "revealable": not is_placeholder,
+            "value": text_value,
+            "notes": (
+                "Provider API confirms existence but does not expose plaintext value."
+                if is_placeholder
+                else None
+            ),
+        }
 
     def _validate_target_access(self) -> dict[str, Any]:
         """Validate that at least one target can be accessed.
@@ -522,7 +624,9 @@ class SyncEngine:
                         secret.name, secret_value, target_id=target_id, is_rotation=force_rotation
                     )
                     self.lockfile.record_target_update(
-                        secret.name, target_id, actor=self._sync_actor_dict()
+                        secret.name,
+                        target_id,
+                        actor=self._target_provenance_actor(target_result.get("actor")),
                     )
 
             # If secret was generated but has no targets, still add to lockfile
@@ -680,7 +784,9 @@ class SyncEngine:
                             field_secret_name, field_value, target_id=target_id
                         )
                         self.lockfile.record_target_update(
-                            field_secret_name, target_id, actor=self._sync_actor_dict()
+                            field_secret_name,
+                            target_id,
+                            actor=self._target_provenance_actor(target_result.get("actor")),
                         )
 
                 if all_targets_ok:

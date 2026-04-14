@@ -27,7 +27,7 @@ Generated configuration can be written as HCL2 (`.tf`) or Terraform JSON
 | `--var-file`, `-v` | path (repeatable) | – | `.szvar` variable file(s) to merge before export |
 | `--output-dir`, `-o` | path | `terraform-out` | Directory to write generated Terraform files |
 | `--format` | choice | `hcl` | Terraform output format: `hcl` or `json` |
-| `--include-static-secrets/--no-include-static-secrets` | flag | `--no-include-static-secrets` | Whether to inline static secrets directly into Terraform (not recommended for production) |
+| `--include-static-secrets/--no-include-static-secrets` | flag | `--no-include-static-secrets` | Whether to include default values for static-secret Terraform variables (not recommended for production) |
 | `--dry-run` | flag | `false` | Show a summary of what would be generated without writing files |
 
 ## Supported mappings (initial)
@@ -37,7 +37,7 @@ The first version of `secretzero terraform` focuses on common patterns:
 - **Generators**
   - `random_password` → `random_password` resource (hashicorp/random)
   - `random_string` → `random_string` resource (hashicorp/random)
-  - `static` → inlined value when `--include-static-secrets` is enabled
+  - `static` (and static-like bundle kinds) → sensitive Terraform variables
 - **Targets**
   - `provider: aws`, `kind: ssm_parameter` → `aws_ssm_parameter`
   - `provider: aws`, `kind: secrets_manager` → `aws_secretsmanager_secret` + `aws_secretsmanager_secret_version`
@@ -112,10 +112,12 @@ the same configuration, suitable for tooling that prefers JSON.
 
 ## Security considerations
 
-- **Static secrets**: By default, static secrets are **not** inlined into
-  Terraform configuration. Enabling `--include-static-secrets` may embed
-  sensitive values directly into version-controlled Terraform files and
-  state; use with caution.
+- **Static secrets**: Terraform export now always creates sensitive input
+  variables for static/static-like secrets. By default, these variables have
+  no `default` value, so plaintext is not embedded in generated files.
+  Enabling `--include-static-secrets` adds static defaults to those variables,
+  which may embed sensitive values directly into version-controlled Terraform
+  files and state; use with caution.
 - **State files**: Secrets stored via Terraform-managed resources will
   typically appear in Terraform state. Use remote, encrypted state backends
   and restrict access appropriately.
