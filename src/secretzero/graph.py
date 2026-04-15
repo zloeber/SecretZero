@@ -6,7 +6,7 @@ from typing import Literal
 from secretzero.config import ConfigLoader
 from secretzero.models import Secretfile
 
-GraphType = Literal["flow", "detailed", "architecture"]
+GraphType = Literal["flow", "detailed", "architecture", "destination"]
 OutputFormat = Literal["mermaid", "terminal"]
 
 
@@ -29,49 +29,50 @@ class SecretGraphGenerator:
         Returns:
             Mermaid flowchart diagram source
         """
-        lines = [
-            "```mermaid",
-            "flowchart LR",
-            "    %% Generators/Sources",
-        ]
+        lines = ["```mermaid", "flowchart LR", "    %% Generators/Sources"]
 
-        # Track unique generators and targets
-        generators_seen = set()
-        targets_seen = set()
+        generators_seen: set[str] = set()
+        destination_groups: dict[tuple[str, str, str], dict[str, str]] = {}
+        edges: list[tuple[str, str]] = []
 
-        # Process each secret
         for secret in self.secretfile.secrets:
             secret_id = self._safe_id(secret.name)
             generator_kind = secret.kind
             generator_id = self._safe_id(f"gen_{generator_kind}")
 
-            # Add generator node if not seen before
             if generator_id not in generators_seen:
                 generator_label = self._format_generator_label(generator_kind)
                 lines.append(f"    {generator_id}[{generator_label}]")
                 generators_seen.add(generator_id)
 
-            # Add secret node
             secret_label = f"Secret<br/>{secret.name}<br/>type: {generator_kind}"
             lines.append(f'    {secret_id}["{secret_label}"]')
-
-            # Connect generator to secret
             lines.append(f"    {generator_id} -->|generates| {secret_id}")
 
-            # Add target nodes and connections
             for idx, target in enumerate(secret.targets):
-                target_provider = target.provider or "local"
-                target_kind = target.kind
-                target_id = self._safe_id(
-                    f"target_{secret.name}_{target_provider}_{target_kind}_{idx}"
-                )
+                provider, kind, destination = self._target_destination(target)
+                group_key = (provider, kind, destination)
+                group = destination_groups.setdefault(group_key, {})
+                entry_label = self._target_entry_label(secret.name, target, idx)
+                entry_id = self._safe_id(f"entry_{provider}_{kind}_{destination}_{entry_label}")
+                group[entry_id] = entry_label
+                edges.append((secret_id, entry_id))
 
-                if target_id not in targets_seen:
-                    target_label = self._format_target_label(target)
-                    lines.append(f'    {target_id}["{target_label}"]')
-                    targets_seen.add(target_id)
+        lines.append("")
+        lines.append('    subgraph Targets["Target Destinations"]')
+        for idx, ((provider, kind, destination), entries) in enumerate(
+            sorted(destination_groups.items())
+        ):
+            cluster_id = self._safe_id(f"dest_cluster_{idx}_{provider}_{kind}_{destination}")
+            cluster_title = f"{provider}/{kind} · {destination}"
+            lines.append(f'        subgraph {cluster_id}["{cluster_title}"]')
+            for entry_id, entry_label in sorted(entries.items(), key=lambda item: item[1]):
+                lines.append(f'            {entry_id}["{entry_label}"]')
+            lines.append("        end")
+        lines.append("    end")
 
-                lines.append(f"    {secret_id} -->|syncs to| {target_id}")
+        for secret_id, entry_id in edges:
+            lines.append(f"    {secret_id} -->|syncs to| {entry_id}")
 
         lines.append("```")
         return "\n".join(lines)
@@ -82,12 +83,9 @@ class SecretGraphGenerator:
         Returns:
             Mermaid diagram source with detailed configuration
         """
-        lines = [
-            "```mermaid",
-            "flowchart TB",
-            "    %% Detailed Secret Configuration",
-            "",
-        ]
+        lines = ["```mermaid", "flowchart TB", "    %% Detailed Secret Configuration", ""]
+        destination_groups: dict[tuple[str, str, str], dict[str, str]] = {}
+        edges: list[tuple[str, str]] = []
 
         for secret in self.secretfile.secrets:
             secret_id = self._safe_id(secret.name)
@@ -102,14 +100,33 @@ class SecretGraphGenerator:
             lines.append(f'    {secret_id}["{secret_label}"]')
             lines.append(f"    {generator_id} --> {secret_id}")
 
-            # Target nodes with details
             for idx, target in enumerate(secret.targets):
-                target_id = self._safe_id(f"target_{secret.name}_{idx}")
-                target_label = self._format_detailed_target(target)
-                lines.append(f'    {target_id}["{target_label}"]')
-                lines.append(f"    {secret_id} --> {target_id}")
+                provider, kind, destination = self._target_destination(target)
+                group_key = (provider, kind, destination)
+                group = destination_groups.setdefault(group_key, {})
+                entry_label = self._target_entry_label(secret.name, target, idx)
+                detail = self._format_detailed_target(target)
+                child_label = f"{entry_label}<br/>{detail}"
+                entry_id = self._safe_id(f"d_entry_{provider}_{kind}_{destination}_{entry_label}")
+                group[entry_id] = child_label
+                edges.append((secret_id, entry_id))
 
             lines.append("")  # Add spacing between secrets
+
+        lines.append('    subgraph Targets["Target Destinations"]')
+        for idx, ((provider, kind, destination), entries) in enumerate(
+            sorted(destination_groups.items())
+        ):
+            cluster_id = self._safe_id(f"d_dest_cluster_{idx}_{provider}_{kind}_{destination}")
+            cluster_title = f"{provider}/{kind} · {destination}"
+            lines.append(f'        subgraph {cluster_id}["{cluster_title}"]')
+            for entry_id, entry_label in sorted(entries.items(), key=lambda item: item[1]):
+                lines.append(f'            {entry_id}["{entry_label}"]')
+            lines.append("        end")
+        lines.append("    end")
+
+        for secret_id, entry_id in edges:
+            lines.append(f"    {secret_id} -->|syncs to| {entry_id}")
 
         lines.append("```")
         return "\n".join(lines)
@@ -175,6 +192,51 @@ class SecretGraphGenerator:
                 target_id = self._safe_id(f"tgt_{provider}_{kind}")
                 lines.append(f"    SecretZero --> {target_id}")
 
+        lines.append("```")
+        return "\n".join(lines)
+
+    def generate_destination_diagram(self) -> str:
+        """Generate destination-centric graph grouped by target destinations."""
+        lines = [
+            "```mermaid",
+            "flowchart LR",
+            "    %% Destination-centric Secret Mapping",
+            "",
+            '    subgraph Secrets["Secrets"]',
+        ]
+        for secret in self.secretfile.secrets:
+            secret_id = self._safe_id(f"secret_{secret.name}")
+            lines.append(f'        {secret_id}["🔐 {secret.name}<br/>{secret.kind}"]')
+        lines.append("    end")
+        lines.append("")
+        lines.append('    subgraph Destinations["Target Destinations"]')
+
+        destination_groups: dict[tuple[str, str, str], dict[str, str]] = {}
+        edges: list[tuple[str, str]] = []
+        for secret in self.secretfile.secrets:
+            secret_id = self._safe_id(f"secret_{secret.name}")
+            for idx, target in enumerate(secret.targets):
+                provider, kind, destination = self._target_destination(target)
+                key = (provider, kind, destination)
+                entry_label = self._target_entry_label(secret.name, target, idx)
+                entry_id = self._safe_id(
+                    f"dest_entry_{provider}_{kind}_{destination}_{entry_label}"
+                )
+                destination_groups.setdefault(key, {})[entry_id] = entry_label
+                edges.append((secret_id, entry_id))
+
+        for idx, ((provider, kind, destination), entries) in enumerate(
+            sorted(destination_groups.items())
+        ):
+            cluster_id = self._safe_id(f"dest_group_{idx}_{provider}_{kind}_{destination}")
+            lines.append(f'        subgraph {cluster_id}["{provider}/{kind} · {destination}"]')
+            for entry_id, entry_label in sorted(entries.items(), key=lambda x: x[1]):
+                lines.append(f'            {entry_id}["{entry_label}"]')
+            lines.append("        end")
+        lines.append("    end")
+        lines.append("")
+        for secret_id, entry_id in edges:
+            lines.append(f"    {secret_id} -->|writes| {entry_id}")
         lines.append("```")
         return "\n".join(lines)
 
@@ -288,6 +350,37 @@ class SecretGraphGenerator:
 
         return label
 
+    def _cfg_get(self, target, key: str) -> str | None:
+        cfg = target.config
+        if isinstance(cfg, dict):
+            val = cfg.get(key)
+        else:
+            val = getattr(cfg, key, None)
+        if val is None:
+            return None
+        txt = str(val).strip()
+        return txt if txt else None
+
+    def _target_destination(self, target) -> tuple[str, str, str]:
+        provider = target.provider or "local"
+        kind = str(target.kind)
+        destination = (
+            self._cfg_get(target, "path")
+            or self._cfg_get(target, "repo")
+            or self._cfg_get(target, "name")
+            or self._cfg_get(target, "secret_name")
+            or self._cfg_get(target, "output_path")
+            or "default"
+        )
+        return provider, kind, destination
+
+    def _target_entry_label(self, secret_name: str, target, idx: int) -> str:
+        for candidate in ("key", "secret_name", "data_key", "name"):
+            value = self._cfg_get(target, candidate)
+            if value:
+                return f"{candidate}: {value}"
+        return f"name: {secret_name}" if secret_name else f"entry: {idx + 1}"
+
     def _format_detailed_generator(self, secret) -> str:
         """Format detailed generator information.
 
@@ -364,5 +457,7 @@ def generate_graph(
         return generator.generate_detailed_diagram()
     elif graph_type == "architecture":
         return generator.generate_architecture_diagram()
+    elif graph_type == "destination":
+        return generator.generate_destination_diagram()
     else:
         raise ValueError(f"Unknown graph type: {graph_type}")

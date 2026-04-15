@@ -127,10 +127,23 @@ def dashboard_redirect_url(
     notice: str | None = None,
     error: str | None = None,
     list_filter: str = "all",
+    tab: str = "dashboard",
+    graph_view: str = "mermaid",
+    graph_type: str = "flow",
 ) -> str:
     """Build /dashboard URL with optional notice, error, and list filter."""
     lf = list_filter if list_filter in ("all", "unsynced") else "all"
-    parts: list[str] = [f"filter={quote(lf)}"]
+    tab_safe = tab if tab in ("dashboard", "secretfile", "graph") else "dashboard"
+    graph_view_safe = graph_view if graph_view in ("mermaid", "json") else "mermaid"
+    graph_type_safe = (
+        graph_type if graph_type in ("flow", "detailed", "architecture", "destination") else "flow"
+    )
+    parts: list[str] = [
+        f"filter={quote(lf)}",
+        f"tab={quote(tab_safe)}",
+        f"graph_view={quote(graph_view_safe)}",
+        f"graph_type={quote(graph_type_safe)}",
+    ]
     if notice is not None:
         parts.insert(0, f"notice={quote(notice)}")
     if error is not None:
@@ -297,6 +310,46 @@ class _NetworkWebState:
         self.debug_blocks: list[str] = []
 
 
+def _renderable_mermaid(raw: str) -> str:
+    """Return Mermaid source without Markdown fences for browser rendering."""
+    lines = [ln.rstrip("\n") for ln in raw.splitlines()]
+    if lines and lines[0].strip().startswith("```mermaid"):
+        lines = lines[1:]
+    if lines and lines[-1].strip() == "```":
+        lines = lines[:-1]
+    return "\n".join(lines).strip()
+
+
+def _json_graph_from_secretfile(secretfile: Secretfile) -> str:
+    """Build machine-readable graph JSON from in-memory Secretfile."""
+    nodes: list[dict[str, Any]] = []
+    edges: list[dict[str, str]] = []
+    for secret in secretfile.secrets:
+        nodes.append(
+            {
+                "id": secret.name,
+                "type": "secret",
+                "kind": secret.kind,
+                "one_time": secret.one_time,
+                "rotation_period": secret.rotation_period,
+            }
+        )
+        edges.append({"from": secret.kind, "to": secret.name, "label": "generates"})
+        for target in secret.targets:
+            target_id = f"{target.provider}/{target.kind}"
+            if not any(n["id"] == target_id for n in nodes):
+                nodes.append(
+                    {
+                        "id": target_id,
+                        "type": "target",
+                        "provider": target.provider,
+                        "kind": str(target.kind),
+                    }
+                )
+            edges.append({"from": secret.name, "to": target_id, "label": "stored_in"})
+    return json.dumps({"nodes": nodes, "edges": edges}, indent=2)
+
+
 def create_network_web_app(
     *,
     secretfile: Secretfile,
@@ -346,10 +399,20 @@ def create_network_web_app(
         notice: str | None = None,
         error: str | None = None,
         list_filter: str = "all",
+        tab: str = "dashboard",
+        graph_view: str = "mermaid",
+        graph_type: str = "flow",
     ) -> HTMLResponse:
         sid = request.cookies.get(COOKIE_NAME)
         csrf = auth.csrf_for(sid or "") if sid else None
         assert csrf is not None
+        current_tab = tab if tab in ("dashboard", "secretfile", "graph") else "dashboard"
+        current_graph_view = graph_view if graph_view in ("mermaid", "json") else "mermaid"
+        current_graph_type = (
+            graph_type
+            if graph_type in ("flow", "detailed", "architecture", "destination")
+            else "flow"
+        )
         all_rows = build_secret_rows(state.secretfile, state.lockfile)
         row_total = len(all_rows)
         unsynced_count = sum(1 for r in all_rows if r.get("is_unsynced"))
@@ -368,6 +431,29 @@ def create_network_web_app(
             rows = all_rows
         tools_available = bool(secretfile_path and secretfile_path.exists())
         debug_log_text = "\n\n".join(state.debug_blocks) if debug else ""
+        secretfile_text = secretfile_content
+        if secretfile_text is None and secretfile_path and secretfile_path.exists():
+            try:
+                secretfile_text = secretfile_path.read_text()
+            except OSError:
+                secretfile_text = "Could not read Secretfile from disk."
+        if secretfile_text is None:
+            secretfile_text = "Secretfile content is not available in this session."
+        mermaid_source = ""
+        if secretfile_path and secretfile_path.exists():
+            try:
+                from secretzero.graph import generate_graph
+
+                mermaid_raw = generate_graph(
+                    secretfile_path=secretfile_path,
+                    graph_type=current_graph_type,  # type: ignore[arg-type]
+                    output_format="mermaid",
+                )
+                mermaid_source = _renderable_mermaid(mermaid_raw)
+            except Exception:
+                logger.exception("Graph generation failed for dashboard")
+                mermaid_source = "flowchart LR\n    A[Graph generation failed]"
+        graph_json = _json_graph_from_secretfile(state.secretfile)
         return _render(
             "dashboard.html",
             title="SecretZero — manifest",
@@ -381,6 +467,12 @@ def create_network_web_app(
             dry_run=dry_run,
             debug=debug,
             debug_log_text=debug_log_text,
+            current_tab=current_tab,
+            graph_view=current_graph_view,
+            graph_type=current_graph_type,
+            secretfile_text=secretfile_text,
+            mermaid_source=mermaid_source,
+            graph_json=graph_json,
             notice=notice,
             error=error,
         )
@@ -392,6 +484,18 @@ def create_network_web_app(
     def _filter_param(request: Request) -> str:
         raw = request.query_params.get("filter", "all")
         return raw if raw in ("all", "unsynced") else "all"
+
+    def _tab_param(request: Request) -> str:
+        raw = request.query_params.get("tab", "dashboard")
+        return raw if raw in ("dashboard", "secretfile", "graph") else "dashboard"
+
+    def _graph_view_param(request: Request) -> str:
+        raw = request.query_params.get("graph_view", "mermaid")
+        return raw if raw in ("mermaid", "json") else "mermaid"
+
+    def _graph_type_param(request: Request) -> str:
+        raw = request.query_params.get("graph_type", "flow")
+        return raw if raw in ("flow", "detailed", "architecture", "destination") else "flow"
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:
@@ -450,7 +554,15 @@ def create_network_web_app(
             return RedirectResponse("/", status_code=status.HTTP_302_FOUND)
         qn = request.query_params.get("notice")
         qe = request.query_params.get("error")
-        return _dashboard_response(request, notice=qn, error=qe, list_filter=_filter_param(request))
+        return _dashboard_response(
+            request,
+            notice=qn,
+            error=qe,
+            list_filter=_filter_param(request),
+            tab=_tab_param(request),
+            graph_view=_graph_view_param(request),
+            graph_type=_graph_type_param(request),
+        )
 
     @app.get("/secret/{secret_name}/edit", response_model=None)
     async def secret_edit(request: Request, secret_name: str) -> HTMLResponse | RedirectResponse:

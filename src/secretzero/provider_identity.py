@@ -48,7 +48,15 @@ def secondary_identity_hint(info: dict[str, Any]) -> str:
     tt = info.get("token_type")
     if tt:
         parts.append(str(tt))
-    for key in ("tenant_id", "account", "environment", "namespace", "api_url", "ci_actor"):
+    for key in (
+        "tenant_id",
+        "account",
+        "region",
+        "environment",
+        "namespace",
+        "api_url",
+        "ci_actor",
+    ):
         v = info.get(key)
         if v is None or v == "":
             continue

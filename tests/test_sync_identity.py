@@ -48,6 +48,9 @@ class TestCollectLockfileSyncIdentity:
 
         out = tmp_path / ".gitsecrets.lock"
         lock.save(out)
+        persisted = json.loads(out.read_text())
+        assert persisted["secretfile"]["sync_identity"]["client"] == "test"
+        assert all(v is not None for v in persisted["secretfile"]["sync_identity"].values())
         loaded = Lockfile.load(out)
         assert loaded.secretfile and loaded.secretfile.sync_identity
         assert loaded.secretfile.sync_identity.model_dump() == custom.model_dump()

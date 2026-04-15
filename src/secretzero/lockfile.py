@@ -424,4 +424,42 @@ class Lockfile(BaseModel):
                 path.unlink()
             return
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(self.model_dump_json(indent=2))
+        payload = self.model_dump(mode="json")
+        payload = self._scrub_nullable_metadata(payload)
+        path.write_text(json.dumps(payload, indent=2))
+
+    @staticmethod
+    def _drop_none_values(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {k: Lockfile._drop_none_values(v) for k, v in value.items() if v is not None}
+        if isinstance(value, list):
+            return [Lockfile._drop_none_values(v) for v in value]
+        return value
+
+    @classmethod
+    def _scrub_nullable_metadata(cls, payload: dict[str, Any]) -> dict[str, Any]:
+        """Remove ``None`` fields from persisted sync_identity and actor metadata."""
+        secretfile_meta = payload.get("secretfile")
+        if isinstance(secretfile_meta, dict) and isinstance(
+            secretfile_meta.get("sync_identity"), dict
+        ):
+            secretfile_meta["sync_identity"] = cls._drop_none_values(
+                secretfile_meta["sync_identity"]
+            )
+
+        secrets = payload.get("secrets")
+        if isinstance(secrets, dict):
+            for secret_entry in secrets.values():
+                if not isinstance(secret_entry, dict):
+                    continue
+                provenance = secret_entry.get("target_provenance")
+                if not isinstance(provenance, dict):
+                    continue
+                for updates in provenance.values():
+                    if not isinstance(updates, list):
+                        continue
+                    for update in updates:
+                        if isinstance(update, dict) and isinstance(update.get("actor"), dict):
+                            update["actor"] = cls._drop_none_values(update["actor"])
+
+        return payload

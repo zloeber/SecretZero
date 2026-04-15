@@ -19,6 +19,16 @@ providers:
 
 # Custom compliance policies
 policies:
+  # Identity guardrail: only allow syncs when AWS identity is in approved region.
+  aws_region_guard:
+    kind: provider_identity
+    providers:
+      - aws
+    match: all
+    rules:
+      - field: region
+        glob: us-east-1
+
   # Strict rotation requirements
   critical_rotation:
     kind: rotation

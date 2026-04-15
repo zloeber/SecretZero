@@ -118,6 +118,8 @@ def test_dashboard_auth_and_shutdown(tmp_path: Path) -> None:
         r3u = client.get("/dashboard?filter=unsynced", cookies=r2.cookies)
         assert r3u.status_code == 200
         assert "Unsynced only" in r3u.text
+        assert "Secretfile.yml" in r3u.text
+        assert "Graph" in r3u.text
 
         m = re.search(r'name="csrf_token" value="([^"]+)"', r3.text)
         assert m
@@ -131,6 +133,54 @@ def test_dashboard_auth_and_shutdown(tmp_path: Path) -> None:
         assert r4.status_code == 200
         assert "stopped" in r4.text.lower()
         assert done == [True]
+
+
+def test_dashboard_tabs_show_secretfile_and_graph(tmp_path: Path) -> None:
+    auth = NetworkWebSessionStore.from_bootstrap_token("tabs")
+    lk_path = tmp_path / ".gitsecrets.lock"
+    lk_path.write_text('{"version": "1.0", "secrets": {}}\n')
+    sf_path = tmp_path / "Secretfile.yml"
+    sf_text = (
+        "version: '1.0'\nsecrets:\n  - name: s1\n    kind: static\n    config:\n      value: x\n"
+    )
+    sf_path.write_text(sf_text)
+    lk = Lockfile.load(lk_path)
+    app = create_network_web_app(
+        secretfile=_secretfile_one_static(),
+        lockfile=lk,
+        lockfile_path=lk_path,
+        secretfile_path=sf_path,
+        secretfile_content=sf_text,
+        var_file_paths=None,
+        dry_run=True,
+        debug=False,
+        auth=auth,
+        use_tls=False,
+        on_shutdown=lambda: None,
+    )
+    client = TestClient(app)
+    auth_resp = client.post("/auth", data={"access_token": "tabs"}, follow_redirects=False)
+    assert auth_resp.status_code == 302
+    cookies = auth_resp.cookies
+
+    source_tab = client.get("/dashboard?tab=secretfile", cookies=cookies)
+    assert source_tab.status_code == 200
+    assert "Full rendered Secretfile content" in source_tab.text
+    assert "name: s1" in source_tab.text
+
+    graph_mermaid_tab = client.get("/dashboard?tab=graph&graph_view=mermaid", cookies=cookies)
+    assert graph_mermaid_tab.status_code == 200
+    assert 'class="mermaid"' in graph_mermaid_tab.text
+    assert "Generated graph (JSON)" in graph_mermaid_tab.text
+    assert "Destination" in graph_mermaid_tab.text
+
+    graph_json_tab = client.get(
+        "/dashboard?tab=graph&graph_view=json&graph_type=flow",
+        cookies=cookies,
+    )
+    assert graph_json_tab.status_code == 200
+    assert "nodes" in graph_json_tab.text
+    assert "edges" in graph_json_tab.text
 
 
 def test_sync_all_invokes_engine(tmp_path: Path) -> None:
@@ -271,7 +321,7 @@ def test_apply_static_calls_sync_with_force_rotation(tmp_path: Path) -> None:
         assert ca.kwargs.get("secret_names") == ["s1"]
 
 
-def test_secret_edit_shows_target_provenance_actor(tmp_path: Path) -> None:
+def test_secret_edit_hides_target_provenance_actor(tmp_path: Path) -> None:
     auth = NetworkWebSessionStore.from_bootstrap_token("acttok")
     lk_path = tmp_path / "a.lock"
     lk_path.write_text(
@@ -297,8 +347,8 @@ def test_secret_edit_shows_target_provenance_actor(tmp_path: Path) -> None:
     assert r0.status_code == 302
     edit = c.get("/secret/s1/edit", cookies=r0.cookies)
     assert edit.status_code == 200
-    assert "Recent target actor metadata" in edit.text
-    assert "alice" in edit.text
+    assert "Recent target actor metadata" not in edit.text
+    assert "alice" not in edit.text
 
 
 def test_dashboard_includes_debug_panel_when_enabled(tmp_path: Path) -> None:
