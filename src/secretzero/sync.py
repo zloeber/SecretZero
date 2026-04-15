@@ -9,6 +9,10 @@ from secretzero.bundles import get_bundle_registry
 from secretzero.generators.base import BaseGenerator
 from secretzero.lockfile import Lockfile, LockfileSyncIdentity
 from secretzero.models import AgentInstructions, Secret, Secretfile, Template
+from secretzero.policy import (
+    collect_applicable_provider_identity_policies,
+    evaluate_provider_identity_policy,
+)
 from secretzero.providers.capabilities import CapabilityType
 from secretzero.sync_identity import collect_lockfile_sync_identity
 
@@ -353,6 +357,125 @@ class SyncEngine:
             "results": results,
         }
 
+    def preflight_provider_identity_policies(
+        self,
+        secrets_in_scope: list[Secret] | None = None,
+    ) -> dict[str, Any]:
+        """Evaluate ``provider_identity`` policies without raising (for UI preflight).
+
+        Uses the same rules as sync enforcement. When ``secrets_in_scope`` is omitted,
+        all secrets in the manifest are considered (same scope as a full sync).
+
+        Returns:
+            Dict with ``has_policies``, ``all_ok``, ``blocking``, ``headline``, ``rows``
+            (list of per policy/provider status rows).
+        """
+        secrets = secrets_in_scope if secrets_in_scope is not None else self.secretfile.secrets
+        applicable = collect_applicable_provider_identity_policies(self.secretfile, secrets)
+        rows: list[dict[str, Any]] = []
+        if not applicable:
+            return {
+                "has_policies": False,
+                "all_ok": True,
+                "blocking": False,
+                "headline": (
+                    "No provider identity policies apply to these secrets. "
+                    "Sync is not gated by `kind: provider_identity` rules."
+                ),
+                "rows": [],
+            }
+
+        all_ok = True
+        blocking = False
+        for policy_name, policy in applicable:
+            if not policy.enabled:
+                continue
+            for provider_alias in policy.providers:
+                entry: dict[str, Any] = {
+                    "policy_name": policy_name,
+                    "provider_alias": provider_alias,
+                    "status": "ok",
+                    "detail": None,
+                }
+                provider = self._get_provider(provider_alias)
+                if provider is None:
+                    entry["status"] = "provider_missing"
+                    entry["detail"] = (
+                        "Provider is not initialized. Check your `providers:` configuration."
+                    )
+                    all_ok = False
+                    blocking = True
+                    rows.append(entry)
+                    continue
+                if getattr(provider, "auth", None) is not None:
+                    auth_exc: BaseException | None = None
+                    try:
+                        ok = provider.authenticate()
+                    except Exception as exc:
+                        ok = False
+                        auth_exc = exc
+                    if not ok:
+                        msg = f"authenticate() returned false for provider {provider_alias!r}"
+                        if auth_exc is not None:
+                            msg = str(auth_exc)
+                        entry["status"] = "auth_failed"
+                        entry["detail"] = msg
+                        all_ok = False
+                        blocking = True
+                        rows.append(entry)
+                        continue
+                try:
+                    actor = provider.get_actor_info()
+                except Exception as exc:
+                    entry["status"] = "actor_failed"
+                    entry["detail"] = str(exc)
+                    all_ok = False
+                    blocking = True
+                    rows.append(entry)
+                    continue
+                if not isinstance(actor, dict):
+                    entry["status"] = "actor_failed"
+                    entry["detail"] = "Provider returned non-dict actor metadata"
+                    all_ok = False
+                    blocking = True
+                    rows.append(entry)
+                    continue
+                eval_ok, msg = evaluate_provider_identity_policy(policy, actor)
+                if not eval_ok:
+                    entry["status"] = "policy_failed"
+                    entry["detail"] = msg
+                    all_ok = False
+                    blocking = True
+                rows.append(entry)
+
+        if all_ok:
+            headline = (
+                "All applicable provider identity policies pass. "
+                "Authenticated identities match your manifest rules."
+            )
+        else:
+            headline = (
+                "One or more provider identity policies fail. Sync will be blocked until you "
+                "use credentials that satisfy the rules below or adjust the manifest."
+            )
+        return {
+            "has_policies": True,
+            "all_ok": all_ok,
+            "blocking": blocking,
+            "headline": headline,
+            "rows": rows,
+        }
+
+    def _enforce_provider_identity_policies(self, secrets_to_sync: list[Secret]) -> None:
+        """Raise when ``provider_identity`` policies are not satisfied for in-scope targets."""
+        result = self.preflight_provider_identity_policies(secrets_to_sync)
+        for it in result["rows"]:
+            if it["status"] != "ok":
+                raise RuntimeError(
+                    f"Provider identity policy {it['policy_name']!r} failed for provider "
+                    f"{it['provider_alias']!r}: {it['detail']}"
+                )
+
     def sync(
         self,
         dry_run: bool = False,
@@ -427,6 +550,8 @@ class SyncEngine:
                 results["errors"].append(
                     f"Warning: Secrets not found in Secretfile: {', '.join(sorted(missing_names))}"
                 )
+
+        self._enforce_provider_identity_policies(secrets_to_sync)
 
         for secret in secrets_to_sync:
             try:

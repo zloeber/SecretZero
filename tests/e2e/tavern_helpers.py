@@ -78,6 +78,32 @@ def assert_sync_writes_prod_environment_target(response: Any, **kwargs: Any) -> 
     assert "ROTATABLE_PASSWORD=" in prod_file
 
 
+def assert_validate_errors_contain_identity_ref(response: Any, **kwargs: Any) -> None:
+    """Config validate should reject unknown identity_policies names."""
+    assert response.status_code == 200
+    data = response.json()
+    assert data.get("valid") is False
+    errors = data.get("errors") or []
+    joined = " ".join(str(e) for e in errors).lower()
+    assert "identity_policies" in joined
+    assert "unknown" in joined
+
+
+def assert_validate_errors_contain_provider_identity_rule(response: Any, **kwargs: Any) -> None:
+    """Config validate should reject provider_identity rules with invalid matcher combos."""
+    assert response.status_code == 200
+    data = response.json()
+    assert data.get("valid") is False
+    errors = data.get("errors") or []
+    joined = " ".join(str(e) for e in errors).lower()
+    assert (
+        "glob" in joined
+        or "regex" in joined
+        or "any_glob" in joined
+        or "provider_identity" in joined
+    )
+
+
 def assert_cross_target_sync_updates_all_targets(response: Any, **kwargs: Any) -> None:
     assert response.status_code == 200
     data = response.json()

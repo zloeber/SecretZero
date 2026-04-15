@@ -1067,7 +1067,14 @@ def schema() -> None:
 )
 def schema_export(output: str) -> None:
     """Export JSON Schema for Secretfile.yml."""
+    from secretzero.policy import ProviderIdentityPolicy
+
     schema_json = Secretfile.model_json_schema()
+    pi_json = ProviderIdentityPolicy.model_json_schema()
+    defs = schema_json.setdefault("$defs", {})
+    for key, val in pi_json.get("$defs", {}).items():
+        defs[key] = val
+    defs["ProviderIdentityPolicy"] = {k: v for k, v in pi_json.items() if k != "$defs"}
     payload = json.dumps(schema_json, indent=2)
 
     if output == "-" or not output:
@@ -4478,7 +4485,7 @@ def agent() -> None:
     "--web-host",
     default="127.0.0.1",
     show_default=True,
-    help="Listening address for --web form (set 0.0.0.0 to allow remote browser access)",
+    help="DEPRECATED: agent web mode always binds to 127.0.0.1 for safety",
 )
 @click.option(
     "--verbose",
@@ -4580,10 +4587,10 @@ def agent_sync(
         console.print(
             "[dim]Note: --web takes precedence over --interactive for collecting values.[/dim]"
         )
-    if web and web_host == "0.0.0.0":  # nosec B104
+    if web and web_host != "127.0.0.1":
         console.print(
-            "[bold yellow]Warning:[/bold yellow] agent web mode is using HTTP on 0.0.0.0. "
-            "Anyone with network access can reach the form."
+            "[yellow]Note:[/yellow] --web-host is deprecated for `agent sync`; "
+            "Vector 2 now always binds to 127.0.0.1."
         )
 
     synchronizer = AgentSecretSynchronizer(
@@ -4612,8 +4619,11 @@ def agent_sync(
                 dry_run=dry_run,
                 port_min=agent_cfg.web_port_min,
                 port_max=agent_cfg.web_port_max,
-                host=web_host,
+                host="127.0.0.1",
                 open_browser=not _is_non_interactive(),
+                on_ready=lambda url: console.print(
+                    f"[cyan]Open the local web form to continue:[/cyan] {url}"
+                ),
             )
         except Exception as exc:
             console.print(f"[yellow]Web UI failed ({exc}); showing instructions instead.[/yellow]")

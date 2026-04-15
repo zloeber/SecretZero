@@ -326,6 +326,26 @@ def build_manifest_rows(
             "var_files": vf,
         }
     base["provider_rows"] = collect_provider_identity_rows(secretfile) if secretfile else []
+    base["identity_preflight"] = None
+    if secretfile:
+        try:
+            eng = make_sync_engine(
+                secretfile,
+                lockfile,
+                secretfile_path=secretfile_path,
+                secretfile_content=None,
+            )
+            base["identity_preflight"] = eng.preflight_provider_identity_policies()
+        except Exception:
+            logger.exception("Dashboard identity preflight failed")
+            base["identity_preflight"] = {
+                "has_policies": False,
+                "all_ok": False,
+                "blocking": True,
+                "headline": "Could not evaluate provider identity policies. Check server logs.",
+                "rows": [],
+                "preflight_error": True,
+            }
     return base
 
 

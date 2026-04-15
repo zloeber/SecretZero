@@ -142,6 +142,7 @@ nav:
           - Secretfile Reference: user-guide/configuration/secretfile.md
           - Variables & Interpolation: user-guide/configuration/variables.md
           - Schema Validation: user-guide/configuration/validation.md
+          - Provider identity policies: user-guide/configuration/provider-identity-policies.md
       - Providers:
           - user-guide/providers/index.md
           - AWS: user-guide/providers/aws.md

@@ -13,13 +13,28 @@ edges:
     condition: when command usage or environment setup is needed
   - target: patterns/add-secret.md
     condition: when authoring includes adding/changing secret entries
-last_updated: 2026-04-13
+last_updated: 2026-04-14
 ---
 
 # Secretfile Authoring
 
 ## Context
 This pattern covers edits to `Secretfile.yml` structure (`variables`, `providers`, `templates`, `secrets`, `policies`) and var-file merge usage.
+
+## Provider identity policies (`kind: provider_identity`)
+
+Use root `policies:` entries with `kind: provider_identity` to block `secretzero sync` when a configured provider’s `get_actor_info()` does not match your rules (wrong AWS account, Vault policies, etc.). Policies apply when their `providers:` list overlaps provider aliases used on **in-scope** secret targets, or when a target lists `identity_policies: [policy_name]`. Rules support `glob` / `regex` on scalar fields and `any_glob` / `all_glob` on list fields (e.g. Vault `scopes`). See `$defs.ProviderIdentityPolicy` in `Secretfile.schema.json`.
+
+**Common actor fields** (from built-in providers; always check `secretzero status` / provider identity output for your version):
+
+| Provider kind | Useful `field:` paths |
+|---------------|------------------------|
+| `aws` | `account`, `arn`, `user`, `region`, `token_type` |
+| `vault` | `user`, `scopes`, `url`, `namespace`, `token_type` |
+| `azure` | `tenant_id`, `object_id`, `user`, `token_type` (JWT-derived where available) |
+| `github` / `gitlab` | `user`, `scopes`, `token_type` |
+| `kubernetes` | `cluster_host`, `user`, `token_type` |
+| `jenkins` | `user`, `token_type` |
 
 ## Steps
 1. Keep top-level sections explicit and valid for Pydantic model parsing.
@@ -29,6 +44,7 @@ This pattern covers edits to `Secretfile.yml` structure (`variables`, `providers
 5. Run `secretzero sync --dry-run` before real sync.
 
 ## Gotchas
+- `provider_identity` policies are enforced at sync time (CLI, API, agent) after target access checks; they do not run for `secretzero policy` rotation/access checks.
 - `${VAR}` interpolation is based on merged variable context in config flow, not implicit shell env substitution.
 - Var-file ordering matters; later `--var-file` overrides earlier values.
 - A typo in interpolated key paths can silently produce wrong/empty rendered values in downstream config.

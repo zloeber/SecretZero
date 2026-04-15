@@ -107,7 +107,11 @@ class ConfigLoader:
         interpolated_data["variables"] = variables
 
         # Validate with Pydantic model
-        return Secretfile(**interpolated_data)
+        secretfile = Secretfile(**interpolated_data)
+        from secretzero.policy import validate_secretfile_policy_shapes
+
+        validate_secretfile_policy_shapes(secretfile)
+        return secretfile
 
     def _interpolate_variables(
         self,
