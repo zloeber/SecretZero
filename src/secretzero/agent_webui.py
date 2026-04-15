@@ -12,6 +12,7 @@ import socket
 import threading
 import uuid
 import webbrowser
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -517,6 +518,7 @@ def run_blocking_web_agent_form(
     port_max: int,
     host: str,
     open_browser: bool,
+    on_ready: Callable[[str], None] | None = None,
 ) -> AgentSyncResult:
     """Start a one-shot localhost server, block until the form is submitted or timeout.
 
@@ -591,6 +593,11 @@ def run_blocking_web_agent_form(
     url_host = "127.0.0.1" if host == "0.0.0.0" else host  # nosec B104
     url = f"http://{url_host}:{port}/"
     logger.info("Agent web UI listening on %s", url)
+    if on_ready is not None:
+        try:
+            on_ready(url)
+        except Exception:
+            logger.debug("Agent web UI ready callback failed", exc_info=True)
     if open_browser:
         try:
             webbrowser.open(url)

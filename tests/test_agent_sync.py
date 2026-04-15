@@ -548,7 +548,7 @@ templates: {}
             assert result.exit_code == 0, result.output
             assert not lock.exists()
 
-    def test_web_host_option_warns_for_http_0_0_0_0(self, runner: CliRunner) -> None:
+    def test_web_host_option_is_ignored_for_safety(self, runner: CliRunner) -> None:
         with TemporaryDirectory() as tmpdir:
             sf = Path(tmpdir) / "Secretfile.yml"
             sf.write_text("""version: '1.0'
@@ -589,5 +589,5 @@ templates: {}
                     ],
                 )
             assert result.exit_code == 0, result.output
-            assert "Warning:" in result.output
-            assert "0.0.0.0" in result.output
+            assert "--web-host is deprecated" in result.output
+            assert "127.0.0.1" in result.output
