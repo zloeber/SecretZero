@@ -291,6 +291,22 @@ class TestSyncEndpoint:
             or "test_password" in data["secrets_skipped"]
         )
 
+    def test_sync_accepts_refresh_flag(self, authenticated_client):
+        """Sync endpoint accepts refresh flag and still succeeds."""
+        response = authenticated_client.post(
+            "/sync",
+            json={"dry_run": True, "force": False, "refresh": True},
+        )
+        assert response.status_code == 200
+
+    def test_sync_accepts_refresh_false_opt_out(self, authenticated_client):
+        """Sync endpoint allows opting out of refresh."""
+        response = authenticated_client.post(
+            "/sync",
+            json={"dry_run": True, "force": False, "refresh": False},
+        )
+        assert response.status_code == 200
+
     def test_sync_nonexistent_secret(self, authenticated_client):
         """Test syncing a non-existent secret."""
         response = authenticated_client.post(

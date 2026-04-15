@@ -17,6 +17,8 @@ def test_primary_and_secondary_helpers() -> None:
     assert primary_identity_label({"arn": "arn:aws:sts::123:role/x"}) == "arn:aws:sts::123:role/x"
     hint = secondary_identity_hint({"token_type": "aws_iam", "account": "123"})
     assert "aws_iam" in hint and "123" in hint
+    region_hint = secondary_identity_hint({"token_type": "aws_iam", "region": "us-west-2"})
+    assert "region=us-west-2" in region_hint
 
 
 def test_collect_empty_providers() -> None:

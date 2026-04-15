@@ -137,7 +137,7 @@ class AgentSecretSynchronizer:
         self.secretfile_path = secretfile_path
         self.secretfile_content = secretfile_content
 
-    def sync(self, *, sz_agent: bool = False) -> AgentSyncResult:
+    def sync(self, *, sz_agent: bool = False, refresh: bool = True) -> AgentSyncResult:
         """Perform agent-aware secret synchronization.
 
         Args:
@@ -149,13 +149,28 @@ class AgentSecretSynchronizer:
         """
         result = AgentSyncResult()
         already_synced: list[str] = []
+        mismatched_secrets: set[str] = set()
+
+        if refresh:
+            refresh_engine = SyncEngine(
+                self.secretfile,
+                self.lockfile,
+                secretfile_path=self.secretfile_path,
+                secretfile_content=self.secretfile_content,
+                hide_input=True,
+                prompt_on_empty=False,
+                sync_client="agent",
+            )
+            refresh_report = refresh_engine.refresh_lockfile_targets(dry_run=self.dry_run)
+            result.sync_results["refresh"] = refresh_report
+            mismatched_secrets = {row["secret"] for row in refresh_report.get("rows", [])}
 
         # Separate secrets into auto-syncable and manual
         auto_secrets: list[str] = []
         for secret in self.secretfile.secrets:
             # Check if secret already exists in lockfile
             lockfile_entry = self.lockfile.get_secret_info(secret.name)
-            if lockfile_entry:
+            if lockfile_entry and secret.name not in mismatched_secrets:
                 # Secret already exists in lockfile, skip it
                 already_synced.append(secret.name)
                 logger.debug("Secret '%s' already exists in lockfile, skipping", secret.name)
@@ -193,8 +208,15 @@ class AgentSecretSynchronizer:
                 sync_client="agent",
             )
             try:
-                sync_results = engine.sync(dry_run=self.dry_run, secret_names=auto_secrets)
-                result.sync_results = sync_results
+                sync_results = engine.sync(
+                    dry_run=self.dry_run,
+                    secret_names=auto_secrets,
+                    refresh=refresh,
+                )
+                if result.sync_results:
+                    result.sync_results.update(sync_results)
+                else:
+                    result.sync_results = sync_results
                 result.synced_secrets = auto_secrets
                 logger.info("Synced %d secrets automatically", len(auto_secrets))
             except Exception as exc:

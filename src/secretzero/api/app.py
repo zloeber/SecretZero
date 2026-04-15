@@ -322,31 +322,39 @@ def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
 
             generated = []
             skipped = []
+            secret_names = None
 
             if request.secret_name:
-                # Sync specific secret
                 secret = next((s for s in config.secrets if s.name == request.secret_name), None)
                 if not secret:
                     raise HTTPException(
                         status_code=status.HTTP_404_NOT_FOUND,
                         detail=f"Secret not found: {request.secret_name}",
                     )
+                secret_names = [request.secret_name]
 
-                result = sync_engine._sync_secret(secret, request.dry_run, request.force)
-                if not request.dry_run and result["generated"] and result["stored"]:
-                    generated.append(request.secret_name)
-                elif request.dry_run or result["skipped"]:
-                    skipped.append(request.secret_name)
-                message = f"{'Would generate' if request.dry_run else 'Generated'} secret: {request.secret_name}"
+            results = sync_engine.sync(
+                dry_run=request.dry_run,
+                force_rotation=request.force,
+                secret_names=secret_names,
+                refresh=request.refresh,
+            )
+            for detail in results.get("details", []):
+                if not request.dry_run and detail.get("generated") and detail.get("stored"):
+                    generated.append(detail["name"])
+                elif request.dry_run or detail.get("skipped"):
+                    skipped.append(detail["name"])
+
+            if request.secret_name:
+                message = (
+                    f"{'Would generate' if request.dry_run else 'Generated'} secret: "
+                    f"{request.secret_name}"
+                )
             else:
-                # Sync all secrets
-                results = sync_engine.sync(dry_run=request.dry_run, force_rotation=request.force)
-                for detail in results.get("details", []):
-                    if not request.dry_run and detail.get("generated") and detail.get("stored"):
-                        generated.append(detail["name"])
-                    elif request.dry_run or detail.get("skipped"):
-                        skipped.append(detail["name"])
-                message = f"{'Would generate' if request.dry_run else 'Generated'} {len(generated)} secret(s), skipped {len(skipped)}"
+                message = (
+                    f"{'Would generate' if request.dry_run else 'Generated'} "
+                    f"{len(generated)} secret(s), skipped {len(skipped)}"
+                )
 
             # Save lockfile if not dry run
             if not request.dry_run:
@@ -358,6 +366,7 @@ def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
                 details={
                     "dry_run": request.dry_run,
                     "force": request.force,
+                    "refresh": request.refresh,
                     "generated": generated,
                     "skipped": skipped,
                 },
@@ -419,7 +428,7 @@ def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
                 secretfile_path=config_path,
                 secretfile_content=secretfile_content,
             )
-            result = syncer.sync(sz_agent=sz_eff)
+            result = syncer.sync(sz_agent=sz_eff, refresh=body.refresh)
 
             resolved = resolve_resolved_mode_label(secretfile, cli_web=body.web, sz_agent=sz_eff)
             payload = build_agent_sync_json_payload(
@@ -457,6 +466,7 @@ def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
                 details={
                     "dry_run": body.dry_run,
                     "web": body.web,
+                    "refresh": body.refresh,
                     "status": payload["status"],
                     "pending_count": len(result.pending_secrets),
                     "failed_count": len(result.failed_secrets),

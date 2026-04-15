@@ -19,6 +19,7 @@ The `sync` command generates secret values according to your Secretfile configur
 | `--file`, `-f` | path | `Secretfile.yml` | Path to Secretfile |
 | `--lockfile`, `-l` | path | `.gitsecrets.lock` | Path to lockfile |
 | `--dry-run` | flag | `false` | Show what would be done without making changes |
+| `--refresh/--no-refresh` | bool flag | `--refresh` | Check lockfile target validity right before sync; prune stale target entries on non-dry-run |
 | `--help` | flag | - | Show help message |
 
 ## Examples
@@ -109,6 +110,21 @@ Reads existing lockfile (if any):
 
 ```
 Loading lockfile: .gitsecrets.lock
+```
+
+### 2.5 Automatic Pre-Sync Refresh
+
+Before syncing secrets, SecretZero automatically checks lockfile target IDs against
+the current Secretfile target definitions:
+
+- stale lockfile target IDs are reported as mismatches,
+- in `--dry-run`, stale entries are only reported (`would prune`),
+- in normal mode, stale entries are pruned before sync proceeds.
+
+Opt out only when needed:
+
+```bash
+secretzero sync --no-refresh
 ```
 
 ### 3. Check Each Secret

@@ -30,9 +30,16 @@ secretzero agent sync --json
 # Preview changes without applying them
 secretzero agent sync --dry-run
 
+# Sync without pre-sync lockfile target refresh
+secretzero agent sync --no-refresh
+
 # Interactively supply values for pending secrets
 secretzero agent sync --interactive
 ```
+
+By default, `agent sync` performs an automatic lockfile target refresh immediately
+before sync. In dry-run mode this only reports mismatches; in non-dry-run mode
+stale lockfile target entries are pruned before synchronization.
 
 ## Use Cases
 

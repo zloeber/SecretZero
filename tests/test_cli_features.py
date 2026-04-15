@@ -313,6 +313,60 @@ def test_sync_json_output(runner: CliRunner) -> None:
         assert "secrets_stored" in payload
         assert "dry_run" in payload
         assert payload["dry_run"] is True
+        assert "refresh" in payload
+
+
+def test_sync_json_output_with_refresh_includes_refresh_report(runner: CliRunner) -> None:
+    """`sync --refresh --format json` returns refresh metadata."""
+    with TemporaryDirectory() as tmpdir:
+        sf = Path(tmpdir) / "Secretfile.yml"
+        sf.write_text(MINIMAL_SECRETFILE)
+        lock = Path(tmpdir) / ".lock"
+
+        result = runner.invoke(
+            main,
+            [
+                "sync",
+                "--file",
+                str(sf),
+                "--lockfile",
+                str(lock),
+                "--dry-run",
+                "--refresh",
+                "--format",
+                "json",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert "refresh" in payload
+        assert payload["refresh"]["mismatch_targets"] == 0
+
+
+def test_sync_json_output_no_refresh_omits_refresh_report(runner: CliRunner) -> None:
+    """`sync --no-refresh --format json` does not include refresh metadata."""
+    with TemporaryDirectory() as tmpdir:
+        sf = Path(tmpdir) / "Secretfile.yml"
+        sf.write_text(MINIMAL_SECRETFILE)
+        lock = Path(tmpdir) / ".lock"
+
+        result = runner.invoke(
+            main,
+            [
+                "sync",
+                "--file",
+                str(sf),
+                "--lockfile",
+                str(lock),
+                "--dry-run",
+                "--no-refresh",
+                "--format",
+                "json",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert "refresh" not in payload
 
 
 def test_sync_json_output_with_secret(runner: CliRunner) -> None:

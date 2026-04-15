@@ -1977,6 +1977,14 @@ def _cli_force_targets_map(
     help="Remove lockfile entries that have no corresponding secret in the Secretfile",
 )
 @click.option(
+    "--refresh/--no-refresh",
+    default=True,
+    help=(
+        "Refresh lockfile target validity right before sync "
+        "(default: enabled; use --no-refresh to opt out)"
+    ),
+)
+@click.option(
     "--force-target",
     "force_targets",
     multiple=True,
@@ -1997,6 +2005,7 @@ def sync(
     secrets: tuple[str, ...],
     output_format: str,
     clean: bool,
+    refresh: bool,
     force_targets: tuple[str, ...],
 ) -> None:
     """Generate and synchronize secrets to targets.
@@ -2039,6 +2048,9 @@ def sync(
 
         # Machine-readable plan output
         secretzero sync --plan --format json
+
+        # Opt out of automatic pre-sync refresh
+        secretzero sync --no-refresh
     """
     # --plan implies --dry-run
     if plan:
@@ -2167,6 +2179,7 @@ def sync(
             secret_names=secret_names,
             ignore_foreign_context_targets=variable_context_changed,
             force_targets=force_targets_map,
+            refresh=refresh,
         )
 
         if output_format == "json":
@@ -2209,6 +2222,8 @@ def sync(
                 json_result["plan_details"] = plan_details
             if clean:
                 json_result["cleaned"] = cleaned_entries
+            if refresh:
+                json_result["refresh"] = results.get("refresh")
             click.echo(json.dumps(json_result, indent=2, default=str))
             # Mirror text mode: persist lockfile after sync (JSON path used to return here without saving).
             if not dry_run:
@@ -2273,6 +2288,16 @@ def sync(
         if cleaned_entries:
             console.print(
                 f"[cyan]🗑 Cleaned:[/cyan] {len(cleaned_entries)} orphaned lockfile entr{'y' if len(cleaned_entries) == 1 else 'ies'}"
+            )
+        refresh_result = results.get("refresh") if refresh else None
+        if refresh_result and refresh_result.get("mismatch_targets", 0) > 0:
+            action_word = "would prune" if dry_run else "pruned"
+            console.print(
+                "[yellow]⚠ Refreshed lockfile targets:[/yellow] "
+                f"{action_word} {refresh_result['mismatch_targets']} stale target entr"
+                f"{'y' if refresh_result['mismatch_targets'] == 1 else 'ies'} "
+                f"across {refresh_result['mismatch_secrets']} secret"
+                f"{'' if refresh_result['mismatch_secrets'] == 1 else 's'}"
             )
 
         # Show if secretfile changed
@@ -3459,7 +3484,7 @@ def drift(file: str, lockfile: str, output_format: str, secret_name: str | None)
     "--type",
     "-t",
     "graph_type",
-    type=click.Choice(["flow", "detailed", "architecture"]),
+    type=click.Choice(["flow", "detailed", "architecture", "destination"]),
     default="flow",
     help="Type of graph to generate",
 )
@@ -3488,6 +3513,7 @@ def graph(file: str, graph_type: str, output_format: str, output: str | None) ->
     - flow: Simple flowchart showing generator → secret → target relationships
     - detailed: Detailed view with configuration parameters
     - architecture: High-level system architecture view
+    - destination: Destination-centric view grouped by target destinations and keys
 
     Output Formats:
 
@@ -3505,6 +3531,9 @@ def graph(file: str, graph_type: str, output_format: str, output: str | None) ->
 
         # Generate architecture overview
         secretzero graph --type architecture
+
+        # Generate destination-centric overview
+        secretzero graph --type destination
 
         # Save to file
         secretzero graph --output secretflow.md
@@ -4493,6 +4522,14 @@ def agent() -> None:
     is_flag=True,
     help="Verbose logging for agent sync",
 )
+@click.option(
+    "--refresh/--no-refresh",
+    default=True,
+    help=(
+        "Refresh lockfile target validity right before sync "
+        "(default: enabled; use --no-refresh to opt out)"
+    ),
+)
 def agent_sync(
     file: str,
     lockfile: str,
@@ -4503,6 +4540,7 @@ def agent_sync(
     web: bool,
     web_host: str,
     verbose: bool,
+    refresh: bool,
 ) -> None:
     """Agent-aware secret synchronisation with guided instructions.
 
@@ -4531,6 +4569,9 @@ def agent_sync(
 
         # Sync with variable file override
         secretzero agent sync --var-file dev.szvar
+
+        # Opt out of automatic pre-sync refresh
+        secretzero agent sync --no-refresh
     """
     import json as _json
     import logging
@@ -4602,7 +4643,7 @@ def agent_sync(
     )
 
     try:
-        result = synchronizer.sync(sz_agent=sz_agent)
+        result = synchronizer.sync(sz_agent=sz_agent, refresh=refresh)
     except Exception as exc:
         console.print(f"[red]Agent sync failed:[/red] {exc}")
         raise click.ClickException(str(exc)) from exc
@@ -4745,6 +4786,16 @@ def _display_agent_sync_results(
 
     # Show detailed sync results if available
     sync_results = result.sync_results
+    refresh_info = sync_results.get("refresh") if isinstance(sync_results, dict) else None
+    if refresh_info and refresh_info.get("mismatch_targets", 0) > 0:
+        action_word = "would prune" if dry_run else "pruned"
+        console.print(
+            "\n[yellow]⚠ Refreshed lockfile targets:[/yellow] "
+            f"{action_word} {refresh_info['mismatch_targets']} stale target entr"
+            f"{'y' if refresh_info['mismatch_targets'] == 1 else 'ies'} "
+            f"across {refresh_info['mismatch_secrets']} secret"
+            f"{'' if refresh_info['mismatch_secrets'] == 1 else 's'}"
+        )
     if sync_results and sync_results.get("details"):
         console.print("\n[bold]Synced Secret Details[/bold]")
 

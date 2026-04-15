@@ -100,6 +100,9 @@ def test_generate_flow_diagram(sample_secretfile: Path):
     # Verify connections
     assert "generates" in diagram
     assert "syncs to" in diagram
+    assert "subgraph Targets" in diagram
+    assert "name: db_password" in diagram
+    assert "secret_name: API_KEY" in diagram
 
 
 def test_generate_detailed_diagram(sample_secretfile: Path):
@@ -119,6 +122,8 @@ def test_generate_detailed_diagram(sample_secretfile: Path):
     assert "Target:" in diagram
     assert "local/file" in diagram
     assert "github/github_secret" in diagram
+    assert "subgraph Targets" in diagram
+    assert "secret_name: API_KEY" in diagram
 
 
 def test_generate_architecture_diagram(sample_secretfile: Path):
@@ -199,6 +204,16 @@ def test_generate_graph_architecture(sample_secretfile: Path):
     assert "```mermaid" in diagram
     assert "graph TB" in diagram
     assert "SecretZero" in diagram
+
+
+def test_generate_graph_destination(sample_secretfile: Path):
+    """Test generate_graph function with destination-centric type."""
+    diagram = generate_graph(sample_secretfile, graph_type="destination", output_format="mermaid")
+
+    assert "```mermaid" in diagram
+    assert "flowchart LR" in diagram
+    assert "Target Destinations" in diagram
+    assert "writes" in diagram
 
 
 def test_generate_graph_terminal(sample_secretfile: Path):

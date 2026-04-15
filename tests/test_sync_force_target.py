@@ -199,3 +199,73 @@ def test_force_target_uses_env_when_retrieve_fails(
     assert detail.get("skipped") is not True
     assert detail.get("dry_run") is True
     assert detail["targets"][0].get("status") == "would_store"
+
+
+def test_refresh_prunes_stale_lockfile_targets(
+    secretfile_two_file_targets: Path, tmp_path: Path
+) -> None:
+    """Refresh removes target IDs that no longer exist in the manifest."""
+    loader = ConfigLoader()
+    config = loader.load_file(secretfile_two_file_targets)
+    sec = config.secrets[0]
+    id_a = SyncEngine._build_target_id(sec.targets[0])
+    id_b = SyncEngine._build_target_id(sec.targets[1])
+    stale = "local/file/old.env"
+
+    lock_path = tmp_path / "t.lock"
+    lock_path.write_text(
+        json.dumps(
+            {
+                "version": "1.0",
+                "secrets": {
+                    "shared_secret": {
+                        "hash": "H",
+                        "created_at": "2020-01-01T00:00:00Z",
+                        "updated_at": "2020-01-01T00:00:00Z",
+                        "targets": {
+                            id_a: "H",
+                            id_b: "H",
+                            stale: "H",
+                        },
+                    }
+                },
+            }
+        )
+    )
+    lock = Lockfile.load(lock_path)
+    eng = SyncEngine(config, lock)
+
+    refresh = eng.refresh_lockfile_targets(dry_run=False)
+    assert refresh["mismatch_targets"] == 1
+    assert stale not in lock.secrets["shared_secret"].targets
+
+
+def test_sync_refresh_reports_mismatches_in_results(
+    secretfile_two_file_targets: Path, tmp_path: Path
+) -> None:
+    """Sync(refresh=True) includes mismatch metadata and warning."""
+    loader = ConfigLoader()
+    config = loader.load_file(secretfile_two_file_targets)
+    stale = "local/file/obsolete.env"
+    lock_path = tmp_path / "t.lock"
+    lock_path.write_text(
+        json.dumps(
+            {
+                "version": "1.0",
+                "secrets": {
+                    "shared_secret": {
+                        "hash": "H",
+                        "created_at": "2020-01-01T00:00:00Z",
+                        "updated_at": "2020-01-01T00:00:00Z",
+                        "targets": {stale: "H"},
+                    }
+                },
+            }
+        )
+    )
+    lock = Lockfile.load(lock_path)
+    eng = SyncEngine(config, lock)
+
+    result = eng.sync(dry_run=True, secret_names=["shared_secret"], refresh=True)
+    assert result["refresh"]["mismatch_targets"] == 1
+    assert any("lockfile target mismatches" in msg for msg in result["errors"])

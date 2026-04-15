@@ -240,14 +240,10 @@ def static_secret_edit_template_vars(
 ) -> dict[str, Any]:
     """Context for ``secretzero web`` static edit page (structured vs scalar)."""
     banner = operator_context_banner_html(secretfile_path)
-    actor_html = (
-        target_provenance_actor_html(secret_name=secret.name, lockfile=lockfile) if lockfile else ""
-    )
     if not static_dict_needs_leaf_prompts(secret):
         return {
             "structured": False,
             "operator_banner_html": banner,
-            "target_actor_html": actor_html,
             "dict_leaves": [],
             "json_field_name": None,
         }
@@ -256,7 +252,6 @@ def static_secret_edit_template_vars(
         return {
             "structured": False,
             "operator_banner_html": banner,
-            "target_actor_html": actor_html,
             "dict_leaves": [],
             "json_field_name": None,
         }
@@ -272,7 +267,6 @@ def static_secret_edit_template_vars(
     return {
         "structured": True,
         "operator_banner_html": banner,
-        "target_actor_html": actor_html,
         "dict_leaves": leaves_out,
         "json_field_name": json_bulk_field_key(secret.name),
     }

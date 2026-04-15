@@ -36,6 +36,18 @@ Use root `policies:` entries with `kind: provider_identity` to block `secretzero
 | `kubernetes` | `cluster_host`, `user`, `token_type` |
 | `jenkins` | `user`, `token_type` |
 
+**Region-restricted AWS example:**
+```yaml
+policies:
+  aws_region_guard:
+    kind: provider_identity
+    providers: [aws]
+    match: all
+    rules:
+      - field: region
+        glob: us-east-1
+```
+
 ## Steps
 1. Keep top-level sections explicit and valid for Pydantic model parsing.
 2. Ensure provider aliases in `providers:` match references in all secret targets.

@@ -137,6 +137,7 @@ class SyncRequest(BaseModel):
 
     dry_run: bool = False
     force: bool = False
+    refresh: bool = True
     secret_name: str | None = None
     var_files: list[str] = Field(
         default_factory=list,
@@ -244,6 +245,7 @@ class AgentSyncRequest(BaseModel):
     """Request for unified ``agent sync`` (CLI parity)."""
 
     dry_run: bool = False
+    refresh: bool = True
     web: bool = Field(
         default=False,
         description="When True and manual secrets are pending, expose a localhost web URL (Vector 2)",

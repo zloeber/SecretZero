@@ -19,6 +19,15 @@ from secretzero.sync_identity import collect_lockfile_sync_identity
 # Import providers
 
 
+def _drop_none_values(value: Any) -> Any:
+    """Recursively remove ``None`` values from nested dict/list structures."""
+    if isinstance(value, dict):
+        return {k: _drop_none_values(v) for k, v in value.items() if v is not None}
+    if isinstance(value, list):
+        return [_drop_none_values(v) for v in value]
+    return value
+
+
 class SyncEngine:
     """Engine for synchronizing secrets from configuration to targets."""
 
@@ -90,8 +99,8 @@ class SyncEngine:
         if isinstance(target_actor, dict):
             # Provider/target actor metadata wins for overlapping keys and may include
             # auth/introspection details (account IDs, token mode, usernames, etc).
-            actor.update(target_actor)
-        return actor
+            actor.update(_drop_none_values(target_actor))
+        return _drop_none_values(actor)
 
     def _record_lockfile_source_state(self, dry_run: bool) -> None:
         """Update secretfile tracking and sync identity once per engine run (non–dry-run only)."""
@@ -138,6 +147,74 @@ class SyncEngine:
             if old_target_id in tracked_targets:
                 return True
         return False
+
+    def _valid_target_ids_for_secret(self, secret: Secret) -> set[str]:
+        """Return lockfile target IDs that are valid for *secret* now.
+
+        Includes legacy file target IDs to avoid false mismatches for older lockfiles.
+        """
+        valid: set[str] = set()
+        for target_config in secret.targets:
+            valid.add(self._build_target_id(target_config))
+            if target_config.kind == "file":
+                valid.add(f"{target_config.provider}/{target_config.kind}/")
+        return valid
+
+    def refresh_lockfile_targets(
+        self,
+        *,
+        secret_names: list[str] | None = None,
+        dry_run: bool = False,
+    ) -> dict[str, Any]:
+        """Detect and optionally prune stale lockfile target IDs.
+
+        A stale target ID is present in ``lockfile.secrets[secret].targets`` but no longer
+        matches any configured target in the current Secretfile.
+        """
+        scoped = self.secretfile.secrets
+        if secret_names:
+            scoped = [s for s in self.secretfile.secrets if s.name in secret_names]
+
+        checked = 0
+        stale_targets_total = 0
+        stale_secrets = 0
+        rows: list[dict[str, Any]] = []
+
+        for secret in scoped:
+            entry = self.lockfile.get_secret_info(secret.name)
+            if not entry:
+                continue
+            checked += 1
+            tracked = set(entry.targets.keys())
+            if not tracked:
+                continue
+
+            valid = self._valid_target_ids_for_secret(secret)
+            stale = sorted(tid for tid in tracked if tid not in valid)
+            if not stale:
+                continue
+
+            stale_secrets += 1
+            stale_targets_total += len(stale)
+            rows.append(
+                {
+                    "secret": secret.name,
+                    "stale_targets": stale,
+                    "status": "would_prune" if dry_run else "pruned",
+                }
+            )
+
+            if not dry_run:
+                for target_id in stale:
+                    entry.targets.pop(target_id, None)
+                    entry.target_provenance.pop(target_id, None)
+
+        return {
+            "checked_secrets": checked,
+            "mismatch_secrets": stale_secrets,
+            "mismatch_targets": stale_targets_total,
+            "rows": rows,
+        }
 
     def _retrieve_candidates_for_partial_sync(
         self,
@@ -483,6 +560,7 @@ class SyncEngine:
         secret_names: list[str] | None = None,
         ignore_foreign_context_targets: bool = False,
         force_targets: dict[str, frozenset[str]] | None = None,
+        refresh: bool = True,
     ) -> dict[str, Any]:
         """Synchronize all secrets to their targets.
 
@@ -524,6 +602,7 @@ class SyncEngine:
             "errors": [],
             "details": [],
             "secretfile_changed": False,
+            "refresh": None,
         }
 
         self._sync_identity_snapshot = None
@@ -552,6 +631,19 @@ class SyncEngine:
                 )
 
         self._enforce_provider_identity_policies(secrets_to_sync)
+
+        if refresh:
+            refresh_report = self.refresh_lockfile_targets(
+                secret_names=secret_names,
+                dry_run=dry_run,
+            )
+            results["refresh"] = refresh_report
+            if refresh_report["mismatch_targets"] > 0:
+                results["errors"].append(
+                    "Warning: lockfile target mismatches detected "
+                    f"({refresh_report['mismatch_targets']} stale target entr"
+                    f"{'y' if refresh_report['mismatch_targets'] == 1 else 'ies'})"
+                )
 
         for secret in secrets_to_sync:
             try:

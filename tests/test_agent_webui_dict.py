@@ -13,7 +13,6 @@ from secretzero.agent_webui import (
     static_dict_needs_leaf_prompts,
     static_secret_edit_template_vars,
 )
-from secretzero.lockfile import Lockfile
 from secretzero.models import Secret, Secretfile
 
 
@@ -106,36 +105,15 @@ def test_static_secret_edit_template_vars() -> None:
     assert ctx["json_field_name"] == json_bulk_field_key("cfg")
 
 
-def test_static_secret_edit_template_vars_includes_target_actor_html() -> None:
+def test_static_secret_edit_template_vars_omits_target_actor_html() -> None:
     sec = Secret(
         name="cfg",
         kind="static",
         config={"value": {"x": None}},
         targets=[],
     )
-    lock = Lockfile.model_validate(
-        {
-            "version": "1.0",
-            "secrets": {
-                "cfg": {
-                    "hash": "abc",
-                    "created_at": "2026-01-01T00:00:00+00:00",
-                    "updated_at": "2026-01-01T00:00:00+00:00",
-                    "target_provenance": {
-                        "local/file/.env": [
-                            {
-                                "updated_at": "2026-01-01T00:00:00+00:00",
-                                "actor": {"provider": "local", "os_user": "alice"},
-                            }
-                        ]
-                    },
-                }
-            },
-        }
-    )
-    ctx = static_secret_edit_template_vars(sec, None, lock)
-    assert "Recent target actor metadata" in ctx["target_actor_html"]
-    assert "local/file/.env" in ctx["target_actor_html"]
+    ctx = static_secret_edit_template_vars(sec, None)
+    assert "target_actor_html" not in ctx
 
 
 @pytest.mark.parametrize(

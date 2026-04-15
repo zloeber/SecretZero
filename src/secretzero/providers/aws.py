@@ -137,12 +137,19 @@ class AWSAuth(ProviderAuth):
             raise RuntimeError(f"AWS identity lookup failed: {e}") from e
         arn = ident.get("Arn", "")
         uid = ident.get("UserId")
+        region = (
+            getattr(self._session, "region_name", None)
+            or self.config.get("region")
+            or os.environ.get(self.ENV_REGION)
+            or "us-east-1"
+        )
         return {
             "user": arn,
             "arn": arn,
             "account": ident.get("Account"),
             "principal_id": uid,
             "user_id": uid,
+            "region": region,
             "scopes": [],
             "token_type": "aws_iam",
         }

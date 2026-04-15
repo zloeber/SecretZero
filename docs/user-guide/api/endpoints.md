@@ -209,6 +209,7 @@ Generate and store secrets to their targets.
 |-------|------|----------|---------|-------------|
 | `dry_run` | boolean | No | `false` | Preview changes without applying |
 | `force` | boolean | No | `false` | Force regeneration of existing secrets |
+| `refresh` | boolean | No | `true` | Refresh lockfile target validity right before sync (`false` opts out) |
 | `secret_name` | string | No | `null` | Sync only this specific secret |
 
 **Example Request (Dry Run):**

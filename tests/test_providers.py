@@ -272,6 +272,29 @@ def test_aws_provider_supported_targets():
         pytest.skip("boto3 not installed")
 
 
+def test_aws_auth_get_token_info_includes_region():
+    """Token identity should expose resolved AWS region."""
+    from secretzero.providers.aws import AWSAuth
+
+    auth = AWSAuth({"kind": "ambient", "region": "us-east-2"})
+    mock_sts = MagicMock()
+    mock_sts.get_caller_identity.return_value = {
+        "Account": "123456789012",
+        "Arn": "arn:aws:iam::123456789012:user/tester",
+        "UserId": "AIDATEST",
+    }
+    mock_session = MagicMock()
+    mock_session.region_name = "us-west-1"
+    mock_session.client.return_value = mock_sts
+    auth._session = mock_session
+
+    info = auth.get_token_info()
+
+    assert info["region"] == "us-west-1"
+    assert info["account"] == "123456789012"
+    assert info["arn"] == "arn:aws:iam::123456789012:user/tester"
+
+
 # Azure Provider Tests (mocked)
 def test_azure_auth_default():
     """Test Azure default authentication (mocked)."""

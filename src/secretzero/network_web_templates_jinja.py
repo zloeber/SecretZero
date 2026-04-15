@@ -95,6 +95,23 @@ td.pi-pf-detail { font-size: 0.82rem; word-break: break-word; max-width: 28rem; 
 .toolbar { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; align-items: center; }
 .toolbar--secondary { margin-bottom: 0.65rem; }
 .toolbar form { display: inline; margin: 0; }
+.tabbar { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.9rem; }
+.tabbar .btn { font-size: 0.82rem; }
+.tab-panel { margin-top: 0.75rem; }
+.graph-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.7rem;
+}
+.graph-render {
+  margin-top: 0.7rem;
+  padding: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(127,127,127,0.06);
+  overflow: auto;
+}
 .sz-tool-pre {
   margin: 1rem 0 0;
   padding: 1rem;
@@ -185,6 +202,24 @@ table.sz td.actions form { display: inline; margin-right: 0.25rem; }
 }
 .sz-flow__name { font-weight: 700; font-size: 0.95rem; letter-spacing: -0.02em; word-break: break-word; }
 .sz-flow__kind code { font-size: 0.78rem; color: var(--muted); }
+.sz-flow__source-meta {
+  margin-top: 0.2rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+.sz-flow__source-meta strong { color: var(--text); font-weight: 600; }
+.sz-flow__source-actions {
+  margin-top: 0.3rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.sz-flow__source-actions form { display: inline; margin: 0; }
 .sz-flow__right {
   flex: 1 1 50%;
   min-width: 0;
@@ -284,26 +319,6 @@ table.sz td.actions form { display: inline; margin-right: 0.25rem; }
   margin: 0.45rem 0 0;
 }
 .sz-lane-force .btn-sm { font-size: 0.72rem; padding: 0.22rem 0.45rem; }
-.sz-flow__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.65rem 1.25rem;
-  margin-top: 0.75rem;
-  padding-top: 0.65rem;
-  border-top: 1px solid var(--border);
-  font-size: 0.78rem;
-  color: var(--muted);
-}
-.sz-flow__meta strong { color: var(--text); font-weight: 600; }
-.sz-flow__meta code { font-size: 0.76rem; }
-.sz-flow__actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.35rem;
-  margin-top: 0.65rem;
-}
-.sz-flow__actions form { display: inline; margin: 0; }
 .sz-ai {
   margin-top: 0.35rem;
   padding-top: 0.45rem;
@@ -533,6 +548,12 @@ TEMPLATES = {
   {% if error %}
   <div class="alert" role="alert">{{ error }}</div>
   {% endif %}
+  <nav class="tabbar" aria-label="Dashboard views">
+    <a href="/dashboard?filter={{ list_filter }}&tab=dashboard&graph_view={{ graph_view }}&graph_type={{ graph_type }}" class="btn btn-sm{% if current_tab == 'dashboard' %} btn-primary{% endif %}">Dashboard</a>
+    <a href="/dashboard?filter={{ list_filter }}&tab=secretfile&graph_view={{ graph_view }}&graph_type={{ graph_type }}" class="btn btn-sm{% if current_tab == 'secretfile' %} btn-primary{% endif %}">Secretfile.yml</a>
+    <a href="/dashboard?filter={{ list_filter }}&tab=graph&graph_view={{ graph_view }}&graph_type={{ graph_type }}" class="btn btn-sm{% if current_tab == 'graph' %} btn-primary{% endif %}">Graph</a>
+  </nav>
+  {% if current_tab == "dashboard" %}
   <div class="manifest-meta">
     <div><strong>Secretfile</strong> {{ manifest.secretfile_display }}</div>
     <div><strong>Lockfile synced</strong> {{ manifest.synced_at }}</div>
@@ -559,7 +580,44 @@ TEMPLATES = {
     </div>
   </div>
   {% endif %}
-  {% if manifest.identity_preflight %}
+  {% elif current_tab == "secretfile" %}
+  <section class="tab-panel" aria-label="Secretfile source">
+    <p class="lead" style="margin-bottom:0.6rem;">Full rendered Secretfile content for this web session.</p>
+    <pre class="sz-tool-pre">{{ secretfile_text }}</pre>
+  </section>
+  {% else %}
+  <section class="tab-panel" aria-label="Generated graph view">
+    <div class="graph-controls">
+      <a href="/dashboard?filter={{ list_filter }}&tab=graph&graph_view=mermaid&graph_type={{ graph_type }}" class="btn btn-sm{% if graph_view == 'mermaid' %} btn-primary{% endif %}">Mermaid</a>
+      <a href="/dashboard?filter={{ list_filter }}&tab=graph&graph_view=json&graph_type={{ graph_type }}" class="btn btn-sm{% if graph_view == 'json' %} btn-primary{% endif %}">Generated graph (JSON)</a>
+      {% if graph_view == "mermaid" %}
+      <a href="/dashboard?filter={{ list_filter }}&tab=graph&graph_view=mermaid&graph_type=flow" class="btn btn-sm{% if graph_type == 'flow' %} btn-primary{% endif %}">Flow</a>
+      <a href="/dashboard?filter={{ list_filter }}&tab=graph&graph_view=mermaid&graph_type=detailed" class="btn btn-sm{% if graph_type == 'detailed' %} btn-primary{% endif %}">Detailed</a>
+      <a href="/dashboard?filter={{ list_filter }}&tab=graph&graph_view=mermaid&graph_type=architecture" class="btn btn-sm{% if graph_type == 'architecture' %} btn-primary{% endif %}">Architecture</a>
+      <a href="/dashboard?filter={{ list_filter }}&tab=graph&graph_view=mermaid&graph_type=destination" class="btn btn-sm{% if graph_type == 'destination' %} btn-primary{% endif %}">Destination</a>
+      {% endif %}
+    </div>
+    {% if graph_view == "mermaid" %}
+    <div class="graph-render">
+      {% if mermaid_source %}
+      <pre class="mermaid">{{ mermaid_source }}</pre>
+      {% else %}
+      <pre class="sz-tool-pre">Mermaid output unavailable (Secretfile path is required).</pre>
+      {% endif %}
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+      if (window.mermaid) {
+        window.mermaid.initialize({ startOnLoad: true, securityLevel: "loose" });
+      }
+    </script>
+    {% else %}
+    <pre class="sz-tool-pre">{{ graph_json }}</pre>
+    {% endif %}
+  </section>
+  {% endif %}
+  {% if current_tab == "dashboard" %}
+  {% if manifest.identity_preflight and manifest.identity_preflight.has_policies and (manifest.identity_preflight.preflight_error or not manifest.identity_preflight.all_ok) %}
   <div class="manifest-meta identity-preflight-wrap" style="margin-top:0.5rem;">
     <div><strong>Authentication vs identity policies</strong>
       <span style="font-weight:400;"> — live check using each provider’s <code>get_actor_info()</code> (same rules as sync)</span>
@@ -604,8 +662,8 @@ TEMPLATES = {
   </div>
   <div class="toolbar toolbar--secondary toolbar--filters">
     <span style="font-size:0.85rem;color:var(--muted);">Show</span>
-    <a href="/dashboard?filter=all" class="btn btn-sm{% if list_filter == 'all' %} btn-primary{% endif %}">All ({{ row_total }})</a>
-    <a href="/dashboard?filter=unsynced" class="btn btn-sm{% if list_filter == 'unsynced' %} btn-primary{% endif %}">Unsynced only ({{ unsynced_count }})</a>
+    <a href="/dashboard?filter=all&tab={{ current_tab }}&graph_view={{ graph_view }}&graph_type={{ graph_type }}" class="btn btn-sm{% if list_filter == 'all' %} btn-primary{% endif %}">All ({{ row_total }})</a>
+    <a href="/dashboard?filter=unsynced&tab={{ current_tab }}&graph_view={{ graph_view }}&graph_type={{ graph_type }}" class="btn btn-sm{% if list_filter == 'unsynced' %} btn-primary{% endif %}">Unsynced only ({{ unsynced_count }})</a>
   </div>
   <div class="toolbar toolbar--secondary">
     <span style="font-size:0.85rem;color:var(--muted);">Tools</span>
@@ -636,6 +694,31 @@ TEMPLATES = {
         <div class="sz-flow__source">
           <div class="sz-flow__name">{{ row.name }}</div>
           <div class="sz-flow__kind"><code>{{ row.kind }}</code></div>
+          <div class="sz-flow__source-meta">
+            <span><strong>Value hash</strong> <code>{{ row.hash_preview }}</code></span>
+            <span><strong>Updated</strong> {{ row.updated_at }}</span>
+            <div class="sz-flow__source-actions">
+              {% if row.can_set_value %}
+              <a class="btn btn-sm" href="/secret/{{ row.name | uquote }}/edit?filter={{ list_filter }}">Update</a>
+              {% endif %}
+              <form method="post" action="/action/sync-secret">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+                <input type="hidden" name="list_filter" value="{{ list_filter }}"/>
+                <input type="hidden" name="secret_name" value="{{ row.name }}"/>
+                <button type="submit" class="btn btn-sm">Sync</button>
+              </form>
+              {% if row.can_set_value %}
+              <a class="btn btn-sm" href="/secret/{{ row.name | uquote }}/edit?filter={{ list_filter }}">Rotate</a>
+              {% else %}
+              <form method="post" action="/action/rotate-secret">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+                <input type="hidden" name="list_filter" value="{{ list_filter }}"/>
+                <input type="hidden" name="secret_name" value="{{ row.name }}"/>
+                <button type="submit" class="btn btn-sm">Rotate</button>
+              </form>
+              {% endif %}
+            </div>
+          </div>
           {% with agent_instructions=row.agent_instructions %}
           {% include "agent_instructions_partial.html" %}
           {% endwith %}
@@ -658,11 +741,6 @@ TEMPLATES = {
                     {% endfor %}
                   </ul>
                   {% endif %}
-                  {% if item.actor_summary %}
-                  <p class="sz-flow__actor" style="margin:0.4rem 0 0;font-size:0.82rem;opacity:0.9;">
-                    <strong>Actor</strong> {{ item.actor_summary }}
-                  </p>
-                  {% endif %}
                   {% if item.can_force_resync %}
                   <form class="sz-lane-force" method="post" action="/action/force-sync-target">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
@@ -683,37 +761,11 @@ TEMPLATES = {
           {% endif %}
         </div>
       </div>
-      <div class="sz-flow__meta">
-        <span><strong>Value hash</strong> <code>{{ row.hash_preview }}</code></span>
-        <span><strong>Updated</strong> {{ row.updated_at }}</span>
-        <span><strong>Last rotated</strong> {{ row.last_rotated }}{% if row.rotation_count %} (×{{ row.rotation_count }}){% endif %}</span>
-      </div>
-      <div class="sz-flow__actions">
-        {% if row.can_set_value %}
-        <a class="btn btn-sm" href="/secret/{{ row.name | uquote }}/edit?filter={{ list_filter }}">Set value</a>
-        {% endif %}
-        <form method="post" action="/action/sync-secret">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
-          <input type="hidden" name="list_filter" value="{{ list_filter }}"/>
-          <input type="hidden" name="secret_name" value="{{ row.name }}"/>
-          <button type="submit" class="btn btn-sm">Sync</button>
-        </form>
-        {% if row.can_set_value %}
-        <a class="btn btn-sm" href="/secret/{{ row.name | uquote }}/edit?filter={{ list_filter }}">Rotate</a>
-        {% else %}
-        <form method="post" action="/action/rotate-secret">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
-          <input type="hidden" name="list_filter" value="{{ list_filter }}"/>
-          <input type="hidden" name="secret_name" value="{{ row.name }}"/>
-          <button type="submit" class="btn btn-sm">Rotate</button>
-        </form>
-        {% endif %}
-      </div>
     </article>
     {% endfor %}
   </div>
   {% if not rows and row_total > 0 %}
-  <p class="lead">No secrets match this filter. Try <a href="/dashboard?filter=all">show all</a>.</p>
+  <p class="lead">No secrets match this filter. Try <a href="/dashboard?filter=all&tab={{ current_tab }}&graph_view={{ graph_view }}&graph_type={{ graph_type }}">show all</a>.</p>
   {% elif not rows %}
   <p class="lead">No secrets are defined in this Secretfile.</p>
   {% endif %}
@@ -725,6 +777,7 @@ TEMPLATES = {
       <pre class="sz-tool-pre" role="region" style="max-height:28rem;overflow:auto;">{{ debug_log_text or "(Run a sync action to populate this log.)" }}</pre>
     </details>
   </section>
+  {% endif %}
   {% endif %}
 {% endblock %}
 """,
@@ -742,7 +795,6 @@ TEMPLATES = {
   <h1>{{ title }}</h1>
   <p class="lead">New value is merged as a static secret and synced to targets for <code>{{ secret_name }}</code>.</p>
   {{ operator_banner_html | safe }}
-  {{ target_actor_html | safe }}
   {% if error_message %}
   <div class="alert" role="alert">{{ error_message }}</div>
   {% endif %}
