@@ -645,6 +645,8 @@ No actual secret values are stored. Committing it enables:
 - ✅ Audit trails
 - ✅ Team synchronization
 
+For GitOps/IaC usage, the recommended policy is to commit lockfiles and use one lockfile per environment lane. See [Lockfile Version Control Policy](../user-guide/lockfile-version-control-policy.md).
+
 ### What if I lose the lockfile?
 
 No problem! Just regenerate:

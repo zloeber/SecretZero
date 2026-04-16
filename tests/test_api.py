@@ -277,6 +277,8 @@ class TestSyncEndpoint:
         data = response.json()
         assert "message" in data
         assert len(data["secrets_generated"]) == 0
+        assert "resolved_lockfile" in data
+        assert "resolved_var_files" in data
 
     def test_sync_specific_secret(self, authenticated_client):
         """Test syncing a specific secret."""
@@ -304,6 +306,14 @@ class TestSyncEndpoint:
         response = authenticated_client.post(
             "/sync",
             json={"dry_run": True, "force": False, "refresh": False},
+        )
+        assert response.status_code == 200
+
+    def test_sync_accepts_environment(self, authenticated_client):
+        """Sync endpoint accepts optional environment field."""
+        response = authenticated_client.post(
+            "/sync",
+            json={"dry_run": True, "force": False, "environment": None},
         )
         assert response.status_code == 200
 

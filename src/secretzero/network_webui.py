@@ -28,16 +28,20 @@ from fastapi import FastAPI, Form, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from jinja2 import DictLoader, Environment, select_autoescape
 
+from secretzero.agent import secret_supports_automatic_generation
 from secretzero.agent_webui import (
     _inject_static_values,
     build_pending_static_values_from_form,
     normalize_scalar_network_form,
     static_secret_edit_template_vars,
 )
+from secretzero.config import ConfigLoader
+from secretzero.environment_resolution import apply_target_profile, resolve_environment_context
 from secretzero.generators.traits import secret_prompts_like_static
 from secretzero.lockfile import Lockfile
+from secretzero.lockfile_import import run_lockfile_import
 from secretzero.models import Secretfile
-from secretzero.network_web_actions import run_check_drift, run_validate_manifest
+from secretzero.network_web_actions import run_validate_manifest
 from secretzero.network_web_dashboard import (
     build_agent_instructions_payload,
     build_manifest_rows,
@@ -130,6 +134,7 @@ def dashboard_redirect_url(
     tab: str = "dashboard",
     graph_view: str = "mermaid",
     graph_type: str = "flow",
+    environment: str | None = None,
 ) -> str:
     """Build /dashboard URL with optional notice, error, and list filter."""
     lf = list_filter if list_filter in ("all", "unsynced") else "all"
@@ -144,6 +149,8 @@ def dashboard_redirect_url(
         f"graph_view={quote(graph_view_safe)}",
         f"graph_type={quote(graph_type_safe)}",
     ]
+    if environment:
+        parts.append(f"environment={quote(environment)}")
     if notice is not None:
         parts.insert(0, f"notice={quote(notice)}")
     if error is not None:
@@ -302,11 +309,32 @@ def generate_self_signed_tls_files(
 class _NetworkWebState:
     """Mutable Secretfile + lockfile for the dashboard session (single-threaded uvicorn)."""
 
-    __slots__ = ("secretfile", "lockfile", "debug_blocks")
+    __slots__ = (
+        "secretfile",
+        "lockfile",
+        "lockfile_path",
+        "selected_environment",
+        "resolved_var_files",
+        "resolved_target_profile",
+        "debug_blocks",
+    )
 
-    def __init__(self, secretfile: Secretfile, lockfile: Lockfile) -> None:
+    def __init__(
+        self,
+        secretfile: Secretfile,
+        lockfile: Lockfile,
+        *,
+        lockfile_path: Path,
+        selected_environment: str | None,
+        resolved_var_files: list[Path],
+        resolved_target_profile: str | None,
+    ) -> None:
         self.secretfile = secretfile
         self.lockfile = lockfile
+        self.lockfile_path = lockfile_path
+        self.selected_environment = selected_environment
+        self.resolved_var_files = resolved_var_files
+        self.resolved_target_profile = resolved_target_profile
         self.debug_blocks: list[str] = []
 
 
@@ -358,6 +386,9 @@ def create_network_web_app(
     secretfile_path: Path | None,
     secretfile_content: str | None,
     var_file_paths: list[Path] | None,
+    runtime_var_file_paths: list[Path] | None,
+    runtime_lockfile: str | None,
+    environment: str | None,
     dry_run: bool,
     debug: bool,
     auth: NetworkWebSessionStore,
@@ -366,7 +397,14 @@ def create_network_web_app(
 ) -> FastAPI:
     """FastAPI app: bootstrap token, dashboard, per-secret sync/rotate, logout, shutdown."""
     env = _pkg_templates_env()
-    state = _NetworkWebState(secretfile, lockfile)
+    state = _NetworkWebState(
+        secretfile,
+        lockfile,
+        lockfile_path=lockfile_path,
+        selected_environment=environment,
+        resolved_var_files=var_file_paths or [],
+        resolved_target_profile=None,
+    )
 
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
@@ -462,8 +500,21 @@ def create_network_web_app(
             row_total=row_total,
             unsynced_count=unsynced_count,
             list_filter=list_filter,
+            environment_profiles=(
+                sorted(state.secretfile.environments.profiles.keys())
+                if state.secretfile.environments
+                else []
+            ),
+            selected_environment=state.selected_environment or "",
             tools_available=tools_available,
-            manifest=build_manifest_rows(state.lockfile, secretfile_path, state.secretfile),
+            manifest=build_manifest_rows(
+                state.lockfile,
+                secretfile_path,
+                state.secretfile,
+                selected_environment=state.selected_environment,
+                resolved_var_files=state.resolved_var_files,
+                resolved_target_profile=state.resolved_target_profile,
+            ),
             dry_run=dry_run,
             debug=debug,
             debug_log_text=debug_log_text,
@@ -479,7 +530,7 @@ def create_network_web_app(
 
     def _save_lock() -> None:
         if not dry_run:
-            state.lockfile.save(lockfile_path)
+            state.lockfile.save(state.lockfile_path)
 
     def _filter_param(request: Request) -> str:
         raw = request.query_params.get("filter", "all")
@@ -496,6 +547,36 @@ def create_network_web_app(
     def _graph_type_param(request: Request) -> str:
         raw = request.query_params.get("graph_type", "flow")
         return raw if raw in ("flow", "detailed", "architecture", "destination") else "flow"
+
+    def _env_param(request: Request) -> str | None:
+        raw = request.query_params.get("environment")
+        if raw is None:
+            return state.selected_environment
+        val = raw.strip()
+        return val or state.selected_environment
+
+    def _reload_environment(selected_env: str | None) -> None:
+        if not secretfile_path or not secretfile_path.exists():
+            return
+        loader = ConfigLoader()
+        base_secretfile = loader.load_file(secretfile_path)
+        env_ctx = resolve_environment_context(
+            secretfile=base_secretfile,
+            secretfile_path=secretfile_path,
+            environment=selected_env,
+            runtime_var_files=runtime_var_file_paths or [],
+            runtime_lockfile=runtime_lockfile,
+        )
+        next_secretfile = loader.load_file(
+            secretfile_path, var_files=env_ctx.resolved_var_files or None
+        )
+        next_secretfile = apply_target_profile(next_secretfile, env_ctx.resolved_target_profile)
+        state.secretfile = next_secretfile
+        state.lockfile_path = env_ctx.resolved_lockfile
+        state.lockfile = Lockfile.load(env_ctx.resolved_lockfile)
+        state.selected_environment = env_ctx.selected_environment
+        state.resolved_var_files = env_ctx.resolved_var_files
+        state.resolved_target_profile = env_ctx.resolved_target_profile
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:
@@ -552,6 +633,19 @@ def create_network_web_app(
         sid = request.cookies.get(COOKIE_NAME)
         if not auth.valid_session(sid):
             return RedirectResponse("/", status_code=status.HTTP_302_FOUND)
+        req_env = _env_param(request)
+        if req_env != state.selected_environment:
+            try:
+                _reload_environment(req_env)
+            except Exception as exc:
+                return _dashboard_response(
+                    request,
+                    error=f"Environment switch failed: {exc}",
+                    list_filter=_filter_param(request),
+                    tab=_tab_param(request),
+                    graph_view=_graph_view_param(request),
+                    graph_type=_graph_type_param(request),
+                )
         qn = request.query_params.get("notice")
         qe = request.query_params.get("error")
         return _dashboard_response(
@@ -826,6 +920,14 @@ def create_network_web_app(
                 f"/secret/{quote(name, safe='')}/edit?filter={quote(lf)}",
                 status_code=status.HTTP_303_SEE_OTHER,
             )
+        if sec_rot is None or not secret_supports_automatic_generation(sec_rot):
+            return RedirectResponse(
+                dashboard_redirect_url(
+                    error="Rotate is only available for secrets that can be generated automatically.",
+                    list_filter=lf,
+                ),
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
         try:
             eng = make_sync_engine(
                 state.secretfile,
@@ -898,6 +1000,166 @@ def create_network_web_app(
             status_code=status.HTTP_303_SEE_OTHER,
         )
 
+    def _secretfile_text_for_import() -> tuple[Path, str]:
+        if not secretfile_path or not secretfile_path.exists():
+            raise ValueError("Secretfile path is not available")
+        text = secretfile_content
+        if not text:
+            text = secretfile_path.read_text()
+        return secretfile_path, text
+
+    def _flatten_import_errors(summary: dict[str, Any]) -> list[str]:
+        out: list[str] = []
+        for d in summary.get("details") or []:
+            if not isinstance(d, dict):
+                continue
+            if d.get("status") == "error":
+                nm = d.get("secret") or "?"
+                out.append(f"{nm}: {d.get('detail', 'error')}")
+            for f in d.get("fields") or []:
+                if isinstance(f, dict) and f.get("status") == "error":
+                    out.append(f"{d.get('secret')}.{f.get('field')}: {f.get('detail')}")
+        return [x for x in out if x]
+
+    def _import_success_notice(summary: dict[str, Any], *, scope: str) -> str:
+        r = summary.get("refresh") or {}
+        label = "Refresh (all)" if scope == "all" else f"Refresh ({scope})"
+        bits = [
+            f"{label}: imported={summary.get('imported', 0)}, updated={summary.get('updated', 0)}",
+            f"unchanged={summary.get('unchanged', 0)}, skipped={summary.get('skipped', 0)}",
+        ]
+        if summary.get("would_apply"):
+            bits.append(f"would_apply={summary['would_apply']}")
+        if r.get("mismatch_targets"):
+            bits.append(f"stale_targets_pruned={r['mismatch_targets']}")
+        if summary.get("dry_run"):
+            bits.append("dry_run")
+        return ", ".join(bits)[:1180]
+
+    @app.post("/action/import-all", response_model=None)
+    async def action_import_all(request: Request) -> Response:
+        sid = request.cookies.get(COOKIE_NAME)
+        if not auth.valid_session(sid):
+            return RedirectResponse("/", status_code=status.HTTP_302_FOUND)
+        form = dict(await request.form())
+        lf = str(form.get("list_filter") or "all")
+        if not auth.csrf_for(sid or "") or form.get("csrf_token") != auth.csrf_for(sid or ""):
+            return RedirectResponse(
+                dashboard_redirect_url(error="Invalid CSRF token", list_filter=lf),
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+        try:
+            spath, scontent = _secretfile_text_for_import()
+        except ValueError as exc:
+            return RedirectResponse(
+                dashboard_redirect_url(error=str(exc), list_filter=lf),
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+        try:
+            eng = make_sync_engine(
+                state.secretfile,
+                state.lockfile,
+                secretfile_path=spath,
+                secretfile_content=scontent,
+            )
+            summary = run_lockfile_import(
+                eng,
+                secretfile=state.secretfile,
+                secretfile_path=spath,
+                secretfile_content=scontent,
+                secret_names=None,
+                active_var_files=state.resolved_var_files,
+                dry_run=dry_run,
+            )
+            if debug:
+                slim = {k: v for k, v in summary.items() if k != "details"}
+                _append_debug_block(state, "Import all", json.dumps(slim, indent=2))
+            _save_lock()
+        except Exception as exc:
+            logger.exception("Import all failed")
+            return RedirectResponse(
+                dashboard_redirect_url(error=str(exc), list_filter=lf),
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+        errs = _flatten_import_errors(summary)
+        if errs:
+            return RedirectResponse(
+                dashboard_redirect_url(error=errs[0][:1200], list_filter=lf),
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+        return RedirectResponse(
+            dashboard_redirect_url(
+                notice=_import_success_notice(summary, scope="all"),
+                list_filter=lf,
+            ),
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+    @app.post("/action/import-secret", response_model=None)
+    async def action_import_secret(request: Request) -> Response:
+        sid = request.cookies.get(COOKIE_NAME)
+        if not auth.valid_session(sid):
+            return RedirectResponse("/", status_code=status.HTTP_302_FOUND)
+        form = dict(await request.form())
+        lf = str(form.get("list_filter") or "all")
+        if not auth.csrf_for(sid or "") or form.get("csrf_token") != auth.csrf_for(sid or ""):
+            return RedirectResponse(
+                dashboard_redirect_url(error="Invalid CSRF token", list_filter=lf),
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+        name = str(form.get("secret_name") or "").strip()
+        if name not in _secret_names():
+            return RedirectResponse(
+                dashboard_redirect_url(error="Unknown secret", list_filter=lf),
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+        try:
+            spath, scontent = _secretfile_text_for_import()
+        except ValueError as exc:
+            return RedirectResponse(
+                dashboard_redirect_url(error=str(exc), list_filter=lf),
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+        try:
+            eng = make_sync_engine(
+                state.secretfile,
+                state.lockfile,
+                secretfile_path=spath,
+                secretfile_content=scontent,
+            )
+            summary = run_lockfile_import(
+                eng,
+                secretfile=state.secretfile,
+                secretfile_path=spath,
+                secretfile_content=scontent,
+                secret_names=[name],
+                active_var_files=state.resolved_var_files,
+                dry_run=dry_run,
+            )
+            if debug:
+                slim = {k: v for k, v in summary.items() if k != "details"}
+                _append_debug_block(state, f"Import: {name}", json.dumps(slim, indent=2))
+            _save_lock()
+        except Exception as exc:
+            logger.exception("Import secret failed")
+            return RedirectResponse(
+                dashboard_redirect_url(error=str(exc), list_filter=lf),
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+        errs = _flatten_import_errors(summary)
+        if errs:
+            return RedirectResponse(
+                dashboard_redirect_url(error=errs[0][:1200], list_filter=lf),
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+        return RedirectResponse(
+            dashboard_redirect_url(
+                notice=_import_success_notice(summary, scope=name),
+                list_filter=lf,
+            ),
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
     @app.post("/action/validate-manifest", response_model=None)
     async def action_validate_manifest(request: Request) -> HTMLResponse | RedirectResponse:
         sid = request.cookies.get(COOKIE_NAME)
@@ -927,40 +1189,6 @@ def create_network_web_app(
         return _render(
             "tool_result.html",
             title="SecretZero — validate manifest",
-            tool_body=body,
-            back_href=back,
-            back_label="Back to manifest",
-        )
-
-    @app.post("/action/check-drift", response_model=None)
-    async def action_check_drift(request: Request) -> HTMLResponse | RedirectResponse:
-        sid = request.cookies.get(COOKIE_NAME)
-        if not auth.valid_session(sid):
-            return RedirectResponse("/", status_code=status.HTTP_302_FOUND)
-        form = dict(await request.form())
-        lf = str(form.get("list_filter") or "all")
-        if not auth.csrf_for(sid or "") or form.get("csrf_token") != auth.csrf_for(sid or ""):
-            return RedirectResponse(
-                dashboard_redirect_url(error="Invalid CSRF token", list_filter=lf),
-                status_code=status.HTTP_303_SEE_OTHER,
-            )
-        if not secretfile_path or not secretfile_path.exists():
-            return RedirectResponse(
-                dashboard_redirect_url(
-                    error="Drift check requires the Secretfile path used to start this server.",
-                    list_filter=lf,
-                ),
-                status_code=status.HTTP_303_SEE_OTHER,
-            )
-        try:
-            body = run_check_drift(secretfile_path, lockfile_path)
-        except Exception as exc:
-            logger.exception("Drift check failed")
-            body = f"Drift check failed: {exc}"
-        back = dashboard_redirect_url(list_filter=lf)
-        return _render(
-            "tool_result.html",
-            title="SecretZero — drift check",
             tool_body=body,
             back_href=back,
             back_label="Back to manifest",
@@ -1010,6 +1238,9 @@ def run_network_blocking_web_session(
     secretfile_path: Path | None,
     secretfile_content: str | None,
     var_file_paths: list[Path] | None = None,
+    runtime_var_file_paths: list[Path] | None = None,
+    runtime_lockfile: str | None = None,
+    environment: str | None = None,
     dry_run: bool,
     debug: bool = False,
     host: str,
@@ -1058,6 +1289,9 @@ def run_network_blocking_web_session(
         secretfile_path=secretfile_path,
         secretfile_content=secretfile_content,
         var_file_paths=var_file_paths,
+        runtime_var_file_paths=runtime_var_file_paths,
+        runtime_lockfile=runtime_lockfile,
+        environment=environment,
         dry_run=dry_run,
         debug=debug,
         auth=auth,

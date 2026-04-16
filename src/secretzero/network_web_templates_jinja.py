@@ -549,9 +549,9 @@ TEMPLATES = {
   <div class="alert" role="alert">{{ error }}</div>
   {% endif %}
   <nav class="tabbar" aria-label="Dashboard views">
-    <a href="/dashboard?filter={{ list_filter }}&tab=dashboard&graph_view={{ graph_view }}&graph_type={{ graph_type }}" class="btn btn-sm{% if current_tab == 'dashboard' %} btn-primary{% endif %}">Dashboard</a>
-    <a href="/dashboard?filter={{ list_filter }}&tab=secretfile&graph_view={{ graph_view }}&graph_type={{ graph_type }}" class="btn btn-sm{% if current_tab == 'secretfile' %} btn-primary{% endif %}">Secretfile.yml</a>
-    <a href="/dashboard?filter={{ list_filter }}&tab=graph&graph_view={{ graph_view }}&graph_type={{ graph_type }}" class="btn btn-sm{% if current_tab == 'graph' %} btn-primary{% endif %}">Graph</a>
+    <a href="/dashboard?filter={{ list_filter }}&tab=dashboard&graph_view={{ graph_view }}&graph_type={{ graph_type }}{% if selected_environment %}&environment={{ selected_environment | uquote }}{% endif %}" class="btn btn-sm{% if current_tab == 'dashboard' %} btn-primary{% endif %}">Dashboard</a>
+    <a href="/dashboard?filter={{ list_filter }}&tab=secretfile&graph_view={{ graph_view }}&graph_type={{ graph_type }}{% if selected_environment %}&environment={{ selected_environment | uquote }}{% endif %}" class="btn btn-sm{% if current_tab == 'secretfile' %} btn-primary{% endif %}">Secretfile.yml</a>
+    <a href="/dashboard?filter={{ list_filter }}&tab=graph&graph_view={{ graph_view }}&graph_type={{ graph_type }}{% if selected_environment %}&environment={{ selected_environment | uquote }}{% endif %}" class="btn btn-sm{% if current_tab == 'graph' %} btn-primary{% endif %}">Graph</a>
   </nav>
   {% if current_tab == "dashboard" %}
   <div class="manifest-meta">
@@ -559,6 +559,9 @@ TEMPLATES = {
     <div><strong>Lockfile synced</strong> {{ manifest.synced_at }}</div>
     <div><strong>Manifest hash (lock)</strong> {{ manifest.secretfile_hash }}</div>
     <div><strong>Var files</strong> {{ manifest.var_files }}</div>
+    <div><strong>Environment</strong> {{ manifest.selected_environment }}</div>
+    <div><strong>Resolved var files</strong> {{ manifest.resolved_var_files }}</div>
+    <div><strong>Target profile</strong> {{ manifest.resolved_target_profile }}</div>
   </div>
   {% if manifest.provider_rows %}
   <div class="manifest-meta" style="margin-top:0.5rem;">
@@ -588,13 +591,13 @@ TEMPLATES = {
   {% else %}
   <section class="tab-panel" aria-label="Generated graph view">
     <div class="graph-controls">
-      <a href="/dashboard?filter={{ list_filter }}&tab=graph&graph_view=mermaid&graph_type={{ graph_type }}" class="btn btn-sm{% if graph_view == 'mermaid' %} btn-primary{% endif %}">Mermaid</a>
-      <a href="/dashboard?filter={{ list_filter }}&tab=graph&graph_view=json&graph_type={{ graph_type }}" class="btn btn-sm{% if graph_view == 'json' %} btn-primary{% endif %}">Generated graph (JSON)</a>
+      <a href="/dashboard?filter={{ list_filter }}&tab=graph&graph_view=mermaid&graph_type={{ graph_type }}{% if selected_environment %}&environment={{ selected_environment | uquote }}{% endif %}" class="btn btn-sm{% if graph_view == 'mermaid' %} btn-primary{% endif %}">Mermaid</a>
+      <a href="/dashboard?filter={{ list_filter }}&tab=graph&graph_view=json&graph_type={{ graph_type }}{% if selected_environment %}&environment={{ selected_environment | uquote }}{% endif %}" class="btn btn-sm{% if graph_view == 'json' %} btn-primary{% endif %}">Generated graph (JSON)</a>
       {% if graph_view == "mermaid" %}
-      <a href="/dashboard?filter={{ list_filter }}&tab=graph&graph_view=mermaid&graph_type=flow" class="btn btn-sm{% if graph_type == 'flow' %} btn-primary{% endif %}">Flow</a>
-      <a href="/dashboard?filter={{ list_filter }}&tab=graph&graph_view=mermaid&graph_type=detailed" class="btn btn-sm{% if graph_type == 'detailed' %} btn-primary{% endif %}">Detailed</a>
-      <a href="/dashboard?filter={{ list_filter }}&tab=graph&graph_view=mermaid&graph_type=architecture" class="btn btn-sm{% if graph_type == 'architecture' %} btn-primary{% endif %}">Architecture</a>
-      <a href="/dashboard?filter={{ list_filter }}&tab=graph&graph_view=mermaid&graph_type=destination" class="btn btn-sm{% if graph_type == 'destination' %} btn-primary{% endif %}">Destination</a>
+      <a href="/dashboard?filter={{ list_filter }}&tab=graph&graph_view=mermaid&graph_type=flow{% if selected_environment %}&environment={{ selected_environment | uquote }}{% endif %}" class="btn btn-sm{% if graph_type == 'flow' %} btn-primary{% endif %}">Flow</a>
+      <a href="/dashboard?filter={{ list_filter }}&tab=graph&graph_view=mermaid&graph_type=detailed{% if selected_environment %}&environment={{ selected_environment | uquote }}{% endif %}" class="btn btn-sm{% if graph_type == 'detailed' %} btn-primary{% endif %}">Detailed</a>
+      <a href="/dashboard?filter={{ list_filter }}&tab=graph&graph_view=mermaid&graph_type=architecture{% if selected_environment %}&environment={{ selected_environment | uquote }}{% endif %}" class="btn btn-sm{% if graph_type == 'architecture' %} btn-primary{% endif %}">Architecture</a>
+      <a href="/dashboard?filter={{ list_filter }}&tab=graph&graph_view=mermaid&graph_type=destination{% if selected_environment %}&environment={{ selected_environment | uquote }}{% endif %}" class="btn btn-sm{% if graph_type == 'destination' %} btn-primary{% endif %}">Destination</a>
       {% endif %}
     </div>
     {% if graph_view == "mermaid" %}
@@ -645,9 +648,25 @@ TEMPLATES = {
   </div>
   {% endif %}
   <div class="toolbar">
+    {% if environment_profiles %}
+    <form method="get" action="/dashboard">
+      <input type="hidden" name="filter" value="{{ list_filter }}"/>
+      <input type="hidden" name="tab" value="{{ current_tab }}"/>
+      <input type="hidden" name="graph_view" value="{{ graph_view }}"/>
+      <input type="hidden" name="graph_type" value="{{ graph_type }}"/>
+      <label for="environment" style="font-size:0.85rem;color:var(--muted);">Environment</label>
+      <select id="environment" name="environment" onchange="this.form.submit()">
+        <option value="">(default)</option>
+        {% for env_name in environment_profiles %}
+        <option value="{{ env_name }}" {% if selected_environment == env_name %}selected{% endif %}>{{ env_name }}</option>
+        {% endfor %}
+      </select>
+    </form>
+    {% endif %}
     <form method="post" action="/action/sync-all">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
       <input type="hidden" name="list_filter" value="{{ list_filter }}"/>
+      <input type="hidden" name="environment" value="{{ selected_environment }}"/>
       <button type="submit" class="btn btn-primary btn-sm">Sync all secrets</button>
     </form>
     <form method="post" action="/logout">
@@ -657,13 +676,14 @@ TEMPLATES = {
     <form method="post" action="/shutdown" onsubmit="return confirm('Shut down the web server? Unsaved work is already written when actions succeed.');">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
       <input type="hidden" name="list_filter" value="{{ list_filter }}"/>
+      <input type="hidden" name="environment" value="{{ selected_environment }}"/>
       <button type="submit" class="btn btn-danger btn-sm">Shut down server</button>
     </form>
   </div>
   <div class="toolbar toolbar--secondary toolbar--filters">
     <span style="font-size:0.85rem;color:var(--muted);">Show</span>
-    <a href="/dashboard?filter=all&tab={{ current_tab }}&graph_view={{ graph_view }}&graph_type={{ graph_type }}" class="btn btn-sm{% if list_filter == 'all' %} btn-primary{% endif %}">All ({{ row_total }})</a>
-    <a href="/dashboard?filter=unsynced&tab={{ current_tab }}&graph_view={{ graph_view }}&graph_type={{ graph_type }}" class="btn btn-sm{% if list_filter == 'unsynced' %} btn-primary{% endif %}">Unsynced only ({{ unsynced_count }})</a>
+    <a href="/dashboard?filter=all&tab={{ current_tab }}&graph_view={{ graph_view }}&graph_type={{ graph_type }}{% if selected_environment %}&environment={{ selected_environment | uquote }}{% endif %}" class="btn btn-sm{% if list_filter == 'all' %} btn-primary{% endif %}">All ({{ row_total }})</a>
+    <a href="/dashboard?filter=unsynced&tab={{ current_tab }}&graph_view={{ graph_view }}&graph_type={{ graph_type }}{% if selected_environment %}&environment={{ selected_environment | uquote }}{% endif %}" class="btn btn-sm{% if list_filter == 'unsynced' %} btn-primary{% endif %}">Unsynced only ({{ unsynced_count }})</a>
   </div>
   <div class="toolbar toolbar--secondary">
     <span style="font-size:0.85rem;color:var(--muted);">Tools</span>
@@ -671,15 +691,17 @@ TEMPLATES = {
     <form method="post" action="/action/validate-manifest">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
       <input type="hidden" name="list_filter" value="{{ list_filter }}"/>
+      <input type="hidden" name="environment" value="{{ selected_environment }}"/>
       <button type="submit" class="btn btn-sm">Validate manifest</button>
     </form>
-    <form method="post" action="/action/check-drift">
+    <form method="post" action="/action/import-all">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
       <input type="hidden" name="list_filter" value="{{ list_filter }}"/>
-      <button type="submit" class="btn btn-sm">Check drift</button>
+      <input type="hidden" name="environment" value="{{ selected_environment }}"/>
+      <button type="submit" class="btn btn-sm">Refresh</button>
     </form>
     {% else %}
-    <span style="font-size:0.85rem;color:var(--muted);">Validate / drift need the Secretfile path (normal CLI <code>secretzero web</code>).</span>
+    <span style="font-size:0.85rem;color:var(--muted);">Validate / Refresh need the Secretfile path (normal CLI <code>secretzero web</code>).</span>
     {% endif %}
   </div>
   <p class="sync-legend" role="note" aria-label="Per-target arrow colors">
@@ -699,23 +721,34 @@ TEMPLATES = {
             <span><strong>Updated</strong> {{ row.updated_at }}</span>
             <div class="sz-flow__source-actions">
               {% if row.can_set_value %}
-              <a class="btn btn-sm" href="/secret/{{ row.name | uquote }}/edit?filter={{ list_filter }}">Update</a>
+              <a class="btn btn-sm" href="/secret/{{ row.name | uquote }}/edit?filter={{ list_filter }}{% if selected_environment %}&environment={{ selected_environment | uquote }}{% endif %}">Update</a>
               {% endif %}
               <form method="post" action="/action/sync-secret">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
                 <input type="hidden" name="list_filter" value="{{ list_filter }}"/>
+                <input type="hidden" name="environment" value="{{ selected_environment }}"/>
                 <input type="hidden" name="secret_name" value="{{ row.name }}"/>
                 <button type="submit" class="btn btn-sm">Sync</button>
               </form>
-              {% if row.can_set_value %}
-              <a class="btn btn-sm" href="/secret/{{ row.name | uquote }}/edit?filter={{ list_filter }}">Rotate</a>
-              {% else %}
+              <form method="post" action="/action/import-secret">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+                <input type="hidden" name="list_filter" value="{{ list_filter }}"/>
+                <input type="hidden" name="environment" value="{{ selected_environment }}"/>
+                <input type="hidden" name="secret_name" value="{{ row.name }}"/>
+                <button type="submit" class="btn btn-sm">Refresh</button>
+              </form>
+              {% if row.can_web_rotate %}
+                {% if row.can_set_value %}
+              <a class="btn btn-sm" href="/secret/{{ row.name | uquote }}/edit?filter={{ list_filter }}{% if selected_environment %}&environment={{ selected_environment | uquote }}{% endif %}">Rotate</a>
+                {% else %}
               <form method="post" action="/action/rotate-secret">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
                 <input type="hidden" name="list_filter" value="{{ list_filter }}"/>
+                <input type="hidden" name="environment" value="{{ selected_environment }}"/>
                 <input type="hidden" name="secret_name" value="{{ row.name }}"/>
                 <button type="submit" class="btn btn-sm">Rotate</button>
               </form>
+                {% endif %}
               {% endif %}
             </div>
           </div>
@@ -745,6 +778,7 @@ TEMPLATES = {
                   <form class="sz-lane-force" method="post" action="/action/force-sync-target">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
                     <input type="hidden" name="list_filter" value="{{ list_filter }}"/>
+                    <input type="hidden" name="environment" value="{{ selected_environment }}"/>
                     <input type="hidden" name="secret_name" value="{{ row.name }}"/>
                     <input type="hidden" name="target_id" value="{{ item.target_id }}"/>
                     <button type="submit" class="btn btn-sm" title="Write the current secret value to this target again">Force to target</button>
@@ -765,7 +799,7 @@ TEMPLATES = {
     {% endfor %}
   </div>
   {% if not rows and row_total > 0 %}
-  <p class="lead">No secrets match this filter. Try <a href="/dashboard?filter=all&tab={{ current_tab }}&graph_view={{ graph_view }}&graph_type={{ graph_type }}">show all</a>.</p>
+  <p class="lead">No secrets match this filter. Try <a href="/dashboard?filter=all&tab={{ current_tab }}&graph_view={{ graph_view }}&graph_type={{ graph_type }}{% if selected_environment %}&environment={{ selected_environment | uquote }}{% endif %}">show all</a>.</p>
   {% elif not rows %}
   <p class="lead">No secrets are defined in this Secretfile.</p>
   {% endif %}

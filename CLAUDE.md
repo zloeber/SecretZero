@@ -33,7 +33,9 @@ This command intelligently supports the **three agentic vectors**:
 
 **Recommended loop**: Call the command/API → parse structured results → act (instruct human, trigger web UI, or proceed) → repeat until `pending_secrets` and `failed_secrets` are empty.
 
-Detailed guidance, `agent_instructions` (with templating support), top-level `agent:` config, and vector mapping live in `./skills/secretzero/SKILL.md`.
+Detailed guidance now lives in focused skills:
+- `./skills/secretzero-agent/SKILL.md` for unified agentic/runtime workflows and vector handling.
+- `./skills/secretzero-author/SKILL.md` for schema-compliant `Secretfile.yml` authoring and safe discovery-driven policy authoring.
 
 ## Essential Commands (Schema-Driven)
 

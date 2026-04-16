@@ -408,6 +408,36 @@ templates: {{}}
         assert "test_secret" in lock.read_text()
 
 
+def test_sync_environment_resolution_metadata_in_json(runner: CliRunner) -> None:
+    """`sync --environment` includes resolved context metadata in JSON."""
+    with TemporaryDirectory() as tmpdir:
+        sf = Path(tmpdir) / "Secretfile.yml"
+        dev_var = Path(tmpdir) / "dev.szvar"
+        dev_var.write_text("env: dev\n", encoding="utf-8")
+        sf.write_text(f"""
+variables:
+  env: base
+environments:
+  default: dev
+  profiles:
+    dev:
+      var_files:
+        - {dev_var}
+      lockfile: .gitsecrets.dev.lock
+providers:
+  local:
+    kind: local
+secrets: []
+templates: {{}}
+""")
+        result = runner.invoke(main, ["sync", "--file", str(sf), "--dry-run", "--format", "json"])
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["selected_environment"] == "dev"
+        assert payload["resolved_target_profile"] is None
+        assert str(payload["resolved_lockfile"]).endswith(".gitsecrets.dev.lock")
+
+
 def test_rotate_json_output_dry_run(runner: CliRunner) -> None:
     """Test rotate command JSON output in dry-run mode."""
     with TemporaryDirectory() as tmpdir:
@@ -965,3 +995,49 @@ def test_detect_output_to_file(runner: CliRunner) -> None:
         if output_file.exists():
             content = output_file.read_text()
             assert "secrets:" in content
+
+
+def test_import_cli_help(runner: CliRunner) -> None:
+    r = runner.invoke(main, ["import", "--help"])
+    assert r.exit_code == 0, r.output
+    assert "--check" in r.output
+
+
+def test_import_check_missing_lockfile(runner: CliRunner) -> None:
+    with TemporaryDirectory() as tmpdir:
+        sf = Path(tmpdir) / "Secretfile.yml"
+        sf.write_text(MINIMAL_SECRETFILE)
+        lf = Path(tmpdir) / ".missing.lock"
+        r = runner.invoke(main, ["import", "-f", str(sf), "-l", str(lf), "--check"])
+        assert r.exit_code == EXIT_CONFIG_ERROR
+
+
+def test_import_check_json_empty_secrets(runner: CliRunner) -> None:
+    with TemporaryDirectory() as tmpdir:
+        sf = Path(tmpdir) / "Secretfile.yml"
+        sf.write_text(MINIMAL_SECRETFILE)
+        lf = Path(tmpdir) / ".gitsecrets.lock"
+        lf.write_text('{"version": "1.0", "secrets": {}}\n')
+        r = runner.invoke(
+            main,
+            ["import", "--check", "--format", "json", "-f", str(sf), "-l", str(lf)],
+        )
+        assert r.exit_code == 0, r.output
+        data = json.loads(r.output)
+        assert data.get("drift_detected") is False
+
+
+def test_import_dry_run_json(runner: CliRunner) -> None:
+    with TemporaryDirectory() as tmpdir:
+        sf = Path(tmpdir) / "Secretfile.yml"
+        sf.write_text(SECRETFILE_WITH_SECRETS)
+        lf = Path(tmpdir) / ".gitsecrets.lock"
+        lf.write_text('{"version": "1.0", "secrets": {}}\n')
+        r = runner.invoke(
+            main,
+            ["import", "-f", str(sf), "-l", str(lf), "--dry-run", "--format", "json"],
+        )
+        assert r.exit_code == 0, r.output
+        data = json.loads(r.output)
+        assert data.get("dry_run") is True
+        assert "details" in data

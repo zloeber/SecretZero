@@ -55,7 +55,7 @@ The lockfile (`.gitsecrets.lock`) is automatically generated and tracks:
 **Location**: Project root (default: `./.gitsecrets.lock`)
 
 !!! warning "Version Control"
-    The lockfile contains hashes, not actual secret values. While it can be committed to version control, consider your security requirements carefully.
+    The lockfile contains hashes, not actual secret values. Default recommendation is to commit lockfiles, using one lockfile per environment lane for GitOps/IaC workflows. See [Lockfile Version Control Policy](../lockfile-version-control-policy.md).
 
 **Example lockfile structure**:
 

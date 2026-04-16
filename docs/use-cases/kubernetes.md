@@ -1062,7 +1062,7 @@ templates:
 
 1. **Use Labels and Annotations** - Always add comprehensive labels and annotations to secrets for easier discovery, management, and troubleshooting. Include metadata like `app`, `environment`, `managed-by`, `component`, and timestamps.
 
-2. **Never Store Secrets in Git** - Store only the Secretfile.yml configuration in Git, never actual secret values. Use environment variables or external secret sources for sensitive values. Add `.gitsecrets.lock` to `.gitignore` if it contains sensitive data.
+2. **Never Store Plaintext Secrets in Git** - Store Secretfile manifests and non-sensitive configuration in Git, but never plaintext secret values. Lockfiles contain hashes/metadata (not secret values) and are typically committed for GitOps/audit workflows; if your org treats metadata as sensitive, use the exception process in [Lockfile Version Control Policy](../user-guide/lockfile-version-control-policy.md).
 
 3. **Implement RBAC Least Privilege** - Grant SecretZero service accounts only the minimum permissions needed (create, update, get secrets in specific namespaces). Use Role instead of ClusterRole when possible. Avoid cluster-wide secret access.
 

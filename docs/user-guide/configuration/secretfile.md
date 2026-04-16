@@ -19,6 +19,8 @@ The Secretfile is a YAML file that defines all aspects of your secret management
 ```yaml
 version: '1.0'              # Required: Schema version
 variables: {}               # Optional: Variables for interpolation
+environments: {}            # Optional: Named environment lanes
+target_profiles: {}         # Optional: Reusable target defaults by lane
 metadata: {}                # Optional: Project metadata
 providers: {}               # Optional: Provider configurations
 secrets: []                 # Required: Secret definitions
@@ -86,6 +88,41 @@ variables:
 ```
 
 [Learn more about variables →](variables.md)
+
+## Environments and Target Profiles
+
+Use `environments` to declare named lanes with defaults for var files and lockfiles:
+
+```yaml
+environments:
+  default: dev
+  profiles:
+    dev:
+      var_files: ["env/dev.szvar"]
+      lockfile: ".gitsecrets.dev.lock"
+      target_profile: aws_dev
+    prod:
+      var_files: ["env/prod.szvar"]
+      lockfile: ".gitsecrets.prod.lock"
+      target_profile: aws_prod
+```
+
+Use `target_profiles` for lane-specific target overrides and identity policies:
+
+```yaml
+target_profiles:
+  aws_prod:
+    identity_policies: [aws_prod_identity]
+    target_overrides:
+      secrets_manager:
+        name: /prod/default-token
+```
+
+Runtime precedence:
+
+1. explicit runtime flags (`--var-file`, `--lockfile`) win
+2. selected environment profile defaults apply
+3. default lockfile derivation applies when neither is set
 
 ## Metadata
 

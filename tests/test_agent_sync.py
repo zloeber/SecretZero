@@ -9,7 +9,12 @@ from unittest.mock import patch
 import pytest
 from click.testing import CliRunner
 
-from secretzero.agent import AgentSecretSynchronizer, AgentSyncResult, detect_automation_level
+from secretzero.agent import (
+    AgentSecretSynchronizer,
+    AgentSyncResult,
+    detect_automation_level,
+    secret_supports_automatic_generation,
+)
 from secretzero.cli import main
 from secretzero.models import (
     AgentInstructions,
@@ -591,3 +596,18 @@ templates: {}
             assert result.exit_code == 0, result.output
             assert "--web-host is deprecated" in result.output
             assert "127.0.0.1" in result.output
+
+
+def test_secret_supports_automatic_generation_random() -> None:
+    s = _make_secret("n", "random_password", {"length": 16})
+    assert secret_supports_automatic_generation(s) is True
+
+
+def test_secret_supports_automatic_generation_static_literal() -> None:
+    s = _make_secret("n", "static", {"value": "x"})
+    assert secret_supports_automatic_generation(s) is True
+
+
+def test_secret_supports_automatic_generation_static_needs_prompt() -> None:
+    s = _make_secret("n", "static", {"value": None})
+    assert secret_supports_automatic_generation(s) is False

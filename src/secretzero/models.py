@@ -337,11 +337,70 @@ class Metadata(BaseModel):
     compliance: list[str] = Field(default_factory=list)
 
 
+class EnvironmentProfile(BaseModel):
+    """Named environment lane configuration."""
+
+    var_files: list[str] = Field(
+        default_factory=list,
+        description="Default .szvar files for this lane (later entries win).",
+    )
+    lockfile: str | None = Field(
+        default=None,
+        description="Default lockfile path for this lane.",
+    )
+    target_profile: str | None = Field(
+        default=None,
+        description="Optional target profile applied for this lane.",
+    )
+    labels: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Optional metadata labels for UI and automation.",
+    )
+
+
+class EnvironmentsConfig(BaseModel):
+    """Top-level environment lane map."""
+
+    default: str | None = Field(
+        default=None,
+        description="Default lane name used when no explicit environment is selected.",
+    )
+    profiles: dict[str, EnvironmentProfile] = Field(
+        default_factory=dict,
+        description="Named environment profiles keyed by lane name.",
+    )
+
+
+class TargetProfile(BaseModel):
+    """Reusable target defaults/overrides applied by environment lane."""
+
+    identity_policies: list[str] = Field(
+        default_factory=list,
+        description="Identity policies applied by default to lane targets.",
+    )
+    provider_overrides: dict[str, dict[str, Any]] = Field(
+        default_factory=dict,
+        description="Provider alias keyed overrides merged into target config.",
+    )
+    target_overrides: dict[str, dict[str, Any]] = Field(
+        default_factory=dict,
+        description="Target kind keyed overrides merged into target config.",
+    )
+
+
 class Secretfile(BaseModel):
     """Root configuration model for Secretfile.yml."""
 
     variables: dict[str, Any] = Field(default_factory=dict)
     metadata: Metadata | None = None
+    environments: EnvironmentsConfig | None = Field(
+        default=None,
+        description="Optional multi-environment lane map with defaults for var files and lockfile.",
+    )
+    target_profiles: dict[str, TargetProfile] = Field(
+        default_factory=dict,
+        description="Reusable target defaults selected by environment profile.",
+    )
     providers: dict[str, Provider] = Field(default_factory=dict)
     secrets: list[Secret] = Field(default_factory=list)
     templates: dict[str, Template] = Field(default_factory=dict)
@@ -367,3 +426,42 @@ class Secretfile(BaseModel):
     def effective_agent_config(self) -> AgentConfig:
         """Return top-level agent settings with defaults when omitted."""
         return self.agent if self.agent is not None else AgentConfig()
+
+    @model_validator(mode="after")
+    def _validate_environment_references(self) -> Secretfile:
+        """Validate environment and target-profile references."""
+        if self.environments is None:
+            return self
+
+        profiles = self.environments.profiles or {}
+        if self.environments.default and self.environments.default not in profiles:
+            raise ValueError(
+                f"environments.default '{self.environments.default}' is not defined in environments.profiles"
+            )
+
+        for env_name, profile in profiles.items():
+            seen_var_files: set[str] = set()
+            for var_file in profile.var_files:
+                vf = var_file.strip()
+                if not vf:
+                    raise ValueError(f"Environment '{env_name}' contains an empty var_files entry")
+                if vf in seen_var_files:
+                    raise ValueError(
+                        f"Environment '{env_name}' has duplicate var_files entry: {vf}"
+                    )
+                seen_var_files.add(vf)
+
+            if profile.target_profile and profile.target_profile not in self.target_profiles:
+                raise ValueError(
+                    f"Environment '{env_name}' references unknown target_profile '{profile.target_profile}'"
+                )
+
+        policy_names = set((self.policies or {}).keys())
+        for profile_name, tprof in (self.target_profiles or {}).items():
+            for policy_name in tprof.identity_policies:
+                if policy_name not in policy_names:
+                    raise ValueError(
+                        f"target_profiles.{profile_name}.identity_policies references unknown policy '{policy_name}'"
+                    )
+
+        return self

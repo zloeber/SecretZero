@@ -106,6 +106,7 @@ The `.gitsecrets.lock` file tracks generated secrets using SHA-256 hashes, enabl
 - Audit history
 
 [Learn about lockfiles →](configuration/index.md#lockfile)
+[Lockfile version control policy →](lockfile-version-control-policy.md)
 
 ## Common Workflows
 

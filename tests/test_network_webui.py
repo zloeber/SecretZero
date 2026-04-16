@@ -29,6 +29,22 @@ def _secretfile_one_static() -> Secretfile:
     )
 
 
+def _secretfile_with_environments() -> Secretfile:
+    return Secretfile(
+        environments={
+            "default": "dev",
+            "profiles": {
+                "dev": {"var_files": [], "lockfile": ".gitsecrets.dev.lock"},
+                "prod": {"var_files": [], "lockfile": ".gitsecrets.prod.lock"},
+            },
+        },
+        providers={"local": {"kind": "local"}},
+        secrets=[
+            Secret(name="s1", kind="static", config={"value": "x"}, targets=[]),
+        ],
+    )
+
+
 def _minimal_lockfile(tmp: Path) -> Lockfile:
     p = tmp / ".gitsecrets.lock"
     p.write_text('{"version": "1.0", "secrets": {}}\n')
@@ -93,6 +109,9 @@ def test_dashboard_auth_and_shutdown(tmp_path: Path) -> None:
         secretfile_path=tmp_path / "Secretfile.yml",
         secretfile_content="version: '1.0'\nsecrets: []\n",
         var_file_paths=None,
+        runtime_var_file_paths=None,
+        runtime_lockfile=None,
+        environment=None,
         dry_run=True,
         debug=False,
         auth=auth,
@@ -152,6 +171,9 @@ def test_dashboard_tabs_show_secretfile_and_graph(tmp_path: Path) -> None:
         secretfile_path=sf_path,
         secretfile_content=sf_text,
         var_file_paths=None,
+        runtime_var_file_paths=None,
+        runtime_lockfile=None,
+        environment=None,
         dry_run=True,
         debug=False,
         auth=auth,
@@ -182,6 +204,11 @@ def test_dashboard_tabs_show_secretfile_and_graph(tmp_path: Path) -> None:
     assert "nodes" in graph_json_tab.text
     assert "edges" in graph_json_tab.text
 
+    dash_main = client.get("/dashboard?tab=dashboard", cookies=cookies)
+    assert dash_main.status_code == 200
+    assert "Check drift" not in dash_main.text
+    assert "/action/import-all" in dash_main.text
+
 
 def test_sync_all_invokes_engine(tmp_path: Path) -> None:
     auth = NetworkWebSessionStore.from_bootstrap_token("t2")
@@ -196,6 +223,9 @@ def test_sync_all_invokes_engine(tmp_path: Path) -> None:
         secretfile_path=None,
         secretfile_content=None,
         var_file_paths=None,
+        runtime_var_file_paths=None,
+        runtime_lockfile=None,
+        environment=None,
         dry_run=True,
         debug=False,
         auth=auth,
@@ -212,6 +242,94 @@ def test_sync_all_invokes_engine(tmp_path: Path) -> None:
         assert csrf
         c.post("/action/sync-all", data={"csrf_token": csrf.group(1)}, cookies=cookies)
         mock_eng.sync.assert_called()
+
+
+def test_import_all_invokes_run_lockfile_import(tmp_path: Path) -> None:
+    auth = NetworkWebSessionStore.from_bootstrap_token("imptok")
+    lk_path = tmp_path / "imp.lock"
+    lk_path.write_text('{"version": "1.0", "secrets": {}}\n')
+    lk = Lockfile.load(lk_path)
+    sf_path = tmp_path / "Secretfile.yml"
+    sf_text = (
+        "version: '1.0'\nsecrets:\n  - name: s1\n    kind: static\n    config:\n      value: x\n"
+    )
+    sf_path.write_text(sf_text)
+    app = create_network_web_app(
+        secretfile=_secretfile_one_static(),
+        lockfile=lk,
+        lockfile_path=lk_path,
+        secretfile_path=sf_path,
+        secretfile_content=sf_text,
+        var_file_paths=None,
+        runtime_var_file_paths=None,
+        runtime_lockfile=None,
+        environment=None,
+        dry_run=True,
+        debug=False,
+        auth=auth,
+        use_tls=False,
+        on_shutdown=lambda: None,
+    )
+    with patch("secretzero.network_webui.run_lockfile_import") as mock_imp:
+        mock_imp.return_value = {
+            "errors": 0,
+            "imported": 0,
+            "updated": 0,
+            "unchanged": 1,
+            "skipped": 0,
+            "would_apply": 0,
+            "details": [],
+            "refresh": {},
+            "dry_run": True,
+        }
+        c = TestClient(app)
+        r0 = c.post("/auth", data={"access_token": "imptok"}, follow_redirects=False)
+        cookies = r0.cookies
+        dash = c.get("/dashboard", cookies=cookies)
+        m = re.search(r'name="csrf_token" value="([^"]+)"', dash.text)
+        assert m
+        r_imp = c.post(
+            "/action/import-all",
+            data={"csrf_token": m.group(1), "list_filter": "all"},
+            cookies=cookies,
+            follow_redirects=False,
+        )
+        assert r_imp.status_code == 303
+        mock_imp.assert_called_once()
+
+
+def test_check_drift_route_is_removed(tmp_path: Path) -> None:
+    auth = NetworkWebSessionStore.from_bootstrap_token("drftok")
+    lk_path = tmp_path / "d.lock"
+    lk_path.write_text('{"version": "1.0", "secrets": {}}\n')
+    lk = Lockfile.load(lk_path)
+    app = create_network_web_app(
+        secretfile=_secretfile_one_static(),
+        lockfile=lk,
+        lockfile_path=lk_path,
+        secretfile_path=None,
+        secretfile_content=None,
+        var_file_paths=None,
+        runtime_var_file_paths=None,
+        runtime_lockfile=None,
+        environment=None,
+        dry_run=True,
+        debug=False,
+        auth=auth,
+        use_tls=False,
+        on_shutdown=lambda: None,
+    )
+    c = TestClient(app)
+    r0 = c.post("/auth", data={"access_token": "drftok"}, follow_redirects=False)
+    dash = c.get("/dashboard", cookies=r0.cookies)
+    m = re.search(r'name="csrf_token" value="([^"]+)"', dash.text)
+    assert m
+    r404 = c.post(
+        "/action/check-drift",
+        data={"csrf_token": m.group(1), "list_filter": "all"},
+        cookies=r0.cookies,
+    )
+    assert r404.status_code == 404
 
 
 def test_format_sync_results_for_debug_omits_raw_secrets() -> None:
@@ -254,6 +372,9 @@ def test_rotate_static_redirects_to_edit(tmp_path: Path) -> None:
         secretfile_path=None,
         secretfile_content=None,
         var_file_paths=None,
+        runtime_var_file_paths=None,
+        runtime_lockfile=None,
+        environment=None,
         dry_run=True,
         debug=False,
         auth=auth,
@@ -292,6 +413,9 @@ def test_apply_static_calls_sync_with_force_rotation(tmp_path: Path) -> None:
         secretfile_path=None,
         secretfile_content=None,
         var_file_paths=None,
+        runtime_var_file_paths=None,
+        runtime_lockfile=None,
+        environment=None,
         dry_run=True,
         debug=False,
         auth=auth,
@@ -336,6 +460,9 @@ def test_secret_edit_hides_target_provenance_actor(tmp_path: Path) -> None:
         secretfile_path=None,
         secretfile_content=None,
         var_file_paths=None,
+        runtime_var_file_paths=None,
+        runtime_lockfile=None,
+        environment=None,
         dry_run=True,
         debug=False,
         auth=auth,
@@ -363,6 +490,9 @@ def test_dashboard_includes_debug_panel_when_enabled(tmp_path: Path) -> None:
         secretfile_path=tmp_path / "Secretfile.yml",
         secretfile_content="version: '1.0'\nsecrets: []\n",
         var_file_paths=None,
+        runtime_var_file_paths=None,
+        runtime_lockfile=None,
+        environment=None,
         dry_run=True,
         debug=True,
         auth=auth,
@@ -375,3 +505,35 @@ def test_dashboard_includes_debug_panel_when_enabled(tmp_path: Path) -> None:
     dash = c.get("/dashboard", cookies=r0.cookies)
     assert dash.status_code == 200
     assert "Debug log" in dash.text
+
+
+def test_dashboard_renders_environment_selector(tmp_path: Path) -> None:
+    auth = NetworkWebSessionStore.from_bootstrap_token("envtok")
+    lk_path = tmp_path / "env.lock"
+    lk_path.write_text('{"version": "1.0", "secrets": {}}\n')
+    sf_path = tmp_path / "Secretfile.yml"
+    sf_path.write_text("secrets: []\n", encoding="utf-8")
+    lk = Lockfile.load(lk_path)
+    app = create_network_web_app(
+        secretfile=_secretfile_with_environments(),
+        lockfile=lk,
+        lockfile_path=lk_path,
+        secretfile_path=sf_path,
+        secretfile_content="secrets: []\n",
+        var_file_paths=[],
+        runtime_var_file_paths=[],
+        runtime_lockfile=None,
+        environment="dev",
+        dry_run=True,
+        debug=False,
+        auth=auth,
+        use_tls=False,
+        on_shutdown=lambda: None,
+    )
+    client = TestClient(app)
+    auth_resp = client.post("/auth", data={"access_token": "envtok"}, follow_redirects=False)
+    assert auth_resp.status_code == 302
+    dash = client.get("/dashboard", cookies=auth_resp.cookies)
+    assert dash.status_code == 200
+    assert 'name="environment"' in dash.text
+    assert "Environment" in dash.text
