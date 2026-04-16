@@ -1,0 +1,3 @@
+expected_aws_account: "222222222222"
+expected_aws_role: secretzero-staging-sync
+aws_region: us-east-1

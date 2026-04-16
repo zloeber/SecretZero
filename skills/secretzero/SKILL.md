@@ -162,6 +162,128 @@ Use the schema as the source of truth, and keep definitions predictable for huma
 3. `secretzero sync --dry-run`
 4. `secretzero agent sync --json` (or `--web`) when testing human-in-the-loop flows
 
+### Rule 9: Write narrowly scoped identity guardrails for provider-backed targets
+- Prefer explicit, least-privilege `kind: provider_identity` policies over broad wildcard matching.
+- For AWS, constrain both `account` and `region` whenever possible.
+- Attach targeted policies at the secret target via `identity_policies` when only some targets require stricter controls.
+- Avoid auto-broadening policies (`*`, catch-all regex) unless a human explicitly approves the trade-off.
+
+#### AWS account + region guardrail (baseline)
+```yaml
+policies:
+  aws_prod_identity:
+    kind: provider_identity
+    providers: [aws]
+    match: all
+    rules:
+      - field: account
+        glob: "111111111111"
+      - field: region
+        glob: us-east-1
+```
+
+#### AWS prod account allowlist + bounded regions
+```yaml
+policies:
+  aws_prod_accounts_and_regions:
+    kind: provider_identity
+    providers: [aws]
+    match: all
+    rules:
+      - field: account
+        any_glob: ["111111111111", "222222222222"]
+      - field: region
+        any_glob: ["us-east-1", "us-west-2"]
+```
+
+#### Per-target strictness with `identity_policies`
+```yaml
+policies:
+  aws_prod_use1:
+    kind: provider_identity
+    providers: [aws]
+    match: all
+    rules:
+      - field: account
+        glob: "111111111111"
+      - field: region
+        glob: us-east-1
+
+secrets:
+  - name: app_token
+    kind: random_string
+    config: { length: 40 }
+    targets:
+      - provider: aws
+        kind: secrets_manager
+        identity_policies: [aws_prod_use1]
+        config:
+          name: /prod/app/token
+```
+
+#### Cross-provider pattern (similar scenario, non-AWS)
+```yaml
+policies:
+  azure_prod_tenant:
+    kind: provider_identity
+    providers: [azure]
+    rules:
+      - field: tenant_id
+        glob: "00000000-0000-0000-0000-000000000000"
+```
+
+### Discovery-assisted policy authoring loop (agent-safe)
+Use discovery to observe real authenticated identity metadata, then author minimally permissive rules.
+
+1. Discover current authenticated provider identities:
+   - `secretzero status --format json`
+   - (optional) `secretzero test --verbose`
+2. Extract provider actor fields (`account`, `region`, `arn`, `tenant_id`, `namespace`, etc.) from machine-readable output.
+3. Propose policy fragments that match only required contexts.
+4. Validate and enforce:
+   - `secretzero validate`
+   - `secretzero sync --dry-run`
+5. Tighten rules before commit (prefer exact account/region over wildcards).
+
+### Agent-friendly discovery contract (for robust context handling)
+When an agent consumes discovery output, normalize it into a stable shape before generating policies.
+
+```json
+{
+  "providers": [
+    {
+      "alias": "aws",
+      "kind": "aws",
+      "auth_status": "ok",
+      "actor": {
+        "account": "111111111111",
+        "region": "us-east-1",
+        "arn": "arn:aws:sts::111111111111:assumed-role/ci-role/session"
+      }
+    }
+  ],
+  "candidate_policy_fragments": [
+    {
+      "name": "aws_prod_identity",
+      "kind": "provider_identity",
+      "providers": ["aws"],
+      "rules": [
+        { "field": "account", "glob": "111111111111" },
+        { "field": "region", "glob": "us-east-1" }
+      ],
+      "confidence": "high",
+      "safe_to_enforce": true
+    }
+  ]
+}
+```
+
+Agent constraints for discovery-driven authoring:
+- Never include or request secret values while discovering identity.
+- Prefer deterministic scalar matching (`glob`) before broader pattern matching (`regex`).
+- Mark wide matches as "needs human confirmation".
+- Re-run discovery and dry-run validation after any policy edit.
+
 ### Practical default pattern
 Use this shape unless you have a concrete reason not to:
 

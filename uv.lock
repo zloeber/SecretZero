@@ -3,15 +3,17 @@ revision = 3
 requires-python = ">=3.12"
 
 [options]
-exclude-newer = "2026-04-06T19:21:03.982533Z"
+exclude-newer = "2026-04-09T19:40:07.900084Z"
 exclude-newer-span = "P7D"
 
 [options.exclude-newer-package]
-pytest = false
+langsmith = false
 cryptography = false
 langchain-core = false
 pygments = false
+pytest = false
 anthropic = false
+python-multipart = false
 
 [manifest]
 overrides = [
@@ -20,8 +22,10 @@ overrides = [
     { name = "cryptography", specifier = ">=46.0.7" },
     { name = "langchain-core", specifier = ">=1.2.28" },
     { name = "langgraph", specifier = ">=1.0.10" },
+    { name = "langsmith", specifier = ">=0.7.31" },
     { name = "pyjwt", specifier = ">=2.12.0" },
     { name = "pytest", specifier = ">=9.0.3" },
+    { name = "python-multipart", specifier = ">=0.0.26" },
     { name = "requests", specifier = ">=2.33.0" },
 ]
 
@@ -1093,7 +1097,7 @@ wheels = [
 
 [[package]]
 name = "langsmith"
-version = "0.7.26"
+version = "0.7.32"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
@@ -1106,9 +1110,9 @@ dependencies = [
     { name = "xxhash" },
     { name = "zstandard" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/76/86/6de4f6f0451a9658f26f633e0bb090552a4dafd7df3f1ae7f0d40558e67e/langsmith-0.7.26.tar.gz", hash = "sha256:a3e06f3d689ce7195717aa6b8f91082319819ec7ea9b9a62cdcd3d9dc25bfc7b", size = 1146118, upload-time = "2026-04-06T15:01:03.336Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/2f/b4/a0b4a501bee6b8a741ce29f8c48155b132118483cddc6f9247735ddb38fa/langsmith-0.7.32.tar.gz", hash = "sha256:b59b8e106d0e4c4842e158229296086e2aa7c561e3f602acda73d3ad0062e915", size = 1184518, upload-time = "2026-04-15T23:42:41.885Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/81/8e/7eb7d65ce62e98e74b9f18f193ea7ac3996d4fbd71fffcc67d0f7ba3103e/langsmith-0.7.26-py3-none-any.whl", hash = "sha256:fe5c877972cea450c1c48251c8fae0f18543c8d19dfdb9ff9a9c4263763dde4e", size = 360160, upload-time = "2026-04-06T15:01:01.516Z" },
+    { url = "https://files.pythonhosted.org/packages/62/bc/148f98ac7dad73ac5e1b1c985290079cfeeb9ba13d760a24f25002beb2c9/langsmith-0.7.32-py3-none-any.whl", hash = "sha256:e1fde928990c4c52f47dc5132708cec674355d9101723d564183e965f383bf5f", size = 378272, upload-time = "2026-04-15T23:42:39.905Z" },
 ]
 
 [[package]]
@@ -2230,11 +2234,11 @@ wheels = [
 
 [[package]]
 name = "python-multipart"
-version = "0.0.24"
+version = "0.0.26"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/8a/45/e23b5dc14ddb9918ae4a625379506b17b6f8fc56ca1d82db62462f59aea6/python_multipart-0.0.24.tar.gz", hash = "sha256:9574c97e1c026e00bc30340ef7c7d76739512ab4dfd428fec8c330fa6a5cc3c8", size = 37695, upload-time = "2026-04-05T20:49:13.829Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/88/71/b145a380824a960ebd60e1014256dbb7d2253f2316ff2d73dfd8928ec2c3/python_multipart-0.0.26.tar.gz", hash = "sha256:08fadc45918cd615e26846437f50c5d6d23304da32c341f289a617127b081f17", size = 43501, upload-time = "2026-04-10T14:09:59.473Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a3/73/89930efabd4da63cea44a3f438aeb753d600123570e6d6264e763617a9ce/python_multipart-0.0.24-py3-none-any.whl", hash = "sha256:9b110a98db707df01a53c194f0af075e736a770dc5058089650d70b4a182f950", size = 24420, upload-time = "2026-04-05T20:49:12.555Z" },
+    { url = "https://files.pythonhosted.org/packages/9a/22/f1925cdda983ab66fc8ec6ec8014b959262747e58bdca26a4e3d1da29d56/python_multipart-0.0.26-py3-none-any.whl", hash = "sha256:c0b169f8c4484c13b0dcf2ef0ec3a4adb255c4b7d18d8e420477d2b1dd03f185", size = 28847, upload-time = "2026-04-10T14:09:58.131Z" },
 ]
 
 [[package]]
@@ -2800,9 +2804,9 @@ requires-dist = [
     { name = "python-jenkins", marker = "extra == 'all'", specifier = ">=1.8.0" },
     { name = "python-jenkins", marker = "extra == 'cicd'", specifier = ">=1.8.0" },
     { name = "python-jenkins", marker = "extra == 'jenkins'", specifier = ">=1.8.0" },
-    { name = "python-multipart", specifier = ">=0.0.22" },
-    { name = "python-multipart", marker = "extra == 'all'", specifier = ">=0.0.6" },
-    { name = "python-multipart", marker = "extra == 'api'", specifier = ">=0.0.22" },
+    { name = "python-multipart", specifier = ">=0.0.26" },
+    { name = "python-multipart", marker = "extra == 'all'", specifier = ">=0.0.26" },
+    { name = "python-multipart", marker = "extra == 'api'", specifier = ">=0.0.26" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "rich", specifier = ">=13.0.0" },
     { name = "ruamel-yaml", specifier = ">=0.18.0" },
