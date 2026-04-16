@@ -1,0 +1,3 @@
+expected_aws_account: "333333333333"
+expected_aws_role: secretzero-prod-sync
+aws_region: us-east-1
