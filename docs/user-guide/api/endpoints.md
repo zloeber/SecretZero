@@ -211,6 +211,7 @@ Generate and store secrets to their targets.
 | `force` | boolean | No | `false` | Force regeneration of existing secrets |
 | `refresh` | boolean | No | `true` | Refresh lockfile target validity right before sync (`false` opts out) |
 | `secret_name` | string | No | `null` | Sync only this specific secret |
+| `environment` | string | No | `null` | Named environment profile from `environments.profiles` |
 
 **Example Request (Dry Run):**
 ```bash
@@ -271,6 +272,10 @@ curl -X POST http://localhost:8000/sync \
 | `secrets_generated` | array | List of secrets that were/would be generated |
 | `secrets_skipped` | array | List of secrets that were skipped |
 | `message` | string | Human-readable summary |
+| `selected_environment` | string/null | Selected environment profile (if any) |
+| `resolved_var_files` | array | Effective var-file list used for this sync |
+| `resolved_lockfile` | string | Effective lockfile path used for this sync |
+| `resolved_target_profile` | string/null | Applied target profile name (if any) |
 
 **Error Responses:**
 

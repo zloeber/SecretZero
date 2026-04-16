@@ -51,7 +51,9 @@ Provider authentication is sufficient (or `SZ_AGENT=true` is set). The workflow 
 6. Re-run until clean.
 7. Only continue with downstream tasks once secret-zero state is resolved.
 
-Full details, `agent_instructions` authoring (with templating), top-level `agent:` config, and vector mapping are in `./skills/secretzero/SKILL.md`.
+Full details now live in focused skills:
+- `./skills/secretzero-agent/SKILL.md` for unified agentic/runtime workflows and vector handling.
+- `./skills/secretzero-author/SKILL.md` for schema-compliant `Secretfile.yml` authoring and safe discovery-driven policy authoring.
 
 ## Schema-Driven Development Mandate
 

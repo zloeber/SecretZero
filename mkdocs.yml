@@ -187,6 +187,7 @@ nav:
           - Python Client: user-guide/api/python-client.md
           - Deployment: user-guide/api/deployment.md
       - Agent Sync: user-guide/agent-sync.md
+      - Lockfile Version Control Policy: user-guide/lockfile-version-control-policy.md
       - Provider Bundles:
           - user-guide/bundles/index.md
           - Bundle Cookbook: user-guide/bundles/cookbook.md

@@ -18,6 +18,7 @@ The `sync` command generates secret values according to your Secretfile configur
 |--------|------|---------|-------------|
 | `--file`, `-f` | path | `Secretfile.yml` | Path to Secretfile |
 | `--lockfile`, `-l` | path | `.gitsecrets.lock` | Path to lockfile |
+| `--environment`, `-e` | string | - | Named environment profile from `environments.profiles` |
 | `--dry-run` | flag | `false` | Show what would be done without making changes |
 | `--refresh/--no-refresh` | bool flag | `--refresh` | Check lockfile target validity right before sync; prune stale target entries on non-dry-run |
 | `--help` | flag | - | Show help message |
@@ -91,6 +92,12 @@ Or using short forms:
 
 ```bash
 secretzero sync -f Secretfile.prod.yml -l .production.lock
+```
+
+Use a configured lane from the Secretfile environment map:
+
+```bash
+secretzero sync --environment prod
 ```
 
 ## How Sync Works

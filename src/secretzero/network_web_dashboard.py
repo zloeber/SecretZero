@@ -8,6 +8,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from secretzero.agent import secret_supports_automatic_generation
 from secretzero.generators.traits import secret_prompts_like_static
 from secretzero.lockfile import Lockfile, SecretLockEntry
 from secretzero.models import AgentInstructions, Secret, Secretfile, TargetConfig
@@ -275,6 +276,10 @@ def build_manifest_rows(
     lockfile: Lockfile,
     secretfile_path: Path | None,
     secretfile: Secretfile | None = None,
+    *,
+    selected_environment: str | None = None,
+    resolved_var_files: list[Path] | None = None,
+    resolved_target_profile: str | None = None,
 ) -> dict[str, Any]:
     """Secretfile / lockfile metadata for the dashboard header."""
     from secretzero.provider_identity import collect_provider_identity_rows
@@ -299,6 +304,11 @@ def build_manifest_rows(
             "secretfile_hash": hp,
             "var_files": vf,
         }
+    base["selected_environment"] = selected_environment or "—"
+    base["resolved_var_files"] = (
+        ", ".join(str(p) for p in (resolved_var_files or [])) if resolved_var_files else "—"
+    )
+    base["resolved_target_profile"] = resolved_target_profile or "—"
     base["provider_rows"] = collect_provider_identity_rows(secretfile) if secretfile else []
     base["identity_preflight"] = None
     if secretfile:
@@ -383,6 +393,8 @@ def build_secret_rows(secretfile: Secretfile, lockfile: Lockfile) -> list[dict[s
                 "in_lock": in_lock,
                 "is_unsynced": is_unsynced,
                 "can_set_value": _secret_can_set_value_web(sec),
+                "can_web_rotate": secret_supports_automatic_generation(sec)
+                and not secret_prompts_like_static(sec),
                 "agent_instructions": agent_payload,
             }
         )

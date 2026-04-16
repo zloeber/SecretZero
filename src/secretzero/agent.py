@@ -242,34 +242,29 @@ class AgentSecretSynchronizer:
         return result
 
     def _can_auto_sync(self, secret: Secret) -> bool:
-        """Determine if a secret can be automatically synced.
+        """Determine if a secret can be automatically synced."""
+        return secret_supports_automatic_generation(secret)
 
-        Args:
-            secret: Secret configuration
 
-        Returns:
-            True if the secret can be generated without external input
-        """
-        # Auto-generating kinds require no external input
-        if secret.kind in _AUTO_GENERATOR_KINDS:
-            return True
+def secret_supports_automatic_generation(secret: Secret) -> bool:
+    """True when sync can generate this secret without interactive prompts (agent / web rotate)."""
+    if secret.kind in _AUTO_GENERATOR_KINDS:
+        return True
 
-        # Static-like secrets: auto-sync only when no interactive fill is required
-        from secretzero.generators.static import static_payload_needs_prompt
-        from secretzero.generators.traits import secret_prompts_like_static
+    from secretzero.generators.static import static_payload_needs_prompt
+    from secretzero.generators.traits import secret_prompts_like_static
 
-        if secret_prompts_like_static(secret):
-            if "default" in secret.config:
-                value = secret.config["default"]
-            else:
-                value = secret.config.get("value")
-            return not static_payload_needs_prompt(value, nested=False)
+    if secret_prompts_like_static(secret):
+        if "default" in secret.config:
+            value = secret.config["default"]
+        else:
+            value = secret.config.get("value")
+        return not static_payload_needs_prompt(value, nested=False)
 
-        # Script / api generators may succeed — attempt them
-        if secret.kind in {"script", "api"}:
-            return True
+    if secret.kind in {"script", "api"}:
+        return True
 
-        return False
+    return False
 
 
 def detect_automation_level(secret: Secret) -> AutomationLevel:

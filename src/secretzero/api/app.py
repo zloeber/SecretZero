@@ -53,6 +53,7 @@ from secretzero.api.schemas import (
 from secretzero.cli_config import get_effective_config
 from secretzero.config import ConfigLoader
 from secretzero.drift import DriftDetector
+from secretzero.environment_resolution import apply_target_profile, resolve_environment_context
 from secretzero.lockfile import Lockfile
 from secretzero.models import AgentMode, Secretfile
 from secretzero.policy import PolicyEngine
@@ -308,9 +309,18 @@ def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
                 )
 
             loader = ConfigLoader()
-            var_files = [Path(vf) for vf in request.var_files]
-            config = loader.load_file(config_path, var_files=var_files)
-            lockfile = Lockfile.load(Path(".gitsecrets.lock"))
+            base_config = loader.load_file(config_path)
+            runtime_var_files = [Path(vf) for vf in request.var_files]
+            env_ctx = resolve_environment_context(
+                secretfile=base_config,
+                secretfile_path=config_path,
+                environment=request.environment,
+                runtime_var_files=runtime_var_files,
+                runtime_lockfile=None,
+            )
+            config = loader.load_file(config_path, var_files=env_ctx.resolved_var_files or None)
+            config = apply_target_profile(config, env_ctx.resolved_target_profile)
+            lockfile = Lockfile.load(env_ctx.resolved_lockfile)
             secretfile_content = config_path.read_text()
             sync_engine = SyncEngine(
                 config,
@@ -358,7 +368,7 @@ def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
 
             # Save lockfile if not dry run
             if not request.dry_run:
-                lockfile.save(Path(".gitsecrets.lock"))
+                lockfile.save(env_ctx.resolved_lockfile)
 
             audit_logger.log(
                 action="sync",
@@ -376,6 +386,10 @@ def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
                 secrets_generated=generated,
                 secrets_skipped=skipped,
                 message=message,
+                selected_environment=env_ctx.selected_environment,
+                resolved_var_files=[str(p) for p in env_ctx.resolved_var_files],
+                resolved_lockfile=str(env_ctx.resolved_lockfile),
+                resolved_target_profile=env_ctx.resolved_target_profile,
             )
         except HTTPException:
             raise
@@ -404,17 +418,19 @@ def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
                     detail=f"Secretfile not found: {config_path}",
                 )
 
-            if body.lockfile:
-                lockfile_path = Path(body.lockfile)
-            elif config_path.name == "Secretfile.yml":
-                lockfile_path = config_path.parent / ".gitsecrets.lock"
-            else:
-                lockfile_path = config_path.parent / (config_path.stem + ".lock")
-
             secretfile_content = config_path.read_text()
             loader = ConfigLoader()
-            var_files = [Path(vf) for vf in body.var_files]
-            secretfile = loader.load_file(config_path, var_files=var_files)
+            base_secretfile = loader.load_file(config_path)
+            env_ctx = resolve_environment_context(
+                secretfile=base_secretfile,
+                secretfile_path=config_path,
+                environment=body.environment,
+                runtime_var_files=[Path(vf) for vf in body.var_files],
+                runtime_lockfile=body.lockfile,
+            )
+            lockfile_path = env_ctx.resolved_lockfile
+            secretfile = loader.load_file(config_path, var_files=env_ctx.resolved_var_files or None)
+            secretfile = apply_target_profile(secretfile, env_ctx.resolved_target_profile)
             lock = Lockfile.load(lockfile_path)
 
             sz_eff = body.sz_agent if body.sz_agent is not None else env_sz_agent()
@@ -437,6 +453,10 @@ def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
                 sz_agent=sz_eff,
                 resolved_mode=resolved,
             )
+            payload["selected_environment"] = env_ctx.selected_environment
+            payload["resolved_var_files"] = [str(p) for p in env_ctx.resolved_var_files]
+            payload["resolved_lockfile"] = str(env_ctx.resolved_lockfile)
+            payload["resolved_target_profile"] = env_ctx.resolved_target_profile
 
             if use_web and result.pending_secrets and not body.dry_run:
                 sess = web_session_registry.create(list(result.pending_secrets.keys()))

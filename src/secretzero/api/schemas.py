@@ -143,6 +143,10 @@ class SyncRequest(BaseModel):
         default_factory=list,
         description="Optional .szvar file paths merged into Secretfile variables (later entries win)",
     )
+    environment: str | None = Field(
+        default=None,
+        description="Optional named environment profile from Secretfile.environments.profiles",
+    )
 
 
 class SyncResponse(BaseModel):
@@ -151,6 +155,10 @@ class SyncResponse(BaseModel):
     secrets_generated: list[str] = Field(default_factory=list)
     secrets_skipped: list[str] = Field(default_factory=list)
     message: str
+    selected_environment: str | None = None
+    resolved_var_files: list[str] = Field(default_factory=list)
+    resolved_lockfile: str | None = None
+    resolved_target_profile: str | None = None
 
 
 class AuditLogEntry(BaseModel):
@@ -258,6 +266,10 @@ class AgentSyncRequest(BaseModel):
         default_factory=list,
         description="Optional .szvar file paths merged into Secretfile variables (later entries win)",
     )
+    environment: str | None = Field(
+        default=None,
+        description="Optional named environment profile from Secretfile.environments.profiles",
+    )
     sz_agent: bool | None = Field(
         default=None,
         description="Override SZ_AGENT for this request; when None, use the server environment",
@@ -284,6 +296,10 @@ class AgentSyncResponse(BaseModel):
     resolved_mode: str = ""
     web_url: str | None = None
     web_session_id: str | None = None
+    selected_environment: str | None = None
+    resolved_var_files: list[str] = Field(default_factory=list)
+    resolved_lockfile: str | None = None
+    resolved_target_profile: str | None = None
 
 
 class AgentWebSessionStatusResponse(BaseModel):

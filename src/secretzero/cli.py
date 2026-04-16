@@ -21,8 +21,10 @@ from secretzero.cli_format import format_command
 from secretzero.cli_providers import providers_group
 from secretzero.config import ConfigLoader
 from secretzero.drift import DriftDetector
+from secretzero.environment_resolution import apply_target_profile, resolve_environment_context
 from secretzero.graph import generate_graph
 from secretzero.lockfile import Lockfile
+from secretzero.lockfile_import import run_lockfile_import
 from secretzero.models import SECRETFILE_MANIFEST_SPEC_VERSION, AgentMode, Secretfile
 from secretzero.policy import PolicyEngine
 from secretzero.provider_identity import collect_provider_identity_rows
@@ -114,6 +116,13 @@ def _is_non_interactive() -> bool:
 def _env_flag(name: str) -> bool:
     """Return True when environment variable is a truthy flag."""
     return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _runtime_lockfile_override(file: str, lockfile: str) -> str | None:
+    """Normalize lockfile CLI input to optional explicit override."""
+    if lockfile == ".gitsecrets.lock":
+        return None
+    return lockfile
 
 
 def _enforce_get_sandbox_policy() -> None:
@@ -1938,6 +1947,13 @@ def _cli_force_targets_map(
     help="Path to .szvar variable file(s) to merge (can be specified multiple times)",
 )
 @click.option(
+    "--environment",
+    "-e",
+    type=str,
+    default=None,
+    help="Named environment profile from Secretfile.environments.profiles",
+)
+@click.option(
     "--dry-run",
     is_flag=True,
     help="Show what would be done without making changes",
@@ -1998,6 +2014,7 @@ def sync(
     file: str,
     lockfile: str,
     var_files: tuple[str, ...],
+    environment: str | None,
     dry_run: bool,
     plan: bool,
     show_input: bool,
@@ -2062,30 +2079,30 @@ def sync(
 
     file_path = Path(file)
 
-    # Generate default lockfile name from secretfile if not explicitly provided
-    if lockfile == ".gitsecrets.lock":
-        # Only use default if Secretfile.yml; otherwise derive from secretfile name
-        if file != "Secretfile.yml":
-            # Replace .yml with .lock
-            lockfile_name = file_path.stem + ".lock"
-            lockfile = lockfile_name
-
-    lockfile_path = Path(lockfile)
-
-    # Convert var_files to Path objects
-    var_file_paths = [Path(vf) for vf in var_files] if var_files else None
+    runtime_lockfile = _runtime_lockfile_override(file, lockfile)
+    runtime_var_file_paths = [Path(vf) for vf in var_files] if var_files else None
 
     loader = ConfigLoader()
 
-    # Load configuration with optional variable files
+    # Load base config first so environment profiles can be resolved safely.
     try:
-        config = loader.load_file(file_path, var_files=var_file_paths)
+        base_config = loader.load_file(file_path)
+        env_ctx = resolve_environment_context(
+            secretfile=base_config,
+            secretfile_path=file_path,
+            environment=environment,
+            runtime_var_files=runtime_var_file_paths,
+            runtime_lockfile=runtime_lockfile,
+        )
+        config = loader.load_file(file_path, var_files=env_ctx.resolved_var_files or None)
+        config = apply_target_profile(config, env_ctx.resolved_target_profile)
     except Exception as e:
         if output_format == "json":
             click.echo(json.dumps({"error": str(e), "exit_code": EXIT_CONFIG_ERROR}))
         else:
             console.print(f"[red]Error loading Secretfile:[/red] {e}")
         sys.exit(EXIT_CONFIG_ERROR)
+    lockfile_path = env_ctx.resolved_lockfile
 
     # Read secretfile content for change detection
     secretfile_content = file_path.read_text()
@@ -2094,7 +2111,7 @@ def sync(
     lock = Lockfile.load(lockfile_path)
 
     # Determine active variable context
-    active_var_files = var_file_paths or []
+    active_var_files = env_ctx.resolved_var_files or []
     active_variables = dict(config.variables or {})
 
     # Detect variable context changes relative to lockfile
@@ -2121,6 +2138,12 @@ def sync(
     if variable_context_changed and output_format == "text":
         console.print(
             "[yellow]⚠ Variable context has changed since the last sync for this lockfile.[/yellow]"
+        )
+
+    if output_format == "text" and env_ctx.selected_environment:
+        console.print(
+            f"[dim]Environment:[/dim] {env_ctx.selected_environment}  "
+            f"[dim]Lockfile:[/dim] {lockfile_path}"
         )
         if lock.secretfile and lock.secretfile.var_files:
             prev_files = ", ".join(lock.secretfile.var_files)
@@ -2217,6 +2240,10 @@ def sync(
                 "details": results.get("details", []),
                 "variable_context_changed": variable_context_changed,
                 "provider_identity": provider_identity_rows,
+                "selected_environment": env_ctx.selected_environment,
+                "resolved_var_files": [str(p) for p in env_ctx.resolved_var_files],
+                "resolved_lockfile": str(lockfile_path),
+                "resolved_target_profile": env_ctx.resolved_target_profile,
             }
             if plan_details is not None:
                 json_result["plan_details"] = plan_details
@@ -2228,10 +2255,10 @@ def sync(
             # Mirror text mode: persist lockfile after sync (JSON path used to return here without saving).
             if not dry_run:
                 if results["secrets_stored"] > 0 or cleaned_entries:
-                    lock.track_variable_context(var_file_paths or [], dict(config.variables or {}))
+                    lock.track_variable_context(active_var_files, dict(config.variables or {}))
                     lock.save(lockfile_path)
                 elif results.get("secretfile_changed") is not None:
-                    lock.track_variable_context(var_file_paths or [], dict(config.variables or {}))
+                    lock.track_variable_context(active_var_files, dict(config.variables or {}))
                     lock.save(lockfile_path)
             if results.get("errors"):
                 sys.exit(EXIT_UNKNOWN_ERROR)
@@ -2439,14 +2466,14 @@ def sync(
         # Save lockfile if not dry run and secrets were stored
         if not dry_run:
             if results["secrets_stored"] > 0 or cleaned_entries:
-                lock.track_variable_context(var_file_paths or [], dict(config.variables or {}))
+                lock.track_variable_context(active_var_files, dict(config.variables or {}))
                 lock.save(lockfile_path)
                 console.print(f"\n[green]✓[/green] Lockfile saved: {lockfile_path}")
             else:
                 # Check if lockfile was modified (secretfile tracking)
                 if results.get("secretfile_changed") is not None:
                     # Lockfile exists and secretfile was tracked
-                    lock.track_variable_context(var_file_paths or [], dict(config.variables or {}))
+                    lock.track_variable_context(active_var_files, dict(config.variables or {}))
                     lock.save(lockfile_path)
                     console.print(
                         f"\n[dim]Lockfile updated (secretfile tracking only): {lockfile_path}[/dim]"
@@ -3472,6 +3499,255 @@ def drift(file: str, lockfile: str, output_format: str, secret_name: str | None)
         console.print("\n[green]No drift detected.[/green]")
 
 
+@main.command("import")
+@click.option(
+    "--file",
+    "-f",
+    type=click.Path(exists=True),
+    default="Secretfile.yml",
+    help="Path to Secretfile",
+)
+@click.option(
+    "--lockfile",
+    "-l",
+    type=click.Path(),
+    default=".gitsecrets.lock",
+    help="Path to lockfile",
+)
+@click.option(
+    "--var-file",
+    "-v",
+    "var_files",
+    type=click.Path(exists=True),
+    multiple=True,
+    help="Path to .szvar variable file(s) to merge (repeatable)",
+)
+@click.option(
+    "--environment",
+    "-e",
+    type=str,
+    default=None,
+    help="Named environment profile from Secretfile.environments.profiles",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Show what would be imported without updating the lockfile",
+)
+@click.option(
+    "--check",
+    is_flag=True,
+    help="Report drift between lockfile and live targets only (no import)",
+)
+@click.option(
+    "--fail-on-drift",
+    is_flag=True,
+    help="With --check, exit with a non-zero status when drift is detected",
+)
+@click.option(
+    "--secret",
+    "-s",
+    "secrets",
+    multiple=True,
+    help="Import only these secrets (repeatable)",
+)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    help="Output format (text or json)",
+)
+def lockfile_import_cmd(
+    file: str,
+    lockfile: str,
+    var_files: tuple[str, ...],
+    environment: str | None,
+    dry_run: bool,
+    check: bool,
+    fail_on_drift: bool,
+    secrets: tuple[str, ...],
+    output_format: str,
+) -> None:
+    """Import pre-seeded values from targets into the lockfile (read-only on targets).
+
+    Refreshes stale lockfile target IDs, then reads each secret from configured targets and
+    updates lockfile hashes when values are consistent across targets. Use ``--check`` for a
+    drift-only report (add ``--fail-on-drift`` for CI-style gating).
+    """
+    file_path = Path(file)
+    runtime_lockfile = _runtime_lockfile_override(file, lockfile)
+    runtime_var_file_paths = [Path(vf) for vf in var_files] if var_files else None
+    loader = ConfigLoader()
+
+    try:
+        base_config = loader.load_file(file_path)
+        env_ctx = resolve_environment_context(
+            secretfile=base_config,
+            secretfile_path=file_path,
+            environment=environment,
+            runtime_var_files=runtime_var_file_paths,
+            runtime_lockfile=runtime_lockfile,
+        )
+    except Exception as e:
+        if output_format == "json":
+            click.echo(json.dumps({"error": str(e), "exit_code": EXIT_CONFIG_ERROR}))
+        else:
+            console.print(f"[red]Error loading Secretfile:[/red] {e}")
+        sys.exit(EXIT_CONFIG_ERROR)
+
+    lockfile_path = env_ctx.resolved_lockfile
+
+    if check:
+        if not lockfile_path.exists():
+            if output_format == "json":
+                click.echo(json.dumps({"error": f"Lockfile not found: {lockfile_path}"}))
+            else:
+                console.print(f"[red]Error:[/red] Lockfile not found: {lockfile_path}")
+            sys.exit(EXIT_CONFIG_ERROR)
+        detector = DriftDetector(file_path, lockfile_path)
+        secret_name = secrets[0] if len(secrets) == 1 else None
+        if len(secrets) > 1:
+            if output_format == "json":
+                click.echo(
+                    json.dumps(
+                        {
+                            "error": "Only one --secret may be used with --check",
+                            "exit_code": EXIT_VALIDATION_ERROR,
+                        }
+                    )
+                )
+            else:
+                console.print("[red]Error:[/red] Only one --secret may be used with --check")
+            sys.exit(EXIT_VALIDATION_ERROR)
+        results = detector.check_drift(secret_name)
+        drift_found = any(r.has_drift for r in results)
+        if output_format == "json":
+            click.echo(
+                json.dumps(
+                    {
+                        "drift_detected": drift_found,
+                        "results": [
+                            {
+                                "secret_name": r.secret_name,
+                                "has_drift": r.has_drift,
+                                "message": r.message,
+                                "details": r.details or {},
+                            }
+                            for r in results
+                        ],
+                    },
+                    indent=2,
+                )
+            )
+            if fail_on_drift and drift_found:
+                sys.exit(EXIT_DRIFT_DETECTED)
+            return
+        console.print("[bold]Drift check (import --check)[/bold]\n")
+        for result in results:
+            if result.has_drift:
+                console.print(f"  ⚠️  {result.secret_name}: {result.message}")
+                if result.details:
+                    for key, value in result.details.items():
+                        console.print(f"      {key}: {value}")
+            else:
+                console.print(f"  ✓  {result.secret_name}: {result.message}")
+        if drift_found:
+            console.print(
+                "\n[yellow]Drift detected.[/yellow] "
+                "Run [cyan]secretzero import[/cyan] to refresh the lockfile from targets, "
+                "or [cyan]secretzero sync[/cyan] to remediate."
+            )
+            if fail_on_drift:
+                sys.exit(EXIT_DRIFT_DETECTED)
+        else:
+            console.print("\n[green]No drift detected.[/green]")
+        return
+
+    try:
+        config = loader.load_file(file_path, var_files=env_ctx.resolved_var_files or None)
+        config = apply_target_profile(config, env_ctx.resolved_target_profile)
+    except Exception as e:
+        if output_format == "json":
+            click.echo(json.dumps({"error": str(e), "exit_code": EXIT_CONFIG_ERROR}))
+        else:
+            console.print(f"[red]Error loading Secretfile:[/red] {e}")
+        sys.exit(EXIT_CONFIG_ERROR)
+
+    secretfile_content = file_path.read_text()
+    lock = Lockfile.load(lockfile_path)
+    active_var_files = env_ctx.resolved_var_files or []
+
+    engine = SyncEngine(
+        config,
+        lock,
+        secretfile_path=file_path,
+        secretfile_content=secretfile_content,
+        hide_input=True,
+        prompt_on_empty=False,
+        sync_client="cli",
+    )
+    secret_list = list(secrets) if secrets else None
+
+    try:
+        summary = run_lockfile_import(
+            engine,
+            secretfile=config,
+            secretfile_path=file_path,
+            secretfile_content=secretfile_content,
+            secret_names=secret_list,
+            active_var_files=active_var_files,
+            dry_run=dry_run,
+        )
+    except Exception as e:
+        if output_format == "json":
+            click.echo(json.dumps({"error": str(e), "exit_code": EXIT_UNKNOWN_ERROR}))
+        else:
+            console.print(f"[red]Import failed:[/red] {e}")
+        sys.exit(EXIT_UNKNOWN_ERROR)
+
+    if not dry_run and lockfile_path:
+        lock.save(lockfile_path)
+
+    err_count = int(summary.get("errors") or 0)
+    if output_format == "json":
+        click.echo(json.dumps(summary, indent=2))
+        if err_count:
+            sys.exit(EXIT_VALIDATION_ERROR)
+        return
+
+    console.print("[bold]Lockfile import[/bold]\n")
+    ref = summary.get("refresh") or {}
+    console.print(
+        f"  Refresh: checked_secrets={ref.get('checked_secrets', 0)}, "
+        f"stale_secrets={ref.get('mismatch_secrets', 0)}, "
+        f"stale_targets={ref.get('mismatch_targets', 0)}"
+    )
+    console.print(
+        f"  Imported: {summary.get('imported', 0)}, updated: {summary.get('updated', 0)}, "
+        f"unchanged: {summary.get('unchanged', 0)}, skipped: {summary.get('skipped', 0)}, "
+        f"errors: {err_count}"
+    )
+    if summary.get("would_apply"):
+        console.print(f"  [dim]Would apply (dry-run): {summary['would_apply']}[/dim]")
+    for row in summary.get("details") or []:
+        if not isinstance(row, dict):
+            continue
+        st = row.get("status")
+        nm = row.get("secret")
+        console.print(f"  - {nm}: {st}" + (f" ({row.get('detail')})" if row.get("detail") else ""))
+        for f in row.get("fields") or []:
+            if isinstance(f, dict):
+                console.print(
+                    f"      · {f.get('field')}: {f.get('status')}"
+                    + (f" ({f.get('detail')})" if f.get("detail") else "")
+                )
+    if err_count:
+        console.print(f"\n[red]Import finished with {err_count} error(s).[/red]")
+        sys.exit(EXIT_VALIDATION_ERROR)
+    console.print("\n[green]Import complete.[/green]")
+
+
 @main.command()
 @click.option(
     "--file",
@@ -4241,6 +4517,13 @@ def audit(
     help="Path to .szvar variable file(s) to merge (can be specified multiple times)",
 )
 @click.option(
+    "--environment",
+    "-e",
+    type=str,
+    default=None,
+    help="Named environment profile from Secretfile.environments.profiles",
+)
+@click.option(
     "--dry-run",
     is_flag=True,
     help="Preview only; does not open the network web UI",
@@ -4307,6 +4590,7 @@ def web_command(
     file: str,
     lockfile: str,
     var_files: tuple[str, ...],
+    environment: str | None,
     dry_run: bool,
     host: str,
     port: int | None,
@@ -4333,10 +4617,8 @@ def web_command(
     from secretzero.network_webui import run_network_blocking_web_session
 
     file_path = Path(file)
-    if lockfile == ".gitsecrets.lock" and file != "Secretfile.yml":
-        lockfile = file_path.stem + ".lock"
-    lockfile_path = Path(lockfile)
-    var_file_paths = [Path(vf) for vf in var_files] if var_files else None
+    runtime_lockfile = _runtime_lockfile_override(file, lockfile)
+    runtime_var_file_paths = [Path(vf) for vf in var_files] if var_files else None
     loader = ConfigLoader()
 
     if tls_self_signed and (tls_cert or tls_key):
@@ -4349,11 +4631,21 @@ def web_command(
         raise click.Abort()
 
     try:
-        secretfile = loader.load_file(file_path, var_files=var_file_paths)
+        base_secretfile = loader.load_file(file_path)
+        env_ctx = resolve_environment_context(
+            secretfile=base_secretfile,
+            secretfile_path=file_path,
+            environment=environment,
+            runtime_var_files=runtime_var_file_paths,
+            runtime_lockfile=runtime_lockfile,
+        )
+        secretfile = loader.load_file(file_path, var_files=env_ctx.resolved_var_files or None)
+        secretfile = apply_target_profile(secretfile, env_ctx.resolved_target_profile)
     except Exception as exc:
         console.print(f"[red]Error loading Secretfile:[/red] {exc}")
         raise click.ClickException(str(exc)) from exc
 
+    lockfile_path = env_ctx.resolved_lockfile
     secretfile_content = file_path.read_text()
     lock = Lockfile.load(lockfile_path)
     agent_cfg = secretfile.effective_agent_config()
@@ -4392,6 +4684,11 @@ def web_command(
     http_mode = not (tls_cert_path and tls_key_path) and not tls_self_signed
 
     console.print("[bold cyan]SecretZero network web[/bold cyan]")
+    if env_ctx.selected_environment:
+        console.print(
+            f"[dim]Environment:[/dim] {env_ctx.selected_environment}  "
+            f"[dim]Lockfile:[/dim] {lockfile_path}"
+        )
     if http_mode:
         console.print(
             "[bold yellow]Warning:[/bold yellow] running in HTTP mode (no TLS). "
@@ -4425,7 +4722,10 @@ def web_command(
             lockfile_path=lockfile_path,
             secretfile_path=file_path,
             secretfile_content=secretfile_content,
-            var_file_paths=var_file_paths,
+            var_file_paths=env_ctx.resolved_var_files,
+            runtime_var_file_paths=runtime_var_file_paths,
+            runtime_lockfile=runtime_lockfile,
+            environment=env_ctx.selected_environment,
             dry_run=dry_run,
             debug=debug,
             host=host,
@@ -4490,6 +4790,13 @@ def agent() -> None:
     help="Path to .szvar variable file(s) to merge (can be specified multiple times)",
 )
 @click.option(
+    "--environment",
+    "-e",
+    type=str,
+    default=None,
+    help="Named environment profile from Secretfile.environments.profiles",
+)
+@click.option(
     "--dry-run",
     is_flag=True,
     help="Preview changes without applying them",
@@ -4534,6 +4841,7 @@ def agent_sync(
     file: str,
     lockfile: str,
     var_files: tuple[str, ...],
+    environment: str | None,
     dry_run: bool,
     output_json: bool,
     interactive: bool,
@@ -4595,22 +4903,26 @@ def agent_sync(
 
     file_path = Path(file)
 
-    # Generate default lockfile name from secretfile if not explicitly provided
-    if lockfile == ".gitsecrets.lock":
-        if file != "Secretfile.yml":
-            lockfile_name = file_path.stem + ".lock"
-            lockfile = lockfile_name
-
-    lockfile_path = Path(lockfile)
-    var_file_paths = [Path(vf) for vf in var_files] if var_files else None
+    runtime_lockfile = _runtime_lockfile_override(file, lockfile)
+    runtime_var_file_paths = [Path(vf) for vf in var_files] if var_files else None
     loader = ConfigLoader()
 
     try:
-        secretfile = loader.load_file(file_path, var_files=var_file_paths)
+        base_secretfile = loader.load_file(file_path)
+        env_ctx = resolve_environment_context(
+            secretfile=base_secretfile,
+            secretfile_path=file_path,
+            environment=environment,
+            runtime_var_files=runtime_var_file_paths,
+            runtime_lockfile=runtime_lockfile,
+        )
+        secretfile = loader.load_file(file_path, var_files=env_ctx.resolved_var_files or None)
+        secretfile = apply_target_profile(secretfile, env_ctx.resolved_target_profile)
     except Exception as exc:
         console.print(f"[red]Error loading Secretfile:[/red] {exc}")
         raise click.ClickException(str(exc)) from exc
 
+    lockfile_path = env_ctx.resolved_lockfile
     # Read secretfile content for change detection
     secretfile_content = file_path.read_text()
 
@@ -4684,6 +4996,10 @@ def agent_sync(
             sz_agent=sz_agent,
             resolved_mode=resolved,
         )
+        payload["selected_environment"] = env_ctx.selected_environment
+        payload["resolved_var_files"] = [str(p) for p in env_ctx.resolved_var_files]
+        payload["resolved_lockfile"] = str(lockfile_path)
+        payload["resolved_target_profile"] = env_ctx.resolved_target_profile
         click.echo(_json.dumps(payload, indent=2, default=str))
         return
 
