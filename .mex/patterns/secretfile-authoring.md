@@ -36,17 +36,26 @@ Use root `policies:` entries with `kind: provider_identity` to block `secretzero
 | `kubernetes` | `cluster_host`, `user`, `token_type` |
 | `jenkins` | `user`, `token_type` |
 
-**Region-restricted AWS example:**
+**Narrow AWS account + region example:**
 ```yaml
 policies:
-  aws_region_guard:
+  aws_prod_guard:
     kind: provider_identity
     providers: [aws]
     match: all
     rules:
+      - field: account
+        glob: "111111111111"
       - field: region
         glob: us-east-1
 ```
+
+**Discovery-assisted authoring loop (agent-safe):**
+1. Inspect current provider identity metadata with `secretzero status --format json`.
+2. Capture stable actor fields (`account`, `region`, `arn`, `tenant_id`, etc.) for each provider alias.
+3. Draft the most specific `provider_identity` rules first (exact `glob` before broader `regex`).
+4. Validate with `secretzero validate -f Secretfile.yml` and `secretzero sync --dry-run`.
+5. Only widen matchers when required, and document why.
 
 ## Steps
 1. Keep top-level sections explicit and valid for Pydantic model parsing.
