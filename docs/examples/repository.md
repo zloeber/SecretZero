@@ -10,6 +10,33 @@ All examples are located in the `examples/` directory of the main repository:
 
 ## Available Examples
 
+### Encrypted-in-Git Workflows
+
+#### encrypted-repo-workflows/ {#encrypted-repo-workflows}
+
+**Purpose**: Demonstrate lane-aware SecretZero orchestration across common encrypted-in-git backends.
+
+**Features**:
+- One manifest writing to Ansible Vault, SOPS, git-crypt, and BlackBox targets
+- `dev` / `staging` / `prod` lane strategy with `.szvar` files
+- Distinct encrypted file paths and lockfiles per lane
+
+**Files**:
+- `examples/encrypted-repo-workflows/Secretfile.yml`
+- `examples/encrypted-repo-workflows/dev.szvar`
+- `examples/encrypted-repo-workflows/staging.szvar`
+- `examples/encrypted-repo-workflows/prod.szvar`
+- `examples/encrypted-repo-workflows/README.md`
+
+**Usage**:
+```bash
+secretzero sync \
+  -f examples/encrypted-repo-workflows/Secretfile.yml \
+  --environment dev
+```
+
+---
+
 ### Local Development
 
 #### local-only.yml {#local-only}

@@ -29,6 +29,18 @@ def _secretfile_one_static() -> Secretfile:
     )
 
 
+def _secretfile_with_aws_auth() -> Secretfile:
+    return Secretfile(
+        providers={
+            "local": {"kind": "local"},
+            "aws": {"kind": "aws", "auth": {"kind": "ambient", "config": {"region": "us-east-1"}}},
+        },
+        secrets=[
+            Secret(name="s1", kind="static", config={"value": "x"}, targets=[]),
+        ],
+    )
+
+
 def _secretfile_with_environments() -> Secretfile:
     return Secretfile(
         environments={
@@ -137,7 +149,8 @@ def test_dashboard_auth_and_shutdown(tmp_path: Path) -> None:
         r3u = client.get("/dashboard?filter=unsynced", cookies=r2.cookies)
         assert r3u.status_code == 200
         assert "Unsynced only" in r3u.text
-        assert "Secretfile.yml" in r3u.text
+        assert "Secretfile (source)" in r3u.text
+        assert "Manifest (interpolated)" in r3u.text
         assert "Graph" in r3u.text
 
         m = re.search(r'name="csrf_token" value="([^"]+)"', r3.text)
@@ -187,8 +200,14 @@ def test_dashboard_tabs_show_secretfile_and_graph(tmp_path: Path) -> None:
 
     source_tab = client.get("/dashboard?tab=secretfile", cookies=cookies)
     assert source_tab.status_code == 200
-    assert "Full rendered Secretfile content" in source_tab.text
+    assert "Raw" in source_tab.text and "Secretfile.yml" in source_tab.text
     assert "name: s1" in source_tab.text
+
+    interp_tab = client.get("/dashboard?tab=interpolated", cookies=cookies)
+    assert interp_tab.status_code == 200
+    assert "secretzero render" in interp_tab.text
+    assert "s1" in interp_tab.text
+    assert "static" in interp_tab.text
 
     graph_mermaid_tab = client.get("/dashboard?tab=graph&graph_view=mermaid", cookies=cookies)
     assert graph_mermaid_tab.status_code == 200
@@ -208,6 +227,58 @@ def test_dashboard_tabs_show_secretfile_and_graph(tmp_path: Path) -> None:
     assert dash_main.status_code == 200
     assert "Check drift" not in dash_main.text
     assert "/action/import-all" in dash_main.text
+
+
+def test_interpolated_manifest_tab_uses_safe_yaml(tmp_path: Path) -> None:
+    auth = NetworkWebSessionStore.from_bootstrap_token("tabs-safe-yaml")
+    lk_path = tmp_path / ".gitsecrets.lock"
+    lk_path.write_text('{"version": "1.0", "secrets": {}}\n')
+    sf_path = tmp_path / "Secretfile.yml"
+    sf_text = (
+        "version: '1.0'\n"
+        "providers:\n"
+        "  local:\n"
+        "    kind: local\n"
+        "  aws:\n"
+        "    kind: aws\n"
+        "    auth:\n"
+        "      kind: ambient\n"
+        "      config:\n"
+        "        region: us-east-1\n"
+        "secrets:\n"
+        "  - name: s1\n"
+        "    kind: static\n"
+        "    config:\n"
+        "      value: x\n"
+    )
+    sf_path.write_text(sf_text)
+    lk = Lockfile.load(lk_path)
+    app = create_network_web_app(
+        secretfile=_secretfile_with_aws_auth(),
+        lockfile=lk,
+        lockfile_path=lk_path,
+        secretfile_path=sf_path,
+        secretfile_content=sf_text,
+        var_file_paths=None,
+        runtime_var_file_paths=None,
+        runtime_lockfile=None,
+        environment=None,
+        dry_run=True,
+        debug=False,
+        auth=auth,
+        use_tls=False,
+        on_shutdown=lambda: None,
+    )
+    client = TestClient(app)
+    auth_resp = client.post(
+        "/auth", data={"access_token": "tabs-safe-yaml"}, follow_redirects=False
+    )
+    assert auth_resp.status_code == 302
+
+    interp_tab = client.get("/dashboard?tab=interpolated", cookies=auth_resp.cookies)
+    assert interp_tab.status_code == 200
+    assert "kind: ambient" in interp_tab.text
+    assert "!!python/object/apply" not in interp_tab.text
 
 
 def test_sync_all_invokes_engine(tmp_path: Path) -> None:

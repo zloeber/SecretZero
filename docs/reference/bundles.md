@@ -1,6 +1,6 @@
 # Bundle Reference
 
-API-level reference for the SecretZero provider bundle framework. For a practical walkthrough, see [Extending SecretZero](../extending.md).
+API-level reference for the SecretZero provider bundle framework. For a practical walkthrough, see [Extending SecretZero](../extending.md). For a generated registry snapshot, see [Provider Bundles (Auto-Reference)](provider-bundles-auto.md).
 
 ## BundleManifest
 
@@ -122,6 +122,8 @@ Each built-in provider exposes a `_get_bundle_manifest()` factory function that 
 | Jenkins | `secretzero.providers.jenkins:_get_bundle_manifest` |
 | Kubernetes | `secretzero.providers.kubernetes:_get_bundle_manifest` |
 | Ansible Vault | `secretzero.providers.ansible_vault:_get_bundle_manifest` |
+| SOPS | `secretzero.providers.sops:_get_bundle_manifest` |
+| git-crypt | `secretzero.providers.git_crypt:_get_bundle_manifest` |
 | Infisical | `secretzero.providers.infisical:_get_bundle_manifest` |
 
 Built-in manifests that set the optional ``terraform_provider`` field

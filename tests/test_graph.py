@@ -197,6 +197,34 @@ def test_generate_graph_detailed(sample_secretfile: Path):
     assert "🔐" in diagram
 
 
+def test_generate_graph_detailed_escapes_quotes_in_labels(tmp_path: Path):
+    """Detailed graph should escape double quotes in config label text."""
+    secretfile = tmp_path / "Secretfile.yml"
+    secretfile.write_text("""
+version: "1.0"
+providers:
+  local:
+    kind: local
+secrets:
+  - name: quoted_password
+    kind: random_password
+    config:
+      length: 24
+      exclude_characters: '"@/\\`'
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: .env.local
+          format: dotenv
+          key: APP_DB_PASSWORD
+""")
+
+    diagram = generate_graph(secretfile, graph_type="detailed", output_format="mermaid")
+    assert "exclude_characters: &quot;" in diagram
+    assert 'exclude_characters: "' not in diagram
+
+
 def test_generate_graph_architecture(sample_secretfile: Path):
     """Test generate_graph function with architecture type."""
     diagram = generate_graph(sample_secretfile, graph_type="architecture", output_format="mermaid")

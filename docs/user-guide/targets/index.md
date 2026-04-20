@@ -29,6 +29,11 @@ Targets are the destination endpoints in SecretZero's secret distribution pipeli
 ### Container Orchestration
 - **[Kubernetes](kubernetes.md)** - Native Secrets and External Secrets Operator
 
+### Encrypted-in-Git Workflows
+- **[Ansible Vault File](ansible_vault_file.md)** - `ansible_vault_file` target for Ansible-encrypted files
+- **[SOPS File](sops_file.md)** - `sops_file` target for SOPS-encrypted files
+- **[git-crypt File](git_crypt_file.md)** - `git_crypt_file` target for git-crypt-managed files
+
 ## How Targets Work
 
 ### Basic Target Configuration

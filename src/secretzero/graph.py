@@ -42,11 +42,11 @@ class SecretGraphGenerator:
 
             if generator_id not in generators_seen:
                 generator_label = self._format_generator_label(generator_kind)
-                lines.append(f"    {generator_id}[{generator_label}]")
+                lines.append(f'    {generator_id}["{self._escape_mermaid_label(generator_label)}"]')
                 generators_seen.add(generator_id)
 
             secret_label = f"Secret<br/>{secret.name}<br/>type: {generator_kind}"
-            lines.append(f'    {secret_id}["{secret_label}"]')
+            lines.append(f'    {secret_id}["{self._escape_mermaid_label(secret_label)}"]')
             lines.append(f"    {generator_id} -->|generates| {secret_id}")
 
             for idx, target in enumerate(secret.targets):
@@ -65,9 +65,11 @@ class SecretGraphGenerator:
         ):
             cluster_id = self._safe_id(f"dest_cluster_{idx}_{provider}_{kind}_{destination}")
             cluster_title = f"{provider}/{kind} · {destination}"
-            lines.append(f'        subgraph {cluster_id}["{cluster_title}"]')
+            lines.append(
+                f'        subgraph {cluster_id}["{self._escape_mermaid_label(cluster_title)}"]'
+            )
             for entry_id, entry_label in sorted(entries.items(), key=lambda item: item[1]):
-                lines.append(f'            {entry_id}["{entry_label}"]')
+                lines.append(f'            {entry_id}["{self._escape_mermaid_label(entry_label)}"]')
             lines.append("        end")
         lines.append("    end")
 
@@ -93,11 +95,11 @@ class SecretGraphGenerator:
 
             # Generator node with config details
             generator_label = self._format_detailed_generator(secret)
-            lines.append(f'    {generator_id}["{generator_label}"]')
+            lines.append(f'    {generator_id}["{self._escape_mermaid_label(generator_label)}"]')
 
             # Secret node
             secret_label = f"🔐 {secret.name}"
-            lines.append(f'    {secret_id}["{secret_label}"]')
+            lines.append(f'    {secret_id}["{self._escape_mermaid_label(secret_label)}"]')
             lines.append(f"    {generator_id} --> {secret_id}")
 
             for idx, target in enumerate(secret.targets):
@@ -119,9 +121,11 @@ class SecretGraphGenerator:
         ):
             cluster_id = self._safe_id(f"d_dest_cluster_{idx}_{provider}_{kind}_{destination}")
             cluster_title = f"{provider}/{kind} · {destination}"
-            lines.append(f'        subgraph {cluster_id}["{cluster_title}"]')
+            lines.append(
+                f'        subgraph {cluster_id}["{self._escape_mermaid_label(cluster_title)}"]'
+            )
             for entry_id, entry_label in sorted(entries.items(), key=lambda item: item[1]):
-                lines.append(f'            {entry_id}["{entry_label}"]')
+                lines.append(f'            {entry_id}["{self._escape_mermaid_label(entry_label)}"]')
             lines.append("        end")
         lines.append("    end")
 
@@ -176,7 +180,7 @@ class SecretGraphGenerator:
             for kind in sorted(target_kinds):
                 target_id = self._safe_id(f"tgt_{provider}_{kind}")
                 target_label = f"{provider}/{kind}"
-                lines.append(f'        {target_id}["{target_label}"]')
+                lines.append(f'        {target_id}["{self._escape_mermaid_label(target_label)}"]')
 
         lines.append("    end")
         lines.append("")
@@ -206,7 +210,9 @@ class SecretGraphGenerator:
         ]
         for secret in self.secretfile.secrets:
             secret_id = self._safe_id(f"secret_{secret.name}")
-            lines.append(f'        {secret_id}["🔐 {secret.name}<br/>{secret.kind}"]')
+            lines.append(
+                f'        {secret_id}["{self._escape_mermaid_label(f"🔐 {secret.name}<br/>{secret.kind}")}"]'
+            )
         lines.append("    end")
         lines.append("")
         lines.append('    subgraph Destinations["Target Destinations"]')
@@ -229,9 +235,11 @@ class SecretGraphGenerator:
             sorted(destination_groups.items())
         ):
             cluster_id = self._safe_id(f"dest_group_{idx}_{provider}_{kind}_{destination}")
-            lines.append(f'        subgraph {cluster_id}["{provider}/{kind} · {destination}"]')
+            lines.append(
+                f'        subgraph {cluster_id}["{self._escape_mermaid_label(f"{provider}/{kind} · {destination}")}"]'
+            )
             for entry_id, entry_label in sorted(entries.items(), key=lambda x: x[1]):
-                lines.append(f'            {entry_id}["{entry_label}"]')
+                lines.append(f'            {entry_id}["{self._escape_mermaid_label(entry_label)}"]')
             lines.append("        end")
         lines.append("    end")
         lines.append("")
@@ -309,6 +317,10 @@ class SecretGraphGenerator:
         safe = text.replace("-", "_").replace(".", "_").replace(" ", "_")
         safe = "".join(c if c.isalnum() or c == "_" else "" for c in safe)
         return safe
+
+    def _escape_mermaid_label(self, text: str) -> str:
+        """Escape Mermaid label text used inside double-quoted nodes."""
+        return text.replace("\\", "\\\\").replace('"', "&quot;")
 
     def _format_generator_label(self, generator_kind: str) -> str:
         """Format generator label for display.

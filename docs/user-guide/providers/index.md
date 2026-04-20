@@ -25,6 +25,9 @@ SecretZero supports the following providers:
 | [GitLab](gitlab.md) | GitLab CI/CD | `gitlab_variable`, `gitlab_group_variable` | CI/CD pipelines, GitLab runners |
 | [Jenkins](jenkins.md) | Jenkins | `jenkins_credential` | Build automation, deployment pipelines |
 | [Kubernetes](kubernetes.md) | Kubernetes | `kubernetes_secret`, `external_secret` | Container orchestration, microservices |
+| [Ansible Vault](ansible_vault.md) | Encrypted repo files | `ansible_vault_file` | Ansible-native encrypted file workflows |
+| [SOPS](sops.md) | Encrypted repo files | `sops_file` | age/KMS/PGP-backed encrypted structured files |
+| [git-crypt](git_crypt.md) | Encrypted repo files | `git_crypt_file` | Transparent git filter-based encryption |
 
 !!! tip "Custom providers via bundles"
     Need a provider that isn't listed? SecretZero's [provider bundle system](../bundles/index.md) lets you create and install third-party providers as pip packages — no core changes required.
@@ -403,6 +406,10 @@ secretzero sync
 - [GitLab Provider Documentation](gitlab.md)
 - [Jenkins Provider Documentation](jenkins.md)
 - [Kubernetes Provider Documentation](kubernetes.md)
+- [Encrypted-in-git Workflows](encrypted-repo-workflows.md)
+- [Ansible Vault Provider Documentation](ansible_vault.md)
+- [SOPS Provider Documentation](sops.md)
+- [git-crypt Provider Documentation](git_crypt.md)
 
 ## Troubleshooting
 

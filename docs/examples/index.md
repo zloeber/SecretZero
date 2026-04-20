@@ -21,6 +21,7 @@ Access the complete collection of example Secretfiles in the GitHub repository w
 | **Multi-Cloud** | Distribute across providers | [multi-cloud.yml](repository.md#multi-cloud) |
 | **Kubernetes** | Kubernetes native secrets | [kubernetes-basic.yml](repository.md#kubernetes-basic) |
 | **CI/CD Integration** | GitHub Actions, GitLab CI | [github-actions.yml](repository.md#cicd-examples) |
+| **Encrypted Repo Backends** | Ansible Vault, SOPS, git-crypt, BlackBox | [encrypted-repo-workflows](repository.md#encrypted-repo-workflows) |
 | **API Management** | Managing via API | [api-example.yml](repository.md#api-example) |
 | **Compliance** | SOC2, HIPAA, PCI-DSS | [compliance.yml](repository.md#compliance) |
 | **Drift Detection** | Monitor unauthorized changes | [drift-detection.yml](repository.md#drift-detection) |
