@@ -539,3 +539,12 @@ def test_registry_can_create_ansible_vault_provider():
     )
     assert provider is not None
     assert isinstance(provider, AnsibleVaultProvider)
+
+
+def test_ansible_vault_bundle_registers_target_kind():
+    """Bundle registration exposes ansible_vault_file target kind."""
+    from secretzero.bundles.registry import get_bundle_registry, reset_bundle_registry
+
+    reset_bundle_registry()
+    reg = get_bundle_registry()
+    assert "ansible_vault_file" in reg.list_target_kinds()

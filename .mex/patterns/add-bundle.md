@@ -29,6 +29,7 @@ Use this for provider/generator/target extensibility work under `src/secretzero/
 3. Register the provider manifest factory in `_register_builtin_bundles()` or ship through entry points.
 4. Add optional dependency extras in `pyproject.toml` when new SDKs are required.
 5. Validate with targeted tests and `secretzero providers` / sync dry-run paths.
+6. Regenerate bundle docs auto-reference with `task docs:generate:provider-bundles` and ensure navigation/docs links are still accurate.
 
 ## Gotchas
 - Unknown kind errors usually mean registration path mismatch, not generator/target logic bugs.
@@ -40,6 +41,7 @@ Use this for provider/generator/target extensibility work under `src/secretzero/
 - [ ] New kind appears via provider/bundle listing command paths.
 - [ ] Sync dry-run can resolve and instantiate the new kind.
 - [ ] Tests cover registration + behavior (happy path and failure mode).
+- [ ] `docs/reference/provider-bundles-auto.md` reflects the new bundle metadata.
 
 ## Debug
 - Use `patterns/debug-sync.md` for unknown kind, unsupported target, or provider init failures.

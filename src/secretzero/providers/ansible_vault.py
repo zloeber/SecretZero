@@ -485,8 +485,10 @@ def _get_bundle_manifest() -> "BundleManifest":  # noqa: F821
         version="1.0.0",
         provider_class="secretzero.providers.ansible_vault:AnsibleVaultProvider",
         generators={},
-        targets={},
+        targets={
+            "ansible_vault_file": "secretzero.targets.ansible_vault_file:AnsibleVaultFileTarget"
+        },
         generator_kinds=[],
-        target_kinds=[],
+        target_kinds=["ansible_vault_file"],
         terraform_provider=None,
     )

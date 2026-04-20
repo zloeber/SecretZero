@@ -146,6 +146,7 @@ nav:
           - Provider identity policies: user-guide/configuration/provider-identity-policies.md
       - Providers:
           - user-guide/providers/index.md
+          - Encrypted Repo Workflows: user-guide/providers/encrypted-repo-workflows.md
           - AWS: user-guide/providers/aws.md
           - Azure: user-guide/providers/azure.md
           - HashiCorp Vault: user-guide/providers/vault.md
@@ -155,6 +156,9 @@ nav:
           - Kubernetes: user-guide/providers/kubernetes.md
           - Vercel: user-guide/providers/vercel.md
           - Entra Agent ID: user-guide/providers/entra-agent-id.md
+          - Ansible Vault: user-guide/providers/ansible_vault.md
+          - SOPS: user-guide/providers/sops.md
+          - git-crypt: user-guide/providers/git_crypt.md
       - Targets:
           - user-guide/targets/index.md
           - Local Files: user-guide/targets/local.md
@@ -165,6 +169,9 @@ nav:
           - GitLab Variables: user-guide/targets/gitlab.md
           - Jenkins Credentials: user-guide/targets/jenkins.md
           - Kubernetes Secrets: user-guide/targets/kubernetes.md
+          - Ansible Vault File: user-guide/targets/ansible_vault_file.md
+          - SOPS File: user-guide/targets/sops_file.md
+          - git-crypt File: user-guide/targets/git_crypt_file.md
       - Secret Generation:
           - user-guide/generators/index.md
           - Password Generator: user-guide/generators/password.md
@@ -246,6 +253,7 @@ nav:
       - API Interactive: reference/api-interactive.md
       - API Python Reference: reference/api-python.md
       - Provider Bundles: reference/bundles.md
+      - Provider Bundles Auto-Reference: reference/provider-bundles-auto.md
       - FAQ: reference/faq.md
       - Troubleshooting: reference/troubleshooting.md
       - Changelog: reference/changelog.md

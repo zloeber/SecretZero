@@ -550,7 +550,8 @@ TEMPLATES = {
   {% endif %}
   <nav class="tabbar" aria-label="Dashboard views">
     <a href="/dashboard?filter={{ list_filter }}&tab=dashboard&graph_view={{ graph_view }}&graph_type={{ graph_type }}{% if selected_environment %}&environment={{ selected_environment | uquote }}{% endif %}" class="btn btn-sm{% if current_tab == 'dashboard' %} btn-primary{% endif %}">Dashboard</a>
-    <a href="/dashboard?filter={{ list_filter }}&tab=secretfile&graph_view={{ graph_view }}&graph_type={{ graph_type }}{% if selected_environment %}&environment={{ selected_environment | uquote }}{% endif %}" class="btn btn-sm{% if current_tab == 'secretfile' %} btn-primary{% endif %}">Secretfile.yml</a>
+    <a href="/dashboard?filter={{ list_filter }}&tab=secretfile&graph_view={{ graph_view }}&graph_type={{ graph_type }}{% if selected_environment %}&environment={{ selected_environment | uquote }}{% endif %}" class="btn btn-sm{% if current_tab == 'secretfile' %} btn-primary{% endif %}">Secretfile (source)</a>
+    <a href="/dashboard?filter={{ list_filter }}&tab=interpolated&graph_view={{ graph_view }}&graph_type={{ graph_type }}{% if selected_environment %}&environment={{ selected_environment | uquote }}{% endif %}" class="btn btn-sm{% if current_tab == 'interpolated' %} btn-primary{% endif %}">Manifest (interpolated)</a>
     <a href="/dashboard?filter={{ list_filter }}&tab=graph&graph_view={{ graph_view }}&graph_type={{ graph_type }}{% if selected_environment %}&environment={{ selected_environment | uquote }}{% endif %}" class="btn btn-sm{% if current_tab == 'graph' %} btn-primary{% endif %}">Graph</a>
   </nav>
   {% if current_tab == "dashboard" %}
@@ -585,10 +586,20 @@ TEMPLATES = {
   {% endif %}
   {% elif current_tab == "secretfile" %}
   <section class="tab-panel" aria-label="Secretfile source">
-    <p class="lead" style="margin-bottom:0.6rem;">Full rendered Secretfile content for this web session.</p>
+    <p class="lead" style="margin-bottom:0.6rem;">Raw <code>Secretfile.yml</code> on disk for this session (placeholders such as <code>${VAR}</code> or <code>{{ '{{' }} var.* }}</code> are not expanded here).</p>
     <pre class="sz-tool-pre">{{ secretfile_text }}</pre>
   </section>
-  {% else %}
+  {% elif current_tab == "interpolated" %}
+  <section class="tab-panel" aria-label="Interpolated manifest">
+    <p class="lead" style="margin-bottom:0.6rem;">
+      Same output semantics as <code>secretzero render</code> for the selected environment: merged <code>variables:</code> from <code>Secretfile.yml</code> plus resolved <code>.szvar</code> files (see <strong>Resolved var files</strong> on the Dashboard), then <code>${VAR}</code> and Jinja-style <code>{{ '{{' }} var.* }}</code> interpolation everywhere except <code>agent_instructions</code> (those templates still use <code>{{ '{{' }} secret_name }}</code> / <code>target</code> and are expanded per secret at sync time).
+    </p>
+    <div class="alert" role="note" style="margin-bottom:0.75rem;">
+      This view can include literal static values from your manifest and var files. Treat it like source code containing secrets; avoid screenshots or shared links when the server is reachable beyond your machine.
+    </div>
+    <pre class="sz-tool-pre">{{ interpolated_manifest_yaml }}</pre>
+  </section>
+  {% elif current_tab == "graph" %}
   <section class="tab-panel" aria-label="Generated graph view">
     <div class="graph-controls">
       <a href="/dashboard?filter={{ list_filter }}&tab=graph&graph_view=mermaid&graph_type={{ graph_type }}{% if selected_environment %}&environment={{ selected_environment | uquote }}{% endif %}" class="btn btn-sm{% if graph_view == 'mermaid' %} btn-primary{% endif %}">Mermaid</a>

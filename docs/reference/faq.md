@@ -58,6 +58,56 @@ Yes, SecretZero is open source under the Apache 2.0 license. You can:
 
 See [LICENSE](https://github.com/zloeber/SecretZero/blob/main/LICENSE) for details.
 
+### Isn't committing `Secretfile.yml` insecure if someone can infer our secrets from source?
+
+Great question. Short answer: **No, `Secretfile.yml` is a map, not the treasure chest.**
+
+`Secretfile.yml` intentionally describes:
+
+- what secret *types* exist (for example: `db_password`, `api_token`)
+- where they should go (AWS Secrets Manager, `.env`, Kubernetes, etc.)
+- how they are generated or sourced
+
+It does **not** store the actual secret values. SecretZero keeps plaintext out of git and tracks only metadata plus hashes in `.gitsecrets.lock`.
+
+If an attacker already has full access to your source repository, they can usually infer your application's sensitive areas anyway ("this app probably has a DB password" is not exactly Sherlock Holmes-level deduction). The security boundary is the **secret value**, not the fact that your app uses one.
+
+Think of it this way:
+
+- `Secretfile.yml` is your security **runbook**
+- your secret managers/providers hold the actual **nuclear launch codes**
+
+Hiding the runbook doesn't make the codes safer if code access is already compromised. What *does* help is:
+
+- keeping secret values out of code and commits (SecretZero does this)
+- using least-privilege IAM/provider policies
+- rotating secrets regularly
+- auditing access and drift
+
+So yes, keep `Secretfile.yml` in version control. That's a feature, not a leak.
+
+### Are git-encrypted providers (SOPS, git-crypt, Ansible Vault) really "secret zero"?
+
+Short answer: **not by themselves**. In most setups, they are encrypted transport/storage lanes, not the initial trust anchor.
+
+What's going on:
+
+- SOPS still needs access to your KMS/age/PGP identity.
+- git-crypt still needs an unlock key.
+- Ansible Vault still needs a vault password or password source.
+
+That bootstrap credential is the actual "secret zero" in your chain of trust.
+
+In SecretZero terms, these providers are best understood as **target adapters** for encrypted-in-git workflows. They are useful (and supported) because teams often need to land managed secrets into repository-encrypted artifacts for downstream tooling, review, or promotion workflows.
+
+So the practical model is:
+
+- SecretZero manages generation/rotation/lifecycle.
+- Encrypted-in-git targets handle at-rest representation in the repo.
+- Your bootstrap credential (KMS identity, vault pass, git-crypt key) remains the true initial secret zero.
+
+It's less "we hid the secret under a rug" and more "we put it in a locked safe, then manage who holds the key shard."
+
 ## Installation & Setup
 
 ### What are the system requirements?

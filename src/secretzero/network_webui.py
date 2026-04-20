@@ -20,6 +20,7 @@ from typing import Any
 from urllib.parse import quote
 
 import uvicorn
+import yaml
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -56,6 +57,8 @@ logger = logging.getLogger(__name__)
 COOKIE_NAME = "sz_web_session"
 
 _MAX_DEBUG_BLOCKS = 32
+
+_DASHBOARD_TABS = ("dashboard", "secretfile", "interpolated", "graph")
 
 
 def format_sync_results_for_debug(results: dict[str, Any]) -> str:
@@ -138,7 +141,7 @@ def dashboard_redirect_url(
 ) -> str:
     """Build /dashboard URL with optional notice, error, and list filter."""
     lf = list_filter if list_filter in ("all", "unsynced") else "all"
-    tab_safe = tab if tab in ("dashboard", "secretfile", "graph") else "dashboard"
+    tab_safe = tab if tab in _DASHBOARD_TABS else "dashboard"
     graph_view_safe = graph_view if graph_view in ("mermaid", "json") else "mermaid"
     graph_type_safe = (
         graph_type if graph_type in ("flow", "detailed", "architecture", "destination") else "flow"
@@ -444,7 +447,7 @@ def create_network_web_app(
         sid = request.cookies.get(COOKIE_NAME)
         csrf = auth.csrf_for(sid or "") if sid else None
         assert csrf is not None
-        current_tab = tab if tab in ("dashboard", "secretfile", "graph") else "dashboard"
+        current_tab = tab if tab in _DASHBOARD_TABS else "dashboard"
         current_graph_view = graph_view if graph_view in ("mermaid", "json") else "mermaid"
         current_graph_type = (
             graph_type
@@ -492,6 +495,11 @@ def create_network_web_app(
                 logger.exception("Graph generation failed for dashboard")
                 mermaid_source = "flowchart LR\n    A[Graph generation failed]"
         graph_json = _json_graph_from_secretfile(state.secretfile)
+        interpolated_manifest_yaml = yaml.safe_dump(
+            state.secretfile.model_dump(mode="json", exclude_none=True),
+            default_flow_style=False,
+            sort_keys=False,
+        )
         return _render(
             "dashboard.html",
             title="SecretZero — manifest",
@@ -522,6 +530,7 @@ def create_network_web_app(
             graph_view=current_graph_view,
             graph_type=current_graph_type,
             secretfile_text=secretfile_text,
+            interpolated_manifest_yaml=interpolated_manifest_yaml,
             mermaid_source=mermaid_source,
             graph_json=graph_json,
             notice=notice,
@@ -538,7 +547,7 @@ def create_network_web_app(
 
     def _tab_param(request: Request) -> str:
         raw = request.query_params.get("tab", "dashboard")
-        return raw if raw in ("dashboard", "secretfile", "graph") else "dashboard"
+        return raw if raw in _DASHBOARD_TABS else "dashboard"
 
     def _graph_view_param(request: Request) -> str:
         raw = request.query_params.get("graph_view", "mermaid")
