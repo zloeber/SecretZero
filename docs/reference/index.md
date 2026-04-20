@@ -7,6 +7,7 @@ Authoritative reference material for SecretZero.
 - [Architecture](architecture.md)
 - [Data Models](models.md)
 - [Provider Bundles](bundles.md)
+- [Provider Bundles (Auto-Reference)](provider-bundles-auto.md)
 - [API - Interactive](api-interactive.md)
 - [API - Python](api-python.md)
 - [CLI - Basics](cli.md)

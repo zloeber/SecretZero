@@ -42,6 +42,24 @@ secretzero render -f examples/variable-override.yml --var-file examples/dev.szva
 
 ## Examples
 
+### 0. Encrypted-in-Git Backends (`encrypted-repo-workflows/`)
+
+Lane-aware example for teams that commit encrypted secret files and want SecretZero orchestration across:
+
+- Ansible Vault
+- SOPS
+- git-crypt
+- BlackBox
+
+Includes `dev/staging/prod` `.szvar` files and environment profiles.
+
+**Usage:**
+```bash
+secretzero sync \
+  -f examples/encrypted-repo-workflows/Secretfile.yml \
+  --environment dev
+```
+
 ### 1. Local Development Only (`local-only.yml`)
 
 Simple configuration for local development without cloud dependencies.

@@ -151,6 +151,7 @@ tasks:
     cmds:
       - uv sync --all-extras
       - uv run secretzero schema export --output docs/Secretfile.schema.json
+      - task: docs:generate:provider-bundles
       - uv run mkdocs build --clean
 
   docs:serve:
@@ -158,7 +159,13 @@ tasks:
     cmds:
       - uv sync --all-extras
       - uv run secretzero schema export --output docs/Secretfile.schema.json
+      - task: docs:generate:provider-bundles
       - uv run mkdocs serve --dev-addr 127.0.0.1:8001
+
+  docs:generate:provider-bundles:
+    desc: Generate auto-reference docs for provider bundles
+    cmds:
+      - uv run python scripts/generate_provider_bundle_docs.py --output docs/reference/provider-bundles-auto.md
 
   docker:build:
     desc: Build a Docker image from a Dockerfile
