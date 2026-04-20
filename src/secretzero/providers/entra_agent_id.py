@@ -297,4 +297,3 @@ def _get_bundle_manifest() -> BundleManifest:
         generator_kinds=["entra-agent-blueprint"],
         target_kinds=[],
     )
-

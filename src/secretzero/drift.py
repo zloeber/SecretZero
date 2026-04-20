@@ -172,7 +172,9 @@ class DriftDetector:
 
         try:
             provider = provider_class(name=provider_alias, config=provider_cfg.model_dump())
-            display_name = str(secret.config.get("spec", {}).get("blueprint", {}).get("display_name", ""))
+            display_name = str(
+                secret.config.get("spec", {}).get("blueprint", {}).get("display_name", "")
+            )
             if not display_name:
                 return DriftStatus(
                     secret_name=secret.name,

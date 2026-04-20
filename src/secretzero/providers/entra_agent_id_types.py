@@ -47,4 +47,3 @@ class EntraBlueprintOperationSpec(BaseModel):
     credentials: list[EntraCredentialSpec] = Field(default_factory=list)
     agent_identities: list[EntraAgentIdentitySpec] = Field(default_factory=list)
     rotation_policy: dict[str, Any] = Field(default_factory=dict)
-

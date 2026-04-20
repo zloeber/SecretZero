@@ -76,7 +76,9 @@ class MicrosoftGraphClient:
         )
         return created
 
-    def _add_client_secret(self, app_object_id: str, credential: EntraCredentialSpec) -> dict[str, Any]:
+    def _add_client_secret(
+        self, app_object_id: str, credential: EntraCredentialSpec
+    ) -> dict[str, Any]:
         payload = {
             "passwordCredential": {
                 "displayName": credential.display_name,
@@ -105,7 +107,9 @@ class MicrosoftGraphClient:
             json_payload=payload,
         )
 
-    def _add_certificate(self, app_object_id: str, credential: EntraCredentialSpec) -> dict[str, Any]:
+    def _add_certificate(
+        self, app_object_id: str, credential: EntraCredentialSpec
+    ) -> dict[str, Any]:
         payload = {
             "keyCredential": {
                 "displayName": credential.display_name,
@@ -163,4 +167,3 @@ class MicrosoftGraphClient:
             "GET",
             f"/beta/identity/agentIdentityManagement/agentIdentityBlueprints/{blueprint_id}/agentIdentities",
         ).get("value", [])
-

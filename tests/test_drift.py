@@ -51,4 +51,3 @@ def test_entra_blueprint_drift_missing_provider_alias() -> None:
     assert result is not None
     assert result.has_drift is True
     assert result.details["reason"] == "missing_provider"
-

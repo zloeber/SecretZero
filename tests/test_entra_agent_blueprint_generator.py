@@ -52,4 +52,3 @@ def test_generator_manual_instructions_include_permissions() -> None:
     gen = EntraAgentBlueprintGenerator({})
     instructions = gen.get_manual_instructions()
     assert "AgentIdentityBlueprint.Create" in instructions.steps[1].description
-

@@ -66,4 +66,3 @@ class EntraAgentBlueprintGenerator(BaseGenerator):
             required_tools=["entra admin center", "secretzero"],
             documentation_url="https://learn.microsoft.com/graph/api/resources/agentidentityblueprint",
         )
-

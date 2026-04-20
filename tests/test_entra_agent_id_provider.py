@@ -90,4 +90,3 @@ def test_retrieve_blueprint_state_not_found_raises() -> None:
     provider = _provider_with_session([{"value": []}])
     with pytest.raises(ValueError, match="not found"):
         provider.retrieve_blueprint_state("missing-blueprint")
-
