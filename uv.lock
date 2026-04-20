@@ -3,7 +3,7 @@ revision = 3
 requires-python = ">=3.12"
 
 [options]
-exclude-newer = "2026-04-09T19:40:07.900084Z"
+exclude-newer = "2026-04-13T18:34:42.366617Z"
 exclude-newer-span = "P7D"
 
 [options.exclude-newer-package]
@@ -2666,6 +2666,7 @@ all = [
     { name = "python-gitlab" },
     { name = "python-jenkins" },
     { name = "python-multipart" },
+    { name = "requests" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 ansible-vault = [
@@ -2715,6 +2716,10 @@ docs = [
     { name = "mkdocstrings", extra = ["python"] },
     { name = "pymdown-extensions" },
 ]
+entra-agent-id = [
+    { name = "azure-identity" },
+    { name = "requests" },
+]
 github = [
     { name = "pygithub" },
     { name = "pynacl" },
@@ -2746,6 +2751,7 @@ requires-dist = [
     { name = "asciinema", marker = "extra == 'demos'", specifier = ">=2.4.0" },
     { name = "azure-identity", marker = "extra == 'all'", specifier = ">=1.12.0" },
     { name = "azure-identity", marker = "extra == 'azure'", specifier = ">=1.12.0" },
+    { name = "azure-identity", marker = "extra == 'entra-agent-id'", specifier = ">=1.12.0" },
     { name = "azure-keyvault-secrets", marker = "extra == 'all'", specifier = ">=4.7.0" },
     { name = "azure-keyvault-secrets", marker = "extra == 'azure'", specifier = ">=4.7.0" },
     { name = "bandit", marker = "extra == 'security'" },
@@ -2808,6 +2814,8 @@ requires-dist = [
     { name = "python-multipart", marker = "extra == 'all'", specifier = ">=0.0.26" },
     { name = "python-multipart", marker = "extra == 'api'", specifier = ">=0.0.26" },
     { name = "pyyaml", specifier = ">=6.0" },
+    { name = "requests", marker = "extra == 'all'", specifier = ">=2.32.0" },
+    { name = "requests", marker = "extra == 'entra-agent-id'", specifier = ">=2.32.0" },
     { name = "rich", specifier = ">=13.0.0" },
     { name = "ruamel-yaml", specifier = ">=0.18.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
@@ -2820,7 +2828,7 @@ requires-dist = [
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'api'", specifier = ">=0.41.0" },
     { name = "wcwidth", marker = "extra == 'demos'" },
 ]
-provides-extras = ["dev", "aws", "azure", "vault", "ansible-vault", "github", "gitlab", "jenkins", "kubernetes", "infisical", "cicd", "api", "docs", "ai", "security", "demos", "all"]
+provides-extras = ["dev", "aws", "azure", "entra-agent-id", "vault", "ansible-vault", "github", "gitlab", "jenkins", "kubernetes", "infisical", "cicd", "api", "docs", "ai", "security", "demos", "all"]
 
 [[package]]
 name = "setuptools"

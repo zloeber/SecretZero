@@ -152,6 +152,7 @@ nav:
           - GitLab: user-guide/providers/gitlab.md
           - Jenkins: user-guide/providers/jenkins.md
           - Kubernetes: user-guide/providers/kubernetes.md
+          - Entra Agent ID: user-guide/providers/entra-agent-id.md
       - Targets:
           - user-guide/targets/index.md
           - Local Files: user-guide/targets/local.md
@@ -187,6 +188,7 @@ nav:
           - Python Client: user-guide/api/python-client.md
           - Deployment: user-guide/api/deployment.md
       - Agent Sync: user-guide/agent-sync.md
+      - Entra Agent ID Workflows: ENTRA-AGENT-ID.md
       - Lockfile Version Control Policy: user-guide/lockfile-version-control-policy.md
       - Provider Bundles:
           - user-guide/bundles/index.md

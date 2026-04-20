@@ -17,6 +17,7 @@
     </a>
     <img src="https://img.shields.io/badge/status-stable-green.svg" alt="Status: Stable">
     <img src="https://img.shields.io/badge/python-3.12+-blue.svg" alt="Python 3.12+">
+    <img src="https://img.shields.io/badge/Entra-Agent%20ID%20Preview-5B2C87.svg" alt="Entra Agent ID Preview">
     <img src="https://github.com/zloeber/SecretZero/actions/workflows/test.yaml/badge.svg" alt="Tests">
     <img src="https://github.com/zloeber/SecretZero/actions/workflows/docker.yaml/badge.svg" alt="Build">
 </p>
@@ -52,6 +53,7 @@ If you have ever asked any of these questions about a new or existing codebase t
 - **Drift Detection** - Detect when secrets have been modified outside of SecretZero's control
 - **Rotation Tracking** - Track rotation history, count, and last rotation timestamp in lockfile
 - **One-time Secrets** - Support for secrets that should only be generated once
+- **Entra Agent ID Blueprint Orchestration** - Declaratively manage Entra agent identity blueprints and credential posture via Microsoft Graph
 
 ### API Service
 - **REST API** - FastAPI-based HTTP API for programmatic secret management
@@ -382,6 +384,9 @@ uv tool install secretzero[aws]
 
 # Azure support
 uv tool install secretzero[azure]
+
+# Entra Agent ID support
+uv tool install secretzero[entra_agent_id]
 
 # Vault support
 uv tool install secretzero[vault]

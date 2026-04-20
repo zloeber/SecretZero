@@ -327,6 +327,29 @@ _PROVIDER_MANUAL_STEPS: dict[str, list[AgentInstructionStep]] = {
             description="Copy the plaintext secret value",
         ),
     ],
+    "entra-agent-id": [
+        AgentInstructionStep(
+            action="https://entra.microsoft.com",
+            description="Open Microsoft Entra admin center",
+        ),
+        AgentInstructionStep(
+            action="Review pending sponsor or owner approvals for the target blueprint",
+            description="Grant required human approvals before credential reconciliation",
+        ),
+        AgentInstructionStep(
+            action=(
+                "Verify Graph app permissions: AgentIdentityBlueprint.Create, "
+                "AgentIdentityBlueprint.AddRemoveCreds.All, "
+                "AgentIdentityBlueprint.UpdateAuthProperties.All, "
+                "Application.ReadWrite.All, Directory.ReadWrite.All"
+            ),
+            description="Ensure the automation principal has all required permissions and consent",
+        ),
+        AgentInstructionStep(
+            action="Re-run secretzero agent sync --json",
+            description="Confirm blueprint and agent identity operations now complete",
+        ),
+    ],
 }
 
 

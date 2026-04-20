@@ -1,0 +1,51 @@
+# Entra Agent ID blueprint example (SecretZero native shape)
+
+providers:
+  entra_agent_id:
+    kind: entra-agent-id
+    auth:
+      kind: service_principal
+      config:
+        tenant_id: ${AZURE_TENANT_ID}
+        client_id: ${AZURE_CLIENT_ID}
+        client_secret: ${AZURE_CLIENT_SECRET}
+
+secrets:
+  - name: hr_assistant_blueprint
+    kind: entra-agent-blueprint
+    config:
+      provider: entra_agent_id
+      secret_name: hr-assistant-blueprint
+      spec:
+        tenant_id: ${AZURE_TENANT_ID}
+        blueprint:
+          display_name: HR Assistant Blueprint
+          sponsors: ["user:hr-lead@contoso.com"]
+          owners: ["user:sec-team@contoso.com"]
+          identifier_uris: ["api://hr-assistant-blueprint"]
+          oauth_scopes:
+            - value: access_agent
+              admin_consent_display_name: Access HR Assistant Agent
+        credentials:
+          - type: client_secret
+            display_name: blueprint-secret-v1
+            end_date_time: "2026-12-31T00:00:00Z"
+          - type: federated_identity_credential
+            name: azure-mi-hr-assistant
+            issuer: https://login.microsoftonline.com/${AZURE_TENANT_ID}/v2.0
+            subject: ${MANAGED_IDENTITY_CLIENT_ID}
+            audiences: ["api://AzureADTokenExchange"]
+        rotation_policy:
+          days: 90
+          notify_days: 14
+        agent_identities:
+          - display_name: HR Assistant - Onboarding v1
+            sponsor: user:hr-lead@contoso.com
+            tags: [hr, onboarding, foundry]
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: generated/entra-agent-id.json
+          format: json
+          merge: true

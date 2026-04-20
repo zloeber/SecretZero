@@ -75,6 +75,10 @@ azure = [
     "azure-identity>=1.12.0",
     "azure-keyvault-secrets>=4.7.0",
 ]
+entra_agent_id = [
+    "azure-identity>=1.12.0",
+    "requests>=2.32.0",
+]
 vault = [
     "hvac>=1.0.0",
 ]
@@ -139,6 +143,7 @@ all = [
     "boto3>=1.26.0",
     "azure-identity>=1.12.0",
     "azure-keyvault-secrets>=4.7.0",
+    "requests>=2.32.0",
     "hvac>=1.0.0",
     "httpx>=0.24.0",
     "PyGithub>=2.1.0",

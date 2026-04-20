@@ -143,6 +143,24 @@ secretzero sync --dry-run -f examples/script-ssh-keypair/Secretfile.yml
 secretzero sync -f examples/script-ssh-keypair/Secretfile.yml
 ```
 
+### 5. Entra Agent ID Blueprint (`entra-agent-id-blueprint.yml`)
+
+Example showing Entra Agent Identity Blueprint lifecycle through the
+`entra-agent-blueprint` generator kind and `entra-agent-id` provider.
+
+**Features:**
+- Blueprint create/update via Microsoft Graph preview shape
+- Credential reconciliation (client secrets + federated credentials)
+- Optional child `agentIdentity` declarations
+- Metadata-only output target for GitOps review
+
+**Usage:**
+```bash
+secretzero validate -f examples/entra-agent-id-blueprint.yml
+secretzero sync --dry-run -f examples/entra-agent-id-blueprint.yml
+secretzero sync -f examples/entra-agent-id-blueprint.yml
+```
+
 ## Common Workflows
 
 ### Testing Configuration
