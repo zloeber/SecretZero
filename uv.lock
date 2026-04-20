@@ -3,7 +3,7 @@ revision = 3
 requires-python = ">=3.12"
 
 [options]
-exclude-newer = "2026-04-13T19:53:57.218038Z"
+exclude-newer = "2026-04-13T20:49:21.710467Z"
 exclude-newer-span = "P7D"
 
 [options.exclude-newer-package]
@@ -2654,14 +2654,7 @@ all = [
     { name = "httpx" },
     { name = "hvac" },
     { name = "kubernetes" },
-    { name = "mkdocs" },
-    { name = "mkdocs-click" },
-    { name = "mkdocs-include-markdown-plugin" },
-    { name = "mkdocs-material" },
-    { name = "mkdocs-swagger-ui-tag" },
-    { name = "mkdocstrings", extra = ["python"] },
     { name = "pygithub" },
-    { name = "pymdown-extensions" },
     { name = "pynacl" },
     { name = "python-gitlab" },
     { name = "python-jenkins" },
@@ -2779,17 +2772,11 @@ requires-dist = [
     { name = "langchain-ollama", marker = "extra == 'ai'", specifier = ">=1.0.0" },
     { name = "langchain-openai", marker = "extra == 'ai'", specifier = ">=1.0.0" },
     { name = "langgraph", marker = "extra == 'ai'", specifier = ">=1.0.10" },
-    { name = "mkdocs", marker = "extra == 'all'", specifier = ">=1.5.0" },
     { name = "mkdocs", marker = "extra == 'docs'", specifier = ">=1.5.0" },
-    { name = "mkdocs-click", marker = "extra == 'all'", specifier = ">=0.8.0" },
     { name = "mkdocs-click", marker = "extra == 'docs'", specifier = ">=0.8.0" },
-    { name = "mkdocs-include-markdown-plugin", marker = "extra == 'all'", specifier = ">=6.0.0" },
     { name = "mkdocs-include-markdown-plugin", marker = "extra == 'docs'", specifier = ">=6.0.0" },
-    { name = "mkdocs-material", marker = "extra == 'all'", specifier = ">=9.4.0" },
     { name = "mkdocs-material", marker = "extra == 'docs'", specifier = ">=9.4.0" },
-    { name = "mkdocs-swagger-ui-tag", marker = "extra == 'all'", specifier = ">=0.6.0" },
     { name = "mkdocs-swagger-ui-tag", marker = "extra == 'docs'", specifier = ">=0.6.0" },
-    { name = "mkdocstrings", extras = ["python"], marker = "extra == 'all'", specifier = ">=0.24.0" },
     { name = "mkdocstrings", extras = ["python"], marker = "extra == 'docs'", specifier = ">=0.24.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0.0" },
     { name = "pip-audit", marker = "extra == 'security'" },
@@ -2798,7 +2785,6 @@ requires-dist = [
     { name = "pygithub", marker = "extra == 'cicd'", specifier = ">=2.1.0" },
     { name = "pygithub", marker = "extra == 'github'", specifier = ">=2.1.0" },
     { name = "pygments", specifier = ">=2.20.0" },
-    { name = "pymdown-extensions", marker = "extra == 'all'", specifier = ">=10.0.0" },
     { name = "pymdown-extensions", marker = "extra == 'docs'", specifier = ">=10.0.0" },
     { name = "pynacl", marker = "extra == 'all'", specifier = ">=1.5.0" },
     { name = "pynacl", marker = "extra == 'cicd'", specifier = ">=1.5.0" },

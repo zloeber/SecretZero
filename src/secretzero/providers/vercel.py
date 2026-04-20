@@ -191,7 +191,9 @@ class VercelProvider(BaseProvider):
     def test_connection(self) -> tuple[bool, str | None]:
         try:
             team = self._team_id()
-            params = {"slug": self.config.get("project_id")} if self.config.get("project_id") else {}
+            params = (
+                {"slug": self.config.get("project_id")} if self.config.get("project_id") else {}
+            )
             if team:
                 params["teamId"] = team
             self._request("GET", "/v2/user", params=params)

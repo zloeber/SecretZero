@@ -78,6 +78,60 @@ def _print_provider_identity_panel(
     console.print()
 
 
+def _print_sync_readiness_panel(readiness: dict[str, Any]) -> None:
+    """Print policy / target-access gates that would block a full ``sync``."""
+    blocked = bool(readiness.get("sync_blocked"))
+    headline = str(readiness.get("headline") or "")
+    if blocked:
+        console.print("[bold red]Full sync would be blocked[/bold red]")
+        console.print(f"[red]{headline}[/red]\n")
+    else:
+        console.print("[bold green]Full sync readiness[/bold green]")
+        console.print(f"[dim]{headline}[/dim]\n")
+
+    identity = readiness.get("provider_identity") or {}
+    rows = identity.get("rows") or []
+    if identity.get("has_policies"):
+        pol_table = Table(title="Provider identity policies (sync gate)", box=box.ROUNDED)
+        pol_table.add_column("Policy", style="cyan", no_wrap=True)
+        pol_table.add_column("Provider", style="dim", no_wrap=True)
+        pol_table.add_column("Status", justify="center", width=14)
+        pol_table.add_column("Detail")
+        for r in rows:
+            st = r.get("status", "")
+            if st == "ok":
+                st_txt = "[green]ok[/green]"
+            else:
+                st_txt = f"[red]{st}[/red]"
+            detail = str(r.get("detail") or "—")
+            pol_table.add_row(
+                str(r.get("policy_name") or "—"),
+                str(r.get("provider_alias") or "—"),
+                st_txt,
+                detail,
+            )
+        console.print(pol_table)
+        console.print()
+    elif identity.get("has_policies") is False:
+        console.print(f"[dim]{identity.get('headline', '')}[/dim]\n")
+
+    access = readiness.get("target_access") or {}
+    results = access.get("results") or []
+    if access.get("total_count", 0) > 0:
+        acc_table = Table(title="Target provider connectivity (sync gate)", box=box.ROUNDED)
+        acc_table.add_column("Provider", style="cyan", no_wrap=True)
+        acc_table.add_column("OK", justify="center", width=8)
+        acc_table.add_column("Detail")
+        for item in results:
+            ok = item.get("ok")
+            ok_txt = "[green]yes[/green]" if ok else "[red]no[/red]"
+            err = item.get("error")
+            detail = str(err) if err else ("—" if ok else "connection failed")
+            acc_table.add_row(str(item.get("provider") or "—"), ok_txt, detail)
+        console.print(acc_table)
+        console.print()
+
+
 @click.group(context_settings={"help_option_names": ["-h", "--help"]})
 @click.version_option(version=__version__)
 @click.option(
@@ -592,6 +646,9 @@ def status(file: str, lockfile: str, verbose: bool, output_format: str) -> None:
             tracked_filename != file_path.name or tracked_hash != current_secretfile_hash
         )
 
+    sync_engine = SyncEngine(config, lock)
+    sync_readiness = sync_engine.preflight_sync_readiness()
+
     if output_format == "json":
         secrets_data = []
         for secret in config.secrets:
@@ -630,12 +687,14 @@ def status(file: str, lockfile: str, verbose: bool, output_format: str) -> None:
                 ),
                 "changed": secretfile_changed,
             },
+            "sync_readiness": sync_readiness,
         }
         click.echo(json.dumps(result, indent=2, default=str))
         return
 
     console.print("[bold]Secret Synchronization Status:[/bold]\n")
     _print_provider_identity_panel(config)
+    _print_sync_readiness_panel(sync_readiness)
 
     if not config.secrets:
         console.print("[dim]No secrets configured[/dim]")
