@@ -161,6 +161,23 @@ secretzero sync --dry-run -f examples/entra-agent-id-blueprint.yml
 secretzero sync -f examples/entra-agent-id-blueprint.yml
 ```
 
+### 6. Vercel Environment Variables (`vercel-env.yml`)
+
+Example showing project environment variable delivery to Vercel using the
+`vercel` provider and `vercel_env` target.
+
+**Features:**
+- Vercel API token auth
+- Environment-scoped secret delivery (`preview`, `production`)
+- Target-side secret key override
+
+**Usage:**
+```bash
+secretzero validate -f examples/vercel-env.yml
+secretzero sync --dry-run -f examples/vercel-env.yml
+secretzero sync -f examples/vercel-env.yml
+```
+
 ## Common Workflows
 
 ### Testing Configuration

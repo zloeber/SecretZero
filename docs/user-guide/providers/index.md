@@ -25,6 +25,7 @@ SecretZero supports the following providers:
 | [GitLab](gitlab.md) | GitLab CI/CD | `gitlab_variable`, `gitlab_group_variable` | CI/CD pipelines, GitLab runners |
 | [Jenkins](jenkins.md) | Jenkins | `jenkins_credential` | Build automation, deployment pipelines |
 | [Kubernetes](kubernetes.md) | Kubernetes | `kubernetes_secret`, `external_secret` | Container orchestration, microservices |
+| [Vercel](vercel.md) | Vercel | `vercel_env` | Project environment variable delivery |
 | [Entra Agent ID](entra-agent-id.md) | Microsoft Entra Agent ID | _provider-backed workflow_ | Agent blueprint identity governance |
 
 !!! tip "Custom providers via bundles"
@@ -404,6 +405,7 @@ secretzero sync
 - [GitLab Provider Documentation](gitlab.md)
 - [Jenkins Provider Documentation](jenkins.md)
 - [Kubernetes Provider Documentation](kubernetes.md)
+- [Vercel Provider Documentation](vercel.md)
 - [Entra Agent ID Provider Documentation](entra-agent-id.md)
 
 ## Troubleshooting

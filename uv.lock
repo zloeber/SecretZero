@@ -3,7 +3,7 @@ revision = 3
 requires-python = ">=3.12"
 
 [options]
-exclude-newer = "2026-04-13T18:34:42.366617Z"
+exclude-newer = "2026-04-13T19:53:57.218038Z"
 exclude-newer-span = "P7D"
 
 [options.exclude-newer-package]
@@ -2743,6 +2743,9 @@ security = [
 vault = [
     { name = "hvac" },
 ]
+vercel = [
+    { name = "requests" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -2816,6 +2819,7 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "requests", marker = "extra == 'all'", specifier = ">=2.32.0" },
     { name = "requests", marker = "extra == 'entra-agent-id'", specifier = ">=2.32.0" },
+    { name = "requests", marker = "extra == 'vercel'", specifier = ">=2.32.0" },
     { name = "rich", specifier = ">=13.0.0" },
     { name = "ruamel-yaml", specifier = ">=0.18.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
@@ -2828,7 +2832,7 @@ requires-dist = [
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'api'", specifier = ">=0.41.0" },
     { name = "wcwidth", marker = "extra == 'demos'" },
 ]
-provides-extras = ["dev", "aws", "azure", "entra-agent-id", "vault", "ansible-vault", "github", "gitlab", "jenkins", "kubernetes", "infisical", "cicd", "api", "docs", "ai", "security", "demos", "all"]
+provides-extras = ["dev", "aws", "azure", "entra-agent-id", "vault", "ansible-vault", "github", "gitlab", "jenkins", "kubernetes", "infisical", "vercel", "cicd", "api", "docs", "ai", "security", "demos", "all"]
 
 [[package]]
 name = "setuptools"

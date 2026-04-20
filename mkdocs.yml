@@ -153,6 +153,7 @@ nav:
           - GitLab: user-guide/providers/gitlab.md
           - Jenkins: user-guide/providers/jenkins.md
           - Kubernetes: user-guide/providers/kubernetes.md
+          - Vercel: user-guide/providers/vercel.md
           - Entra Agent ID: user-guide/providers/entra-agent-id.md
       - Targets:
           - user-guide/targets/index.md
