@@ -129,6 +129,7 @@ plugins:
 
 nav:
   - Home: index.md
+  - Enterprise: enterprise.md
   - Getting Started:
       - getting-started/index.md
       - Installation: getting-started/installation.md
