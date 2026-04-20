@@ -126,6 +126,23 @@ secretzero sync --dry-run
 secretzero sync
 ```
 
+### 4. Script-Based SSH Keypair (`script-ssh-keypair/`)
+
+Example project showing SSH keypair generation via the `script` generator.
+
+**Features:**
+- Uses `zsh` + `ssh-keygen` for keypair creation
+- Template secret with `private_key` and `public_key` fields
+- Local output file target (`generated/ssh-keypair.yml`)
+- Local `.gitignore` for generated private key material
+
+**Usage:**
+```bash
+secretzero validate -f examples/script-ssh-keypair/Secretfile.yml
+secretzero sync --dry-run -f examples/script-ssh-keypair/Secretfile.yml
+secretzero sync -f examples/script-ssh-keypair/Secretfile.yml
+```
+
 ## Common Workflows
 
 ### Testing Configuration
