@@ -1014,22 +1014,25 @@ class SyncEngine:
                     secret_value = env_val
 
             if not secret_value:
-                result["skipped"] = True
-                if force_target_ids:
-                    result["reason"] = (
-                        "Cannot obtain plaintext for force-target sync (read-back failed for all "
-                        "candidates). Set "
-                        f"{secret.name.upper()} in the environment, use a retrievable target "
-                        "(e.g. local file), or use --force-rotation to regenerate."
+                # For source-enabled secrets, fall through and attempt source/generator
+                # resolution before declaring partial-sync failure.
+                if secret.source is None:
+                    result["skipped"] = True
+                    if force_target_ids:
+                        result["reason"] = (
+                            "Cannot obtain plaintext for force-target sync (read-back failed for all "
+                            "candidates). Set "
+                            f"{secret.name.upper()} in the environment, use a retrievable target "
+                            "(e.g. local file), or use --force-rotation to regenerate."
+                        )
+                    else:
+                        result["reason"] = (
+                            "Cannot retrieve existing value for partial sync. Use --force-rotation to regenerate."
+                        )
+                    result["errors"].append(
+                        f"{secret.name}: Unable to retrieve from existing targets for partial sync"
                     )
-                else:
-                    result["reason"] = (
-                        "Cannot retrieve existing value for partial sync. Use --force-rotation to regenerate."
-                    )
-                result["errors"].append(
-                    f"{secret.name}: Unable to retrieve from existing targets for partial sync"
-                )
-                return result
+                    return result
 
         if not secret_value:
             source_used, source_value, source_error = self._resolve_secret_source(secret, cache)
