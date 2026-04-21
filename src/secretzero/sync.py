@@ -1,9 +1,12 @@
 """Secret synchronization engine."""
 
 import inspect
+import json
 import os
 from pathlib import Path
 from typing import Any
+
+import yaml
 
 from secretzero.bundles import get_bundle_registry
 from secretzero.generators.base import BaseGenerator
@@ -379,6 +382,7 @@ class SyncEngine:
             "retrieved": True,
             "revealable": not is_placeholder,
             "value": text_value,
+            "raw_value": value,
             "notes": (
                 "Provider API confirms existence but does not expose plaintext value."
                 if is_placeholder
@@ -708,6 +712,7 @@ class SyncEngine:
                     f"{'y' if refresh_report['mismatch_targets'] == 1 else 'ies'})"
                 )
 
+        resolved_cache: dict[str, Any] = {}
         for secret in secrets_to_sync:
             try:
                 fti: frozenset[str] | None = None
@@ -719,6 +724,7 @@ class SyncEngine:
                     force_rotation,
                     ignore_foreign_context_targets=ignore_foreign_context_targets,
                     force_target_ids=fti,
+                    resolved_cache=resolved_cache,
                 )
                 results["secrets_processed"] += 1
                 results["details"].append(result)
@@ -744,6 +750,159 @@ class SyncEngine:
 
         return results
 
+    @staticmethod
+    def _extract_object_field(value: Any, field_path: str | None) -> Any:
+        """Extract nested object field by dot path when requested."""
+        if not field_path:
+            return value
+        current = value
+        for segment in field_path.split("."):
+            key = segment.strip()
+            if not key:
+                raise ValueError("Field path contains an empty segment")
+            if not isinstance(current, dict) or key not in current:
+                raise ValueError(f"Field path '{field_path}' not found in source payload")
+            current = current[key]
+        return current
+
+    @staticmethod
+    def _normalize_secret_value(value: Any) -> str:
+        """Normalize source/generator outputs to string payloads for targets."""
+        if isinstance(value, str):
+            return value
+        if isinstance(value, (dict, list)):
+            return json.dumps(value, separators=(",", ":"), sort_keys=True)
+        return str(value)
+
+    @staticmethod
+    def _parse_dotenv_text(content: str) -> dict[str, str]:
+        """Parse dotenv content into a plain key/value map."""
+        data: dict[str, str] = {}
+        for raw_line in content.splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            data[key.strip()] = value.strip().strip('"').strip("'")
+        return data
+
+    def _resolve_file_source(self, source_cfg: dict[str, Any]) -> Any:
+        path_raw = source_cfg.get("path")
+        if not isinstance(path_raw, str) or not path_raw.strip():
+            raise ValueError("file source requires non-empty config.path")
+        source_path = Path(path_raw)
+        if not source_path.is_absolute() and self.secretfile_path is not None:
+            source_path = self.secretfile_path.parent / source_path
+        if not source_path.exists():
+            raise ValueError(f"file source path does not exist: {source_path}")
+
+        encoding = str(source_cfg.get("encoding", "utf-8"))
+        format_hint = str(source_cfg.get("format", "")).strip().lower()
+        if not format_hint:
+            suffix = source_path.suffix.lower()
+            format_hint = {
+                ".json": "json",
+                ".yml": "yaml",
+                ".yaml": "yaml",
+                ".env": "dotenv",
+                ".txt": "text",
+            }.get(suffix, "text")
+
+        text = source_path.read_text(encoding=encoding)
+        if format_hint == "json":
+            parsed = json.loads(text) if text.strip() else {}
+        elif format_hint == "yaml":
+            parsed = yaml.safe_load(text) if text.strip() else {}
+            if parsed is None:
+                parsed = {}
+        elif format_hint == "dotenv":
+            parsed = self._parse_dotenv_text(text)
+        elif format_hint == "text":
+            parsed = text
+        else:
+            raise ValueError(f"Unsupported file source format: {format_hint}")
+
+        return self._extract_object_field(parsed, source_cfg.get("key"))
+
+    def _resolve_provider_read_source(self, source_cfg: dict[str, Any]) -> Any:
+        provider_name = source_cfg.get("provider")
+        if not isinstance(provider_name, str) or not provider_name.strip():
+            raise ValueError("provider_read source requires config.provider")
+        kind = source_cfg.get("kind")
+        if not isinstance(kind, str) or not kind.strip():
+            raise ValueError("provider_read source requires config.kind")
+
+        read_cfg = source_cfg.get("read")
+        if not isinstance(read_cfg, dict):
+            raise ValueError("provider_read source requires object config.read")
+
+        method_name = str(source_cfg.get("method") or "retrieve_secret")
+        method_args = {**read_cfg}
+        method_args.setdefault("kind", kind)
+        profile = source_cfg.get("profile")
+        if profile is not None:
+            method_args.setdefault("profile", profile)
+
+        secret_id = str(read_cfg.get("name") or read_cfg.get("path") or "")
+        if not secret_id:
+            raise ValueError(
+                "provider_read source config.read requires at least one locator key (name or path)"
+            )
+
+        provider_result = self.get_provider_secret(
+            provider_name=provider_name,
+            secret_id=secret_id,
+            method_name=method_name,
+            method_args=method_args,
+        )
+        value = provider_result.get("raw_value")
+        return self._extract_object_field(value, source_cfg.get("field"))
+
+    def _resolve_secret_source(
+        self, secret: Secret, resolved_cache: dict[str, Any]
+    ) -> tuple[bool, Any | None, str | None]:
+        """Resolve optional secret.source value for a secret."""
+        source = secret.source
+        if source is None:
+            return False, None, None
+
+        cfg = source.config or {}
+        kind = source.kind.value
+        try:
+            if kind == "env":
+                env_name = cfg.get("name")
+                if not isinstance(env_name, str) or not env_name.strip():
+                    raise ValueError("env source requires non-empty config.name")
+                env_value = os.environ.get(env_name)
+                if env_value is None:
+                    raise ValueError(f"env source variable not set: {env_name}")
+                if cfg.get("trim", True):
+                    env_value = env_value.strip()
+                value = env_value
+            elif kind == "file":
+                value = self._resolve_file_source(cfg)
+            elif kind == "secret_ref":
+                secret_name = cfg.get("secret")
+                if not isinstance(secret_name, str) or not secret_name.strip():
+                    raise ValueError("secret_ref source requires non-empty config.secret")
+                if secret_name == secret.name:
+                    raise ValueError("secret_ref source cannot reference itself")
+                if secret_name not in resolved_cache:
+                    raise ValueError(
+                        f"secret_ref source '{secret_name}' is unavailable; "
+                        "only previously resolved non-template secrets are supported"
+                    )
+                value = self._extract_object_field(resolved_cache[secret_name], cfg.get("field"))
+            elif kind == "provider_read":
+                value = self._resolve_provider_read_source(cfg)
+            else:
+                raise ValueError(f"Unsupported source kind: {kind}")
+            return True, value, None
+        except Exception as exc:
+            if source.required:
+                return False, None, str(exc)
+            return False, None, None
+
     def _sync_secret(
         self,
         secret: Secret,
@@ -751,6 +910,7 @@ class SyncEngine:
         force_rotation: bool = False,
         ignore_foreign_context_targets: bool = False,
         force_target_ids: frozenset[str] | None = None,
+        resolved_cache: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Sync a single secret.
 
@@ -835,6 +995,7 @@ class SyncEngine:
 
         # Get or generate secret value
         secret_value = None
+        cache = resolved_cache if resolved_cache is not None else {}
 
         # For partial sync (secret exists, not forcing), try to retrieve from existing target
         if secret_exists and not force_rotation and tracked_targets:
@@ -870,6 +1031,16 @@ class SyncEngine:
                 )
                 return result
 
+        if not secret_value:
+            source_used, source_value, source_error = self._resolve_secret_source(secret, cache)
+            if source_error:
+                result["errors"].append(f"{secret.name}: source resolution failed: {source_error}")
+                result["skipped"] = True
+                return result
+            if source_used:
+                secret_value = self._normalize_secret_value(source_value)
+                result["source"] = "resolved"
+
         # Generate new value if needed (full sync or force rotation)
         if not secret_value:
             env_var_name = secret.name.upper()
@@ -881,6 +1052,10 @@ class SyncEngine:
                 agent_instructions=secret.agent_instructions,
             )
             result["generated"] = True
+        else:
+            secret_value = self._normalize_secret_value(secret_value)
+
+        cache[secret.name] = secret_value
 
         # Store in targets (only targets that need syncing)
         if not dry_run:
@@ -909,8 +1084,8 @@ class SyncEngine:
                         actor=self._target_provenance_actor(target_result.get("actor")),
                     )
 
-            # If secret was generated but has no targets, still add to lockfile
-            if len(targets_to_sync) == 0 and result.get("generated"):
+            # If secret has no targets, still persist its hash in lockfile.
+            if len(targets_to_sync) == 0 and secret_value is not None:
                 self.lockfile.add_secret(
                     secret.name, secret_value, target_id=None, is_rotation=force_rotation
                 )

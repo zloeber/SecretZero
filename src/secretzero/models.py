@@ -206,6 +206,15 @@ class GeneratorKind(str, Enum):
         return None
 
 
+class SecretSourceKind(str, Enum):
+    """Non-human source kinds for resolving secret values."""
+
+    FILE = "file"
+    ENV = "env"
+    SECRET_REF = "secret_ref"
+    PROVIDER_READ = "provider_read"
+
+
 class TargetKind(str, Enum):
     """Target storage kind.
 
@@ -318,12 +327,33 @@ class Template(BaseModel):
     targets: list[TargetConfig] = Field(default_factory=list)
 
 
+class SecretSource(BaseModel):
+    """Optional non-human source for resolving a secret value."""
+
+    kind: SecretSourceKind
+    required: bool = Field(
+        default=True,
+        description=(
+            "If true, sync fails when the source cannot resolve. "
+            "If false, generation flow is attempted as fallback."
+        ),
+    )
+    config: dict[str, Any] = Field(default_factory=dict)
+
+
 class Secret(BaseModel):
     """Secret definition."""
 
     name: str
     kind: str
     vars: dict[str, Any] = Field(default_factory=dict)
+    source: SecretSource | None = Field(
+        default=None,
+        description=(
+            "Optional non-human source resolved before generator execution. "
+            "When omitted, generation flow behaves as before."
+        ),
+    )
     config: dict[str, Any] = Field(default_factory=dict)
     one_time: bool = False
     rotation_period: str | None = None
