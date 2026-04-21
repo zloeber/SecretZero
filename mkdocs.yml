@@ -129,6 +129,7 @@ plugins:
 
 nav:
   - Home: index.md
+  - Enterprise: enterprise.md
   - Getting Started:
       - getting-started/index.md
       - Installation: getting-started/installation.md
@@ -153,6 +154,8 @@ nav:
           - GitLab: user-guide/providers/gitlab.md
           - Jenkins: user-guide/providers/jenkins.md
           - Kubernetes: user-guide/providers/kubernetes.md
+          - Vercel: user-guide/providers/vercel.md
+          - Entra Agent ID: user-guide/providers/entra-agent-id.md
           - Ansible Vault: user-guide/providers/ansible_vault.md
           - SOPS: user-guide/providers/sops.md
           - git-crypt: user-guide/providers/git_crypt.md
@@ -194,6 +197,7 @@ nav:
           - Python Client: user-guide/api/python-client.md
           - Deployment: user-guide/api/deployment.md
       - Agent Sync: user-guide/agent-sync.md
+      - Entra Agent ID Workflows: ENTRA-AGENT-ID.md
       - Lockfile Version Control Policy: user-guide/lockfile-version-control-policy.md
       - Provider Bundles:
           - user-guide/bundles/index.md

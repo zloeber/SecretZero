@@ -227,14 +227,14 @@ tasks:
     cmds:
       - |
         uv pip install -e ".[dev]"
-        uv run ruff check .
+        uv run ruff check . --exclude=docs --exclude=site --exclude=tests --exclude=examples --exclude=ent-site --exclude=.cursor --exclude=./.venv --exclude=src/secretzero/_version.py --exclude=node_modules
         uv run black --check .
 
   lint:fix:
     desc: Run python linting and fix issues
     cmds:
       - |
-        uv run ruff check --fix .
+        uv run ruff check --fix . --exclude=docs --exclude=site --exclude=tests --exclude=examples --exclude=ent-site --exclude=.cursor --exclude=.venv --exclude=src/secretzero/_version.py --exclude=node_modules
 
   security:scan:
     desc: Run Python security scans (dependencies + code)

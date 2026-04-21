@@ -85,6 +85,21 @@ secretzero agent sync --interactive
 
 The agent provides instructions, the user follows the steps, and the agent records the value.
 
+### 4. Entra Agent ID Blueprint Workflows
+
+For `kind: entra-agent-blueprint`, use the same flow with provider auth:
+
+```bash
+secretzero agent sync --json
+secretzero agent sync --web
+```
+
+This supports:
+- Blueprint create/update with `@odata.type: microsoft.graph.agentIdentityBlueprint`
+- Credential reconciliation (client secrets, federated credentials, certificates)
+- Child `agentIdentity` creation
+- Sponsor/manual approval fallback through secure local web UI
+
 ## Defining Agent Instructions
 
 Add `agent_instructions` to any secret in your Secretfile:

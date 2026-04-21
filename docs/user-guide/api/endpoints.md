@@ -287,6 +287,30 @@ curl -X POST http://localhost:8000/sync \
 
 ---
 
+### POST /agent/sync - Unified Agent Sync
+
+Run unified agent sync (CLI parity) with structured pending/failed output.
+
+**Authentication:** Required
+
+**Request Body (key fields):**
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `dry_run` | boolean | No | `false` | Preview only |
+| `web` | boolean | No | `false` | Start localhost secure form for pending values |
+| `refresh` | boolean | No | `true` | Refresh lockfile target validity before sync |
+| `environment` | string | No | `null` | Environment profile |
+| `var_files` | array[string] | No | `[]` | Variable files to apply |
+| `sz_agent` | boolean | No | env-derived | Force automation mode |
+
+**Entra Agent ID note:** `entra-agent-blueprint` secrets may return pending/failed
+entries when sponsor approval or Graph permissions are missing.
+
+### GET /agent/sync/web/{session_id} - Agent Web Session Status
+
+Poll status for a web-backed `POST /agent/sync` flow.
+
 ## Rotation Management
 
 ### POST /rotation/check - Check Rotation Status

@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from secretzero.config import ConfigLoader
 from secretzero.lockfile import Lockfile
 from secretzero.models import Secret, TargetConfig
+from secretzero.providers.registry import GLOBAL_PROVIDER_REGISTRY
 
 
 class DriftStatus(BaseModel):
@@ -93,6 +94,11 @@ class DriftDetector:
                 details={"reason": "corrupted"},
             )
 
+        if secret.kind == "entra-agent-blueprint":
+            result = self._check_entra_blueprint_drift(secret)
+            if result is not None:
+                return result
+
         # Check if we can verify drift against targets
         # For now, we'll focus on file targets which we can read
         file_targets = self._get_file_targets(secret)
@@ -139,6 +145,57 @@ class DriftDetector:
             message="No drift detected in file targets",
             details=drift_details,
         )
+
+    def _check_entra_blueprint_drift(self, secret: Secret) -> DriftStatus | None:
+        """Provider-aware drift check for Entra agent blueprints."""
+        provider_alias = str(secret.config.get("provider", "")).strip()
+        if not provider_alias:
+            return DriftStatus(
+                secret_name=secret.name,
+                has_drift=True,
+                message="Entra blueprint config missing provider alias",
+                details={"reason": "missing_provider"},
+            )
+        provider_cfg = self.config.providers.get(provider_alias)
+        if provider_cfg is None:
+            return DriftStatus(
+                secret_name=secret.name,
+                has_drift=True,
+                message=f"Provider '{provider_alias}' not found in Secretfile",
+                details={"reason": "unknown_provider"},
+            )
+
+        provider_kind = provider_cfg.kind or provider_alias
+        provider_class = GLOBAL_PROVIDER_REGISTRY.get_provider_class(provider_kind)
+        if provider_class is None:
+            return None
+
+        try:
+            provider = provider_class(name=provider_alias, config=provider_cfg.model_dump())
+            display_name = str(
+                secret.config.get("spec", {}).get("blueprint", {}).get("display_name", "")
+            )
+            if not display_name:
+                return DriftStatus(
+                    secret_name=secret.name,
+                    has_drift=True,
+                    message="Entra blueprint spec missing blueprint.display_name",
+                    details={"reason": "missing_display_name"},
+                )
+            state = provider.retrieve_blueprint_state(display_name)
+            return DriftStatus(
+                secret_name=secret.name,
+                has_drift=False,
+                message="Entra blueprint reachable via provider state lookup",
+                details={"provider_state": state},
+            )
+        except Exception as e:
+            return DriftStatus(
+                secret_name=secret.name,
+                has_drift=True,
+                message=f"Entra blueprint provider-state drift check failed: {e}",
+                details={"reason": "provider_state_lookup_failed"},
+            )
 
     def _check_template_secret_drift(self, secret: Secret) -> DriftStatus:
         """Check drift for a template-based secret.

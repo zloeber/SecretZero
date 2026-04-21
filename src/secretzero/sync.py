@@ -543,6 +543,69 @@ class SyncEngine:
             "rows": rows,
         }
 
+    def preflight_sync_readiness(
+        self,
+        secrets_in_scope: list[Secret] | None = None,
+    ) -> dict[str, Any]:
+        """Summarize conditions that would block a full sync (same gates as :meth:`sync`).
+
+        Combines:
+
+        - ``provider_identity`` policy evaluation (see :meth:`preflight_provider_identity_policies`)
+        - Provider connectivity for all targets (see :meth:`_validate_target_access`)
+
+        Args:
+            secrets_in_scope: Secrets to evaluate; default is all secrets in the manifest.
+
+        Returns:
+            Dict with ``sync_blocked``, ``headline``, ``blocking_reasons``,
+            ``provider_identity`` (preflight dict), and ``target_access`` (serializable results).
+        """
+        secrets = secrets_in_scope if secrets_in_scope is not None else self.secretfile.secrets
+        identity = self.preflight_provider_identity_policies(secrets)
+        access = self._validate_target_access()
+        access_serializable = {
+            "accessible_count": access["accessible_count"],
+            "total_count": access["total_count"],
+            "results": [
+                {"provider": name, "ok": ok, "error": err} for name, ok, err in access["results"]
+            ],
+        }
+
+        identity_blocks = bool(identity.get("blocking"))
+        no_accessible_targets = access["total_count"] > 0 and access["accessible_count"] == 0
+        sync_blocked = identity_blocks or no_accessible_targets
+
+        reasons: list[str] = []
+        if identity_blocks:
+            reasons.append("provider_identity_policy")
+        if no_accessible_targets:
+            reasons.append("no_accessible_targets")
+
+        if sync_blocked:
+            if identity_blocks and no_accessible_targets:
+                headline = (
+                    "Sync would be blocked: provider identity policies failed and no provider "
+                    "targets are reachable (connection tests returned no successes)."
+                )
+            elif no_accessible_targets:
+                headline = (
+                    "Sync would be blocked: no accessible provider targets "
+                    "(all non-local provider connection tests failed or providers are missing)."
+                )
+            else:
+                headline = str(identity.get("headline") or "Provider identity policies block sync.")
+        else:
+            headline = "Full sync readiness: no blocking policy or target-access issues detected."
+
+        return {
+            "sync_blocked": sync_blocked,
+            "headline": headline,
+            "blocking_reasons": reasons,
+            "provider_identity": identity,
+            "target_access": access_serializable,
+        }
+
     def _enforce_provider_identity_policies(self, secrets_to_sync: list[Secret]) -> None:
         """Raise when ``provider_identity`` policies are not satisfied for in-scope targets."""
         result = self.preflight_provider_identity_policies(secrets_to_sync)

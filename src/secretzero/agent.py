@@ -16,7 +16,12 @@ from secretzero.sync import SyncEngine
 logger = logging.getLogger(__name__)
 
 # Generator kinds that can be fully automated (no external input needed)
-_AUTO_GENERATOR_KINDS = {"random_password", "random_string", "uuid"}
+_AUTO_GENERATOR_KINDS = {
+    "random_password",
+    "random_string",
+    "uuid",
+    "entra-agent-blueprint",
+}
 
 _SZ_AGENT_MANUAL_FAIL = (
     "Manual intervention required while SZ_AGENT is enabled; unset SZ_AGENT or resolve secrets "

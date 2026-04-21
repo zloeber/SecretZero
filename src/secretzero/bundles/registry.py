@@ -491,6 +491,8 @@ def _register_builtin_bundles(registry: BundleRegistry) -> None:
         ("secretzero.providers.sops", "_get_bundle_manifest"),
         ("secretzero.providers.git_crypt", "_get_bundle_manifest"),
         ("secretzero.providers.infisical", "_get_bundle_manifest"),
+        ("secretzero.providers.entra_agent_id", "_get_bundle_manifest"),
+        ("secretzero.providers.vercel", "_get_bundle_manifest"),
     ]
     for module_path, factory_name in _manifest_factories:
         try:

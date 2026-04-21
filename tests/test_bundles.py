@@ -302,7 +302,14 @@ class TestGetBundleRegistry:
 
     def test_builtin_generators_registered(self) -> None:
         reg = get_bundle_registry()
-        for kind in ("random_password", "random_string", "static", "script", "azure_app_reg"):
+        for kind in (
+            "random_password",
+            "random_string",
+            "static",
+            "script",
+            "azure_app_reg",
+            "entra-agent-blueprint",
+        ):
             assert reg.get_generator_class(kind) is not None, f"Missing generator: {kind}"
 
     def test_builtin_targets_registered(self) -> None:
@@ -314,6 +321,8 @@ class TestGetBundleRegistry:
         reg = get_bundle_registry()
         # AWS provider is always importable
         assert reg.get_provider_class("aws") is not None
+        assert reg.get_provider_class("entra-agent-id") is not None
+        assert reg.get_provider_class("vercel") is not None
 
     def test_reset_clears_singleton(self) -> None:
         r1 = get_bundle_registry()

@@ -1,0 +1,252 @@
+:root {
+  --bg: #020617;
+  --bg-soft: #0f172a;
+  --fg: #e2e8f0;
+  --muted: #94a3b8;
+  --primary: #38bdf8;
+  --accent: #f97316;
+  --panel: #111827;
+  --ring: rgb(249 115 22 / 0.4);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: radial-gradient(circle at 10% -20%, #0f172a 0%, var(--bg) 45%);
+  color: var(--fg);
+  font-family: var(--font-plus-jakarta), system-ui, sans-serif;
+}
+
+a {
+  color: inherit;
+}
+
+.page {
+  width: min(1100px, 92vw);
+  margin: 0 auto;
+  padding: 1rem 0 4rem;
+}
+
+.top-nav {
+  position: sticky;
+  top: 0.75rem;
+  z-index: 12;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid #1e293b;
+  border-radius: 0.9rem;
+  background: rgb(2 6 23 / 0.82);
+  backdrop-filter: blur(8px);
+}
+
+.brand {
+  text-decoration: none;
+  font-weight: 800;
+}
+
+.hero {
+  margin-top: 1.4rem;
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 1rem;
+}
+
+.hero-text {
+  border: 1px solid #1e293b;
+  border-radius: 1rem;
+  background: linear-gradient(150deg, rgb(56 189 248 / 0.08), rgb(249 115 22 / 0.05));
+  padding: 1.2rem;
+}
+
+.hero-scene {
+  min-height: 380px;
+  border-radius: 1rem;
+  overflow: hidden;
+  border: 1px solid #1e293b;
+  background: radial-gradient(circle at 50% 15%, rgb(56 189 248 / 0.22), rgb(2 6 23 / 0.9));
+}
+
+.eyebrow {
+  margin: 0;
+  text-transform: uppercase;
+  color: var(--primary);
+  letter-spacing: 0.08em;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.2;
+}
+
+h1 {
+  margin: 0.5rem 0 0.8rem;
+  font-size: clamp(1.8rem, 4.2vw, 3rem);
+}
+
+.sub {
+  color: var(--muted);
+  max-width: 66ch;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.section {
+  margin-top: 1.2rem;
+}
+
+.block {
+  border: 1px solid #1e293b;
+  border-radius: 1rem;
+  background: linear-gradient(160deg, rgb(15 23 42 / 0.94), rgb(2 6 23 / 0.98));
+  padding: 1.15rem;
+}
+
+.diagram-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.panel {
+  border: 1px solid #1e293b;
+  border-radius: 0.9rem;
+  background: rgb(15 23 42 / 0.8);
+  padding: 0.8rem;
+}
+
+svg {
+  width: 100%;
+  height: auto;
+  margin-top: 0.5rem;
+}
+
+svg rect,
+svg circle {
+  fill: rgb(14 165 233 / 0.1);
+  stroke: #38bdf8;
+}
+
+svg text {
+  fill: #bae6fd;
+  font-size: 13px;
+  font-family: var(--font-plus-jakarta), system-ui, sans-serif;
+}
+
+svg path {
+  stroke: #38bdf8;
+  stroke-width: 2;
+  fill: none;
+}
+
+.workflow-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.workflow-card {
+  border-radius: 0.8rem;
+  border: 1px solid #1e293b;
+  background: rgb(2 6 23 / 0.75);
+  padding: 0.85rem;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.6rem;
+  padding: 0.68rem 0.95rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.btn.primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.btn.primary:hover {
+  background: #ea580c;
+}
+
+.btn.secondary {
+  border-color: #0369a1;
+  color: var(--primary);
+  background: rgb(14 165 233 / 0.1);
+}
+
+.btn.secondary:hover {
+  background: rgb(14 165 233 / 0.16);
+}
+
+.btn:focus-visible,
+.input:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.signup-form {
+  display: grid;
+  gap: 0.7rem;
+}
+
+label {
+  display: block;
+  font-weight: 600;
+}
+
+.input {
+  margin-top: 0.35rem;
+  width: 100%;
+  background: #020617;
+  color: #e2e8f0;
+  border: 1px solid #334155;
+  border-radius: 0.6rem;
+  font: inherit;
+  padding: 0.65rem 0.75rem;
+}
+
+.ok {
+  color: #67e8f9;
+  margin-top: 0.8rem;
+}
+
+.error {
+  color: #fdba74;
+  margin-top: 0.8rem;
+}
+
+@media (max-width: 940px) {
+  .hero,
+  .diagram-grid,
+  .workflow-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

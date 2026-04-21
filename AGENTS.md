@@ -55,6 +55,18 @@ Full details now live in focused skills:
 - `./skills/secretzero-agent/SKILL.md` for unified agentic/runtime workflows and vector handling.
 - `./skills/secretzero-author/SKILL.md` for schema-compliant `Secretfile.yml` authoring and safe discovery-driven policy authoring.
 
+### Entra Agent ID workflow extension
+
+When authoring or syncing `kind: entra-agent-blueprint` secrets:
+- Prefer `secretzero agent sync --json` first, then escalate to `--web` for sponsor/manual approval paths.
+- Never expose Graph-generated client secret plaintext in agent output.
+- Ensure Graph permissions are present before retry loops:
+  - `AgentIdentityBlueprint.Create`
+  - `AgentIdentityBlueprint.AddRemoveCreds.All`
+  - `AgentIdentityBlueprint.UpdateAuthProperties.All`
+  - `Application.ReadWrite.All`
+  - `Directory.ReadWrite.All`
+
 ## Schema-Driven Development Mandate
 
 - All configuration, validation rules, and agent behavior are defined in Pydantic models.

@@ -7,8 +7,6 @@ from tempfile import TemporaryDirectory
 import pytest
 from click.testing import CliRunner
 
-from secretzero.lockfile import Lockfile
-
 from secretzero.cli import (
     EXIT_CONFIG_ERROR,
     EXIT_DRIFT_DETECTED,
@@ -16,6 +14,7 @@ from secretzero.cli import (
     EXIT_VALIDATION_ERROR,
     main,
 )
+from secretzero.lockfile import Lockfile
 
 MINIMAL_SECRETFILE = """
 version: '1.0'
@@ -111,6 +110,9 @@ def test_status_json_output(runner: CliRunner) -> None:
         assert isinstance(payload["secrets"], list)
         assert payload["total"] == 2
         assert payload["synced"] == 0  # nothing synced yet
+        assert "sync_readiness" in payload
+        assert "sync_blocked" in payload["sync_readiness"]
+        assert payload["sync_readiness"]["sync_blocked"] is False
 
 
 def test_status_json_output_after_sync(runner: CliRunner) -> None:

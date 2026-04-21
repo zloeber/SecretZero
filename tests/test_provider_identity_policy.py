@@ -250,3 +250,84 @@ secrets:
 
     with pytest.raises(RuntimeError, match="must_be_prod"):
         engine.sync(dry_run=True)
+
+
+def test_preflight_sync_readiness_blocked_on_policy(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    sf_path = tmp_path / "Secretfile.yml"
+    sf_path.write_text("""
+variables: {}
+providers:
+  aws:
+    kind: aws
+    auth: { kind: ambient, config: {} }
+policies:
+  must_be_prod:
+    kind: provider_identity
+    providers: [aws]
+    rules:
+      - field: account
+        glob: "111111111111"
+secrets:
+  - name: s
+    kind: random_string
+    config: { length: 8 }
+    targets:
+      - provider: aws
+        kind: secrets_manager
+        config: { name: test/secret }
+""")
+    loader = ConfigLoader()
+    config = loader.load_file(sf_path)
+    lockfile = Lockfile.load(tmp_path / ".gitsecrets.lock")
+    engine = SyncEngine(config, lockfile)
+    monkeypatch.setattr(
+        engine,
+        "_validate_target_access",
+        lambda: {"accessible_count": 1, "total_count": 1, "results": [("aws", True, None)]},
+    )
+    engine._providers["aws"] = _FakeAwsProvider(
+        {"provider": "aws", "provider_name": "aws", "account": "999999999999"}
+    )
+    r = engine.preflight_sync_readiness()
+    assert r["sync_blocked"] is True
+    assert "provider_identity_policy" in r["blocking_reasons"]
+    assert "no_accessible_targets" not in r["blocking_reasons"]
+
+
+def test_preflight_sync_readiness_blocked_on_no_accessible_targets(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    sf_path = tmp_path / "Secretfile.yml"
+    sf_path.write_text("""
+variables: {}
+providers:
+  aws:
+    kind: aws
+    auth: { kind: ambient, config: {} }
+secrets:
+  - name: s
+    kind: random_string
+    config: { length: 8 }
+    targets:
+      - provider: aws
+        kind: secrets_manager
+        config: { name: test/secret }
+""")
+    loader = ConfigLoader()
+    config = loader.load_file(sf_path)
+    lockfile = Lockfile.load(tmp_path / ".gitsecrets.lock")
+    engine = SyncEngine(config, lockfile)
+    monkeypatch.setattr(
+        engine,
+        "_validate_target_access",
+        lambda: {
+            "accessible_count": 0,
+            "total_count": 1,
+            "results": [("aws", False, "auth failed")],
+        },
+    )
+    r = engine.preflight_sync_readiness()
+    assert r["sync_blocked"] is True
+    assert "no_accessible_targets" in r["blocking_reasons"]

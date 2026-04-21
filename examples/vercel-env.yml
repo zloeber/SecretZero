@@ -1,0 +1,23 @@
+providers:
+  vercel:
+    kind: vercel
+    auth:
+      kind: token
+      config:
+        token: ${VERCEL_TOKEN}
+        team_id: ${VERCEL_TEAM_ID}
+    config:
+      project_id: ${VERCEL_PROJECT_ID}
+
+secrets:
+  - name: service_api_key
+    kind: random_string
+    config:
+      length: 40
+    targets:
+      - provider: vercel
+        kind: vercel_env
+        config:
+          project_id: ${VERCEL_PROJECT_ID}
+          secret_name: SERVICE_API_KEY
+          environments: [preview, production]

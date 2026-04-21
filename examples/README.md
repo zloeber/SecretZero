@@ -144,6 +144,58 @@ secretzero sync --dry-run
 secretzero sync
 ```
 
+### 4. Script-Based SSH Keypair (`script-ssh-keypair/`)
+
+Example project showing SSH keypair generation via the `script` generator.
+
+**Features:**
+- Uses `zsh` + `ssh-keygen` for keypair creation
+- Template secret with `private_key` and `public_key` fields
+- Local output file target (`generated/ssh-keypair.yml`)
+- Local `.gitignore` for generated private key material
+
+**Usage:**
+```bash
+secretzero validate -f examples/script-ssh-keypair/Secretfile.yml
+secretzero sync --dry-run -f examples/script-ssh-keypair/Secretfile.yml
+secretzero sync -f examples/script-ssh-keypair/Secretfile.yml
+```
+
+### 5. Entra Agent ID Blueprint (`entra-agent-id-blueprint.yml`)
+
+Example showing Entra Agent Identity Blueprint lifecycle through the
+`entra-agent-blueprint` generator kind and `entra-agent-id` provider.
+
+**Features:**
+- Blueprint create/update via Microsoft Graph preview shape
+- Credential reconciliation (client secrets + federated credentials)
+- Optional child `agentIdentity` declarations
+- Metadata-only output target for GitOps review
+
+**Usage:**
+```bash
+secretzero validate -f examples/entra-agent-id-blueprint.yml
+secretzero sync --dry-run -f examples/entra-agent-id-blueprint.yml
+secretzero sync -f examples/entra-agent-id-blueprint.yml
+```
+
+### 6. Vercel Environment Variables (`vercel-env.yml`)
+
+Example showing project environment variable delivery to Vercel using the
+`vercel` provider and `vercel_env` target.
+
+**Features:**
+- Vercel API token auth
+- Environment-scoped secret delivery (`preview`, `production`)
+- Target-side secret key override
+
+**Usage:**
+```bash
+secretzero validate -f examples/vercel-env.yml
+secretzero sync --dry-run -f examples/vercel-env.yml
+secretzero sync -f examples/vercel-env.yml
+```
+
 ## Common Workflows
 
 ### Testing Configuration

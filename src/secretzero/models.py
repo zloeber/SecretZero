@@ -161,6 +161,11 @@ class AuthKind(str, Enum):
     TOKEN = "token"
     ASSUME_ROLE = "assume_role"
     STATIC = "static"
+    DEFAULT = "default"
+    SERVICE_PRINCIPAL = "service_principal"
+    MANAGED_IDENTITY = "managed_identity"
+    CLI = "cli"
+    PROFILE = "profile"
 
 
 class GeneratorKind(str, Enum):
@@ -174,6 +179,7 @@ class GeneratorKind(str, Enum):
 
     STATIC = "static"
     AZURE_APP_REG = "azure_app_reg"
+    ENTRA_AGENT_BLUEPRINT = "entra-agent-blueprint"
     RANDOM_PASSWORD = "random_password"
     RANDOM_STRING = "random_string"
     SCRIPT = "script"

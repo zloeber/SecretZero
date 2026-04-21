@@ -37,6 +37,18 @@ Detailed guidance now lives in focused skills:
 - `./skills/secretzero-agent/SKILL.md` for unified agentic/runtime workflows and vector handling.
 - `./skills/secretzero-author/SKILL.md` for schema-compliant `Secretfile.yml` authoring and safe discovery-driven policy authoring.
 
+### Entra Agent ID guidance
+
+For `kind: entra-agent-blueprint`:
+- Treat sponsor/approval blockers as human-in-the-loop flows (`agent sync --web`).
+- Never print client secret plaintext from Graph responses.
+- Validate required Graph permissions before retrying failed operations:
+  - `AgentIdentityBlueprint.Create`
+  - `AgentIdentityBlueprint.AddRemoveCreds.All`
+  - `AgentIdentityBlueprint.UpdateAuthProperties.All`
+  - `Application.ReadWrite.All`
+  - `Directory.ReadWrite.All`
+
 ## Essential Commands (Schema-Driven)
 
 - `task schema:update` — Regenerate schema after model changes (mandatory for parity).

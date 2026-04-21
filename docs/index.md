@@ -340,6 +340,12 @@ graph TB
 
 </div>
 
+## For Teams
+
+SecretZero Enterprise is built on the same trusted open-source core and adds managed fleet operations, compliance reporting, and enterprise identity governance for larger organizations.
+
+[Explore SecretZero Enterprise →](enterprise.md)
+
 ## Community
 
 - **GitHub**: [zloeber/SecretZero](https://github.com/zloeber/SecretZero)

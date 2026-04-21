@@ -112,6 +112,14 @@ Rotate a specific secret only if due:
 secretzero rotate api_key
 ```
 
+### Rotate Entra Agent Blueprint Credentials
+
+Force-rotate a blueprint secret using its declared credential policy:
+
+```bash
+secretzero rotate --force hr_assistant_blueprint
+```
+
 ## How Rotation Works
 
 ### 1. Check Rotation Requirements

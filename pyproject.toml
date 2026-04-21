@@ -75,6 +75,10 @@ azure = [
     "azure-identity>=1.12.0",
     "azure-keyvault-secrets>=4.7.0",
 ]
+entra_agent_id = [
+    "azure-identity>=1.12.0",
+    "requests>=2.32.0",
+]
 vault = [
     "hvac>=1.0.0",
 ]
@@ -96,6 +100,9 @@ kubernetes = [
 ]
 infisical = [
     "httpx>=0.24.0",
+]
+vercel = [
+    "requests>=2.32.0",
 ]
 cicd = [
     "PyGithub>=2.1.0",
@@ -139,6 +146,7 @@ all = [
     "boto3>=1.26.0",
     "azure-identity>=1.12.0",
     "azure-keyvault-secrets>=4.7.0",
+    "requests>=2.32.0",
     "hvac>=1.0.0",
     "httpx>=0.24.0",
     "PyGithub>=2.1.0",
@@ -149,13 +157,6 @@ all = [
     "fastapi>=0.104.0",
     "uvicorn[standard]>=0.24.0",
     "python-multipart>=0.0.26",
-    "mkdocs>=1.5.0",
-    "mkdocs-material>=9.4.0",
-    "mkdocs-include-markdown-plugin>=6.0.0",
-    "mkdocstrings[python]>=0.24.0",
-    "pymdown-extensions>=10.0.0",
-    "mkdocs-click>=0.8.0",
-    "mkdocs-swagger-ui-tag>=0.6.0",
 ]
 
 [project.scripts]
