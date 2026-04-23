@@ -141,4 +141,3 @@ def test_provider_read_source_supports_cross_provider_read() -> None:
     detail = result["details"][0]
     assert detail.get("source") == "resolved"
     assert engine.lockfile.has_secret("copied_secret")
-

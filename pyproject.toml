@@ -41,15 +41,17 @@ CI = "https://github.com/zloeber/SecretZero/actions"
 [tool.uv]
 exclude-newer = "7 days"
 # CVE-2026-4539: pygments fix is often newer than the exclude-newer window.
-exclude-newer-package = { anthropic = false, cryptography = false, langchain-core = false, langsmith = false, pygments = false, pytest = false, python-multipart = false }
+exclude-newer-package = { anthropic = false, cryptography = false, langchain-core = false, langchain-openai = false, langsmith = false, lxml = false, pygments = false, pytest = false, python-multipart = false }
 # Pin transitive minimums when pip-audit fix releases are newer than exclude-newer allows.
 override-dependencies = [
     "anthropic>=0.87.0",
     "black>=26.3.1",
     "cryptography>=46.0.7",
     "langchain-core>=1.2.28",
+    "langchain-openai>=1.1.14",
     "langgraph>=1.0.10",
     "langsmith>=0.7.31",
+    "lxml>=6.1.0",
     "pyjwt>=2.12.0",
     "pytest>=9.0.3",
     "python-multipart>=0.0.26",

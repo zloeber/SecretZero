@@ -236,35 +236,35 @@ Secret sources are provider bound. If authentication fails, the user is (optiona
 ### Basic Installation
 
 ```bash
-uv tool install secretzero
+uv tool install -U "secretzero[all]"
 ```
 
 ### With Provider Support
 
 ```bash
 # AWS support
-uv tool install secretzero[aws]
+uv tool install "secretzero[aws]"
 
 # Azure support
-uv tool install secretzero[azure]
+uv tool install "secretzero[azure]"
 
 # Entra Agent ID support
-uv tool install secretzero[entra_agent_id]
+uv tool install "secretzero[entra_agent_id]"
 
 # Vault support
-uv tool install secretzero[vault]
+uv tool install "secretzero[vault]"
 
 # Kubernetes support
-uv tool install secretzero[kubernetes]
+uv tool install "secretzero[kubernetes]"
 
 # CI/CD support (GitHub, GitLab, Jenkins)
-uv tool install secretzero[cicd]
+uv tool install "secretzero[cicd]"
 
 # API server support
-uv tool install secretzero[api]
+uv tool install "secretzero[api]"
 
-# Everything
-uv tool install secretzero[all]
+# Everything (easiest)
+uv tool install "secretzero[all]"
 ```
 
 ## Installation (Development)
@@ -287,6 +287,12 @@ uv uv tool install -e ".[dev]"
 ### CLI Usage
 
 ```bash
+# Start a one-time web interface
+secretzero web
+
+# Start a one-time web interface that targets the dev environment
+secretzero web -e dev
+
 # List supported secret types
 secretzero secret-types
 
@@ -352,25 +358,24 @@ See local `Secretfile.*.yml` files or other [local examples](./examples/). Here 
 
 ![Demo of secretzero cli](./docs/inc/demos/demo-all.gif)
 
-Below is the generated mermaid diagram from the above demonstration.
 
-```mermaid
-flowchart LR
-    %% Generators/Sources
-    gen_static[📝 Static]
-    cloudflare_pages_api_token["Secret<br/>cloudflare_pages_api_token<br/>type: static"]
-    gen_static -->|generates| cloudflare_pages_api_token
-    target_cloudflare_pages_api_token_github_github_secret_0["Target<br/>github/github_secret"]
-    cloudflare_pages_api_token -->|syncs to| target_cloudflare_pages_api_token_github_github_secret_0
-    testpypi_token["Secret<br/>testpypi_token<br/>type: static"]
-    gen_static -->|generates| testpypi_token
-    target_testpypi_token_github_github_secret_0["Target<br/>github/github_secret"]
-    testpypi_token -->|syncs to| target_testpypi_token_github_github_secret_0
-    production_token["Secret<br/>production_token<br/>type: static"]
-    gen_static -->|generates| production_token
-    target_production_token_github_github_secret_0["Target<br/>github/github_secret"]
-    production_token -->|syncs to| target_production_token_github_github_secret_0
-```
+## Pretty Graphs
+
+### Secret Graph Overview
+
+![Secret graph overview](../inc/sz-graph-1.png)
+
+This view shows the top-level relationship between generated/resolved secrets and their targets.
+
+### Sync State Across Targets
+
+![Sync state graph](../inc/sz-graph-2.png)
+
+Edges reflect target sync state so you can quickly identify what is already synced versus pending/drifted.
+
+### Destination-Centric View
+
+![Destination-centric graph](../inc/sz-graph-3.png)
 
 ## Documentation
 
@@ -386,22 +391,6 @@ SecretZero is designed with security as a priority:
 - ✅ Type-safe implementations with Pydantic
 - ✅ Idempotent operations to prevent accidental overwrites
 - ✅ Audit trail through lock file tracking
-
-# Roadmap
-
-Here are some features I'd like to add to this project.
-
-## Better OIDC Support
-
-I'd like to more easily support automatic authentication via OIDC for interactive sessions. I'll include a `--auto-auth` prompt that will attempt to do automated OIDC based authentication with providers by popping open oidc web pages and walking the user through authenticating.
-
-## Customized Secret Types and Generator Output.
-
-These would be tied to a provider specifically for things like generating a PAT or API tokens via their API. In cases where the secret cannot be generated and the user enters a static secret then a custom provider generator should be able to provide their own explicit instructions on attaining the api key (for example).
-
-## Non-Secret Handling
-
-Secrets are often meaningless without the context of multiple non-secret variables. Currently we allow these non-secrets as standard parts of a multi-part secret. They need only be set to static with a default value. Instead I'd like to allow for these values to exist as both a source and target within a secret definition as a secret type of 'local' or 'nonsecret'. These are put into the lockfile alongside any other secrets but require no targets and will not prompt a user for values unless explicitly passing in an option to force the prompt for these values like static secrets. In this situation I'd like to explore allowing for the secret source to be a json, env, or other configuration file that contains an environment's additional non-secret keys with their values.
 
 # License
 

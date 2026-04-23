@@ -2,6 +2,8 @@
 
 SecretZero uses a declarative configuration approach where all your secrets, providers, and policies are defined in a `Secretfile.yml`. This page provides an overview of configuration concepts and structure.
 
+For contract-level automation and CI validation, treat `Secretfile.schema.json` as authoritative.
+
 ## Configuration Files
 
 ### Secretfile.yml

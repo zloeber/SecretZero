@@ -350,7 +350,7 @@ class SecretSource(BaseModel):
     )
 
     @model_validator(mode="after")
-    def _validate_source_config(self) -> "SecretSource":
+    def _validate_source_config(self) -> SecretSource:
         """Validate known source config shapes."""
         cfg = self.config or {}
 

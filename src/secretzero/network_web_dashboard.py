@@ -9,13 +9,13 @@ from typing import Any
 
 from secretzero.agent import secret_supports_automatic_generation
 from secretzero.generators.traits import secret_prompts_like_static
+from secretzero.lockfile import Lockfile
 from secretzero.lockfile_state import (
     kind_str,
     lock_hash_for_target,
     sync_state_for_target,
     target_id,
 )
-from secretzero.lockfile import Lockfile
 from secretzero.models import AgentInstructions, Secret, Secretfile, TargetConfig
 from secretzero.sync import SyncEngine
 

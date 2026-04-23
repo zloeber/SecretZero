@@ -10,6 +10,9 @@ Download or reference the published JSON Schema directly:
 
 This file is generated during docs builds from `secretzero schema export`.
 
+Runtime validator and typing cleanups may not change schema field shape, but the generated
+schema remains the source-of-truth contract for machine consumers.
+
 ## Root Structure
 
 ```yaml

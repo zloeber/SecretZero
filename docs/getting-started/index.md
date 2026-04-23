@@ -16,7 +16,7 @@ In this section, you'll learn how to:
 
 Before you begin, ensure you have:
 
-- **Python 3.9 or higher** installed
+- **Python 3.12 or higher** installed
 - **pip** package manager
 - Basic familiarity with YAML configuration files
 - (Optional) Access to cloud providers (AWS, Azure, etc.) if using cloud targets
