@@ -70,6 +70,7 @@ value = generator.generate()
 - [ ] Any model/config-surface change updates schema via `task schema:update`.
 - [ ] Any model/config-surface change updates both `docs/schema.md` and `docs/user-guide/configuration/index.md`.
 - [ ] Secretfile-facing feature changes include at least one updated example manifest/docs flow.
+- [ ] Lockfile sync-state logic is centralized in `src/secretzero/lockfile_state.py` (no duplicated state logic in dashboard/graph/CLI renderers).
 - [ ] CLI output paths use Rich (`Console.print`) and integrate with existing command patterns.
 - [ ] Formatting/lint expectations remain compatible with Ruff/Black (line length 100).
 - [ ] Relevant tests under `tests/` are added or updated for behavior changes.

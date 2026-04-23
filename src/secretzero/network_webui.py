@@ -489,6 +489,7 @@ def create_network_web_app(
                     secretfile_path=secretfile_path,
                     graph_type=current_graph_type,  # type: ignore[arg-type]
                     output_format="mermaid",
+                    lockfile=state.lockfile,
                 )
                 mermaid_source = _renderable_mermaid(mermaid_raw)
             except Exception:

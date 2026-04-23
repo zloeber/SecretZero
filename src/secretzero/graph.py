@@ -4,6 +4,8 @@ from pathlib import Path
 from typing import Literal
 
 from secretzero.config import ConfigLoader
+from secretzero.lockfile import Lockfile
+from secretzero.lockfile_state import sync_state_for_secret_target
 from secretzero.models import Secretfile
 
 GraphType = Literal["flow", "detailed", "architecture", "destination"]
@@ -13,7 +15,7 @@ OutputFormat = Literal["mermaid", "terminal"]
 class SecretGraphGenerator:
     """Generate visual representations of Secretfile relationships."""
 
-    def __init__(self, secretfile_path: Path):
+    def __init__(self, secretfile_path: Path, lockfile: Lockfile | None = None):
         """Initialize graph generator with a Secretfile.
 
         Args:
@@ -22,6 +24,28 @@ class SecretGraphGenerator:
         self.secretfile_path = secretfile_path
         self.config_loader = ConfigLoader()
         self.secretfile: Secretfile = self.config_loader.load_file(secretfile_path)
+        self.lockfile = lockfile
+
+    def _target_sync_state(self, secret_name: str, target) -> str:
+        """Return sync state for target: synced | pending | drift."""
+        if self.lockfile is None:
+            return "pending"
+        return sync_state_for_secret_target(self.lockfile, secret_name, target)
+
+    @staticmethod
+    def _emit_edge_styles(lines: list[str], edge_styles: list[str]) -> None:
+        """Emit Mermaid per-edge linkStyle directives."""
+        if not edge_styles:
+            return
+        lines.append("")
+        for idx, edge_class in enumerate(edge_styles):
+            if edge_class == "synced":
+                style = "stroke:#198754,stroke-width:4px,color:#198754"
+            elif edge_class == "unsynced":
+                style = "stroke:#e97109,stroke-width:4px,color:#e97109"
+            else:
+                style = "stroke:#6c757d,stroke-width:3px,color:#6c757d"
+            lines.append(f"    linkStyle {idx} {style}")
 
     def generate_flow_diagram(self) -> str:
         """Generate a flowchart diagram showing generator → secret → targets.
@@ -33,7 +57,8 @@ class SecretGraphGenerator:
 
         generators_seen: set[str] = set()
         destination_groups: dict[tuple[str, str, str], dict[str, str]] = {}
-        edges: list[tuple[str, str]] = []
+        edges: list[tuple[str, str, bool]] = []
+        edge_styles: list[str] = []
 
         for secret in self.secretfile.secrets:
             secret_id = self._safe_id(secret.name)
@@ -48,6 +73,7 @@ class SecretGraphGenerator:
             secret_label = f"Secret<br/>{secret.name}<br/>type: {generator_kind}"
             lines.append(f'    {secret_id}["{self._escape_mermaid_label(secret_label)}"]')
             lines.append(f"    {generator_id} -->|generates| {secret_id}")
+            edge_styles.append("neutral")
 
             for idx, target in enumerate(secret.targets):
                 provider, kind, destination = self._target_destination(target)
@@ -56,7 +82,10 @@ class SecretGraphGenerator:
                 entry_label = self._target_entry_label(secret.name, target, idx)
                 entry_id = self._safe_id(f"entry_{provider}_{kind}_{destination}_{entry_label}")
                 group[entry_id] = entry_label
-                edges.append((secret_id, entry_id))
+                state = self._target_sync_state(secret.name, target)
+                synced = state == "synced"
+                edges.append((secret_id, entry_id, synced))
+                edge_styles.append("synced" if synced else "unsynced")
 
         lines.append("")
         lines.append('    subgraph Targets["Target Destinations"]')
@@ -73,9 +102,11 @@ class SecretGraphGenerator:
             lines.append("        end")
         lines.append("    end")
 
-        for secret_id, entry_id in edges:
-            lines.append(f"    {secret_id} -->|syncs to| {entry_id}")
+        for secret_id, entry_id, synced in edges:
+            label = "synced with" if synced else "syncs to"
+            lines.append(f"    {secret_id} -->|{label}| {entry_id}")
 
+        self._emit_edge_styles(lines, edge_styles)
         lines.append("```")
         return "\n".join(lines)
 
@@ -87,7 +118,8 @@ class SecretGraphGenerator:
         """
         lines = ["```mermaid", "flowchart TB", "    %% Detailed Secret Configuration", ""]
         destination_groups: dict[tuple[str, str, str], dict[str, str]] = {}
-        edges: list[tuple[str, str]] = []
+        edges: list[tuple[str, str, bool]] = []
+        edge_styles: list[str] = []
 
         for secret in self.secretfile.secrets:
             secret_id = self._safe_id(secret.name)
@@ -101,6 +133,7 @@ class SecretGraphGenerator:
             secret_label = f"🔐 {secret.name}"
             lines.append(f'    {secret_id}["{self._escape_mermaid_label(secret_label)}"]')
             lines.append(f"    {generator_id} --> {secret_id}")
+            edge_styles.append("neutral")
 
             for idx, target in enumerate(secret.targets):
                 provider, kind, destination = self._target_destination(target)
@@ -111,7 +144,10 @@ class SecretGraphGenerator:
                 child_label = f"{entry_label}<br/>{detail}"
                 entry_id = self._safe_id(f"d_entry_{provider}_{kind}_{destination}_{entry_label}")
                 group[entry_id] = child_label
-                edges.append((secret_id, entry_id))
+                state = self._target_sync_state(secret.name, target)
+                synced = state == "synced"
+                edges.append((secret_id, entry_id, synced))
+                edge_styles.append("synced" if synced else "unsynced")
 
             lines.append("")  # Add spacing between secrets
 
@@ -129,9 +165,11 @@ class SecretGraphGenerator:
             lines.append("        end")
         lines.append("    end")
 
-        for secret_id, entry_id in edges:
-            lines.append(f"    {secret_id} -->|syncs to| {entry_id}")
+        for secret_id, entry_id, synced in edges:
+            label = "synced with" if synced else "syncs to"
+            lines.append(f"    {secret_id} -->|{label}| {entry_id}")
 
+        self._emit_edge_styles(lines, edge_styles)
         lines.append("```")
         return "\n".join(lines)
 
@@ -218,7 +256,8 @@ class SecretGraphGenerator:
         lines.append('    subgraph Destinations["Target Destinations"]')
 
         destination_groups: dict[tuple[str, str, str], dict[str, str]] = {}
-        edges: list[tuple[str, str]] = []
+        edges: list[tuple[str, str, bool]] = []
+        edge_styles: list[str] = []
         for secret in self.secretfile.secrets:
             secret_id = self._safe_id(f"secret_{secret.name}")
             for idx, target in enumerate(secret.targets):
@@ -229,7 +268,10 @@ class SecretGraphGenerator:
                     f"dest_entry_{provider}_{kind}_{destination}_{entry_label}"
                 )
                 destination_groups.setdefault(key, {})[entry_id] = entry_label
-                edges.append((secret_id, entry_id))
+                state = self._target_sync_state(secret.name, target)
+                synced = state == "synced"
+                edges.append((secret_id, entry_id, synced))
+                edge_styles.append("synced" if synced else "unsynced")
 
         for idx, ((provider, kind, destination), entries) in enumerate(
             sorted(destination_groups.items())
@@ -243,8 +285,10 @@ class SecretGraphGenerator:
             lines.append("        end")
         lines.append("    end")
         lines.append("")
-        for secret_id, entry_id in edges:
-            lines.append(f"    {secret_id} -->|writes| {entry_id}")
+        for secret_id, entry_id, synced in edges:
+            label = "synced with" if synced else "syncs to"
+            lines.append(f"    {secret_id} -->|{label}| {entry_id}")
+        self._emit_edge_styles(lines, edge_styles)
         lines.append("```")
         return "\n".join(lines)
 
@@ -446,6 +490,7 @@ def generate_graph(
     secretfile_path: Path,
     graph_type: GraphType = "flow",
     output_format: OutputFormat = "mermaid",
+    lockfile: Lockfile | None = None,
 ) -> str:
     """Generate visual graph from Secretfile.
 
@@ -457,7 +502,7 @@ def generate_graph(
     Returns:
         Graph representation as string
     """
-    generator = SecretGraphGenerator(secretfile_path)
+    generator = SecretGraphGenerator(secretfile_path, lockfile=lockfile)
 
     if output_format == "terminal":
         return generator.generate_terminal_summary()

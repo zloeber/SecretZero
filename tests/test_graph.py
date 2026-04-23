@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from secretzero.graph import SecretGraphGenerator, generate_graph
+from secretzero.lockfile import Lockfile
 
 
 @pytest.fixture
@@ -188,6 +189,25 @@ def test_generate_graph_flow(sample_secretfile: Path):
     assert "db_password" in diagram
 
 
+def test_generate_graph_flow_emits_status_colored_thick_edges(sample_secretfile: Path):
+    """Flow graph should include sync-aware thick edge styles when lockfile is provided."""
+    lockfile = Lockfile()
+    lockfile.add_secret("db_password", "value", target_id="local/file/.env")
+    diagram = generate_graph(
+        sample_secretfile,
+        graph_type="flow",
+        output_format="mermaid",
+        lockfile=lockfile,
+    )
+
+    assert "linkStyle" in diagram
+    assert "stroke:#198754" in diagram
+    assert "stroke:#e97109" in diagram
+    assert "stroke-width:4px" in diagram
+    assert "synced with" in diagram
+    assert "syncs to" in diagram
+
+
 def test_generate_graph_detailed(sample_secretfile: Path):
     """Test generate_graph function with detailed type."""
     diagram = generate_graph(sample_secretfile, graph_type="detailed", output_format="mermaid")
@@ -241,7 +261,7 @@ def test_generate_graph_destination(sample_secretfile: Path):
     assert "```mermaid" in diagram
     assert "flowchart LR" in diagram
     assert "Target Destinations" in diagram
-    assert "writes" in diagram
+    assert "syncs to" in diagram
 
 
 def test_generate_graph_terminal(sample_secretfile: Path):

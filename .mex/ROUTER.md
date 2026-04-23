@@ -66,6 +66,7 @@ Then read this file fully before doing anything else in this session.
 - **Variable context / lockfile:** `variables_hash` was never persisted, so `variable_context_changed` was always true for manifests with `variables:` (vs `null` in the lock), forcing `ignore_foreign_context_targets` and spurious re-prompts. Missing baseline now means “not changed”; `secretzero sync` calls `track_variable_context` before saving the lockfile so real variable / `.szvar` changes are detected on subsequent runs.
 - **CLI rotate filtering:** `secretzero rotate --secret <name>` / `-s` (repeatable) limits rotation to those manifest secrets; same as optional positional `SECRET_NAME`, but do not combine `-s` with the positional.
 - **Schema/docs parity guardrail:** Any Secretfile-facing model/config change must follow `.mex/patterns/schema-doc-parity.md` to keep `task schema:update`, `docs/schema.md`, `docs/user-guide/configuration/index.md`, tests, and example manifests in sync.
+- **Lockfile state parity guardrail:** Sync-state evaluation (`synced`/`pending`/`drift`) must be implemented once in `src/secretzero/lockfile_state.py` and reused by dashboard/graph/CLI render layers; do not duplicate target-hash fallback logic in UI code.
 
 **Not yet built:**
 - Autonomous/scheduled secret rotation service (rotation is operator-invoked).
@@ -97,6 +98,7 @@ Load the relevant file based on the current task. Always load `context/architect
 | Adding providers/generators/targets | `patterns/add-bundle.md` |
 | Adding CLI commands/options | `patterns/add-cli-command.md` |
 | Changing schema/models/config surface | `patterns/schema-doc-parity.md` |
+| Changing lockfile sync-state logic (web/graph/CLI) | `patterns/lockfile-state-parity.md` |
 | Debugging sync failures | `patterns/debug-sync.md` |
 | Any specific task | Check `patterns/INDEX.md` for a matching pattern |
 

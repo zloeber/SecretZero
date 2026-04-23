@@ -4,13 +4,18 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from enum import Enum
 from pathlib import Path
 from typing import Any
 
 from secretzero.agent import secret_supports_automatic_generation
 from secretzero.generators.traits import secret_prompts_like_static
-from secretzero.lockfile import Lockfile, SecretLockEntry
+from secretzero.lockfile_state import (
+    kind_str,
+    lock_hash_for_target,
+    sync_state_for_target,
+    target_id,
+)
+from secretzero.lockfile import Lockfile
 from secretzero.models import AgentInstructions, Secret, Secretfile, TargetConfig
 from secretzero.sync import SyncEngine
 
@@ -34,12 +39,6 @@ def format_target_line(target: TargetConfig) -> str:
     return f"{provider} · {kind} · {tail}"
 
 
-def _kind_str(kind: Any) -> str:
-    if isinstance(kind, Enum):
-        return str(kind.value)
-    return str(kind)
-
-
 def build_target_lane_ui(secret_name: str, tc: TargetConfig) -> dict[str, Any]:
     """Primary destination line plus labeled rows for the dashboard (no secret values).
 
@@ -47,7 +46,7 @@ def build_target_lane_ui(secret_name: str, tc: TargetConfig) -> dict[str, Any]:
     GitHub Actions secret name, K8s data key, etc.
     """
     cfg = tc.config
-    kind = _kind_str(tc.kind).lower()
+    kind = kind_str(tc.kind).lower()
     details: list[dict[str, str]] = []
 
     def add(label: str, value: str | None) -> None:
@@ -147,32 +146,6 @@ def build_target_lane_ui(secret_name: str, tc: TargetConfig) -> dict[str, Any]:
     if kind:
         add("Target kind", kind)
     return {"dest": dest, "details": details}
-
-
-def _lock_hash_for_target(
-    entry: SecretLockEntry | None, target_id: str, tc: TargetConfig
-) -> str | None:
-    """Resolve per-target hash from lockfile, including legacy file target ids."""
-    if not entry or not entry.targets:
-        return None
-    h = entry.targets.get(target_id)
-    if h is not None:
-        return h
-    if _kind_str(tc.kind) == "file":
-        legacy = f"{tc.provider}/file/"
-        return entry.targets.get(legacy)
-    return None
-
-
-def _sync_state_for_target(entry: SecretLockEntry | None, locked_hash: str | None) -> str:
-    """Arrow color state: synced | pending | drift."""
-    if not entry or not entry.hash:
-        return "pending"
-    if locked_hash is None:
-        return "pending"
-    if locked_hash == entry.hash:
-        return "synced"
-    return "drift"
 
 
 _ARROW_TITLE = {
@@ -344,13 +317,13 @@ def build_secret_rows(secretfile: Secretfile, lockfile: Lockfile) -> list[dict[s
             order: list[tuple[str, str]] = []
             bucket: dict[tuple[str, str], list[dict[str, Any]]] = {}
             for tc in sec.targets:
-                key = (tc.provider, _kind_str(tc.kind))
+                key = (tc.provider, kind_str(tc.kind))
                 if key not in bucket:
                     order.append(key)
                     bucket[key] = []
-                tid = SyncEngine._build_target_id(tc)
-                locked = _lock_hash_for_target(entry, tid, tc)
-                sync_state = _sync_state_for_target(entry, locked)
+                tid = target_id(tc)
+                locked = lock_hash_for_target(entry, tid, tc)
+                sync_state = sync_state_for_target(entry, locked)
                 lane_ui = build_target_lane_ui(sec.name, tc)
                 bucket[key].append(
                     {
