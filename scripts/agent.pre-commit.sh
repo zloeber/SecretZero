@@ -68,6 +68,9 @@ else
   git ls-files | sort -u > "${tmp_changed}"
 fi
 
+log "==> Running schema/docs parity gate"
+./scripts/check-schema-doc-parity.sh --changed-file-list "${tmp_changed}"
+
 requires_e2e=0
 requires_all_validations=0
 

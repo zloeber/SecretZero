@@ -338,7 +338,60 @@ class SecretSource(BaseModel):
             "If false, generation flow is attempted as fallback."
         ),
     )
-    config: dict[str, Any] = Field(default_factory=dict)
+    config: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Source-specific configuration. "
+            "file: {path, format?, key?, encoding?}; "
+            "env: {name, trim?}; "
+            "secret_ref: {secret, field?}; "
+            "provider_read: {provider, kind, read, field?, profile?, method?}."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _validate_source_config(self) -> "SecretSource":
+        """Validate known source config shapes."""
+        cfg = self.config or {}
+
+        def _require_non_empty_str(key: str) -> None:
+            val = cfg.get(key)
+            if not isinstance(val, str) or not val.strip():
+                raise ValueError(f"source.config.{key} must be a non-empty string")
+
+        if self.kind == SecretSourceKind.FILE:
+            _require_non_empty_str("path")
+            if "format" in cfg and not isinstance(cfg.get("format"), str):
+                raise ValueError("source.config.format must be a string when provided")
+            if "key" in cfg and not isinstance(cfg.get("key"), str):
+                raise ValueError("source.config.key must be a string when provided")
+            if "encoding" in cfg and not isinstance(cfg.get("encoding"), str):
+                raise ValueError("source.config.encoding must be a string when provided")
+
+        elif self.kind == SecretSourceKind.ENV:
+            _require_non_empty_str("name")
+            if "trim" in cfg and not isinstance(cfg.get("trim"), bool):
+                raise ValueError("source.config.trim must be a boolean when provided")
+
+        elif self.kind == SecretSourceKind.SECRET_REF:
+            _require_non_empty_str("secret")
+            if "field" in cfg and not isinstance(cfg.get("field"), str):
+                raise ValueError("source.config.field must be a string when provided")
+
+        elif self.kind == SecretSourceKind.PROVIDER_READ:
+            _require_non_empty_str("provider")
+            _require_non_empty_str("kind")
+            read_cfg = cfg.get("read")
+            if not isinstance(read_cfg, dict):
+                raise ValueError("source.config.read must be an object")
+            if "field" in cfg and not isinstance(cfg.get("field"), str):
+                raise ValueError("source.config.field must be a string when provided")
+            if "profile" in cfg and not isinstance(cfg.get("profile"), str):
+                raise ValueError("source.config.profile must be a string when provided")
+            if "method" in cfg and not isinstance(cfg.get("method"), str):
+                raise ValueError("source.config.method must be a string when provided")
+
+        return self
 
 
 class Secret(BaseModel):

@@ -11,5 +11,6 @@ Lookup table for all pattern files in this directory. Check here before starting
 | [add-secret.md#task-add-a-template-secret](add-secret.md#task-add-a-template-secret) | Adding a template-backed multi-field secret |
 | [debug-sync.md](debug-sync.md) | Diagnosing sync failures across config/provider/generator/target boundaries |
 | [lockfile-sync-identity.md](lockfile-sync-identity.md) | Extending lockfile operator/CI identity metadata or sync provenance |
+| [schema-doc-parity.md](schema-doc-parity.md) | Any schema/model/config-surface change requiring schema+docs+examples parity |
 | [secretzero-web.md](secretzero-web.md) | Changing `secretzero web` (network seeding UI, TLS, templates, auth) |
 | [secretfile-authoring.md](secretfile-authoring.md) | Editing Secretfile structure, variables, provider mappings, and interpolation usage |

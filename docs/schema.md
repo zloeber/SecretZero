@@ -159,10 +159,52 @@ secrets:
 | `name` | string | Unique identifier for the secret |
 | `kind` | string | Generator type or template reference (e.g., `templates.my_template`) |
 | `vars` | dict | Variables specific to this secret |
+| `source` | object/null | Optional non-human source resolved before generator flow |
 | `config` | dict | Configuration for the generator |
 | `one_time` | boolean | If true, generate once and don't rotate |
 | `rotation_period` | string | Rotation period (e.g., 90d, 6m, 1y) |
 | `targets` | list | List of storage targets |
+
+### Secret Source (`source`)
+
+`source` allows a secret value to be resolved from a non-human location before generation.
+
+```yaml
+secrets:
+  - name: copied_token
+    kind: static
+    source:
+      kind: provider_read
+      required: true
+      config:
+        provider: aws
+        kind: secrets_manager
+        read:
+          name: /prod/shared/token
+```
+
+#### Source fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `kind` | string | One of `file`, `env`, `secret_ref`, `provider_read` |
+| `required` | boolean | If true (default), source resolution failure blocks the secret |
+| `config` | dict | Source-kind-specific configuration |
+
+#### `secret_ref` specifics
+
+```yaml
+source:
+  kind: secret_ref
+  config:
+    secret: upstream_secret_name
+    field: nested.optional.path
+```
+
+- `config.secret` is required and must be non-empty
+- references are resolved in manifest order (the referenced secret must be resolved earlier)
+- self-reference is invalid
+- if `required: false`, unresolved source falls back to generator flow
 
 ### Generator Kinds
 

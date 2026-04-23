@@ -14,7 +14,7 @@ edges:
     condition: when setting up the dev environment or running the project for the first time
   - target: patterns/INDEX.md
     condition: when starting a task — check the pattern index for a matching pattern file
-last_updated: 2026-04-14
+last_updated: 2026-04-20
 ---
 
 # Session Bootstrap
@@ -65,6 +65,7 @@ Then read this file fully before doing anything else in this session.
 - **Static dict prompting:** `StaticGenerator` now fills dict/object static secrets by prompting for each scalar leaf that is `null`, blank, or a lone `${VAR}` placeholder (nested leaves only; top-level empty string remains a deliberate value). `static_payload_needs_prompt()` drives agent auto-sync classification for structured static secrets.
 - **Variable context / lockfile:** `variables_hash` was never persisted, so `variable_context_changed` was always true for manifests with `variables:` (vs `null` in the lock), forcing `ignore_foreign_context_targets` and spurious re-prompts. Missing baseline now means “not changed”; `secretzero sync` calls `track_variable_context` before saving the lockfile so real variable / `.szvar` changes are detected on subsequent runs.
 - **CLI rotate filtering:** `secretzero rotate --secret <name>` / `-s` (repeatable) limits rotation to those manifest secrets; same as optional positional `SECRET_NAME`, but do not combine `-s` with the positional.
+- **Schema/docs parity guardrail:** Any Secretfile-facing model/config change must follow `.mex/patterns/schema-doc-parity.md` to keep `task schema:update`, `docs/schema.md`, `docs/user-guide/configuration/index.md`, tests, and example manifests in sync.
 
 **Not yet built:**
 - Autonomous/scheduled secret rotation service (rotation is operator-invoked).
@@ -95,6 +96,7 @@ Load the relevant file based on the current task. Always load `context/architect
 | Editing Secretfile structure/variables/providers | `patterns/secretfile-authoring.md` |
 | Adding providers/generators/targets | `patterns/add-bundle.md` |
 | Adding CLI commands/options | `patterns/add-cli-command.md` |
+| Changing schema/models/config surface | `patterns/schema-doc-parity.md` |
 | Debugging sync failures | `patterns/debug-sync.md` |
 | Any specific task | Check `patterns/INDEX.md` for a matching pattern |
 

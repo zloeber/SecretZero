@@ -166,6 +166,21 @@ def test_secret_source_creation() -> None:
     assert secret.source.required is False
 
 
+def test_secret_source_secret_ref_requires_secret_key() -> None:
+    """secret_ref source requires config.secret."""
+    with pytest.raises(ValueError, match="source.config.secret"):
+        SecretSource(kind=SecretSourceKind.SECRET_REF, config={})
+
+
+def test_secret_source_provider_read_requires_read_object() -> None:
+    """provider_read source requires an object read config."""
+    with pytest.raises(ValueError, match="source.config.read"):
+        SecretSource(
+            kind=SecretSourceKind.PROVIDER_READ,
+            config={"provider": "aws", "kind": "secrets_manager", "read": "bad"},
+        )
+
+
 def test_one_time_secret() -> None:
     """Test one-time secret."""
     secret = Secret(

@@ -14,6 +14,26 @@ permissions:
   contents: read
 
 jobs:
+  schema-doc-parity:
+    name: Schema/Docs Parity
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute changed files against base
+        run: |
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          git diff --name-only "origin/${{ github.base_ref }}...HEAD" | sort -u > /tmp/changed_files.txt
+          echo "Changed files:"
+          cat /tmp/changed_files.txt
+
+      - name: Enforce schema/docs parity policy
+        run: |
+          zsh ./scripts/check-schema-doc-parity.sh --changed-file-list /tmp/changed_files.txt
+
   unit-tests:
     name: Unit Tests - ${{ matrix.os }} - ${{ matrix.python-version }} - ${{ github.ref_name }}
     runs-on: ${{ matrix.os }}
