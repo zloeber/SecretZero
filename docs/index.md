@@ -281,6 +281,14 @@ secretzero-api
 
 </div>
 
+## Workflow Visuals
+
+See graph and sync workflow screenshots in the docs:
+
+- [Workflow visuals →](getting-started/workflows.md)
+
+![Workflow visuals preview](inc/sz-graph-1.png)
+
 ## Architecture
 
 SecretZero follows a clean, modular architecture:

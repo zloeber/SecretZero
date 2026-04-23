@@ -2,6 +2,8 @@
 
 SecretZero uses a declarative configuration approach where all your secrets, providers, and policies are defined in a `Secretfile.yml`. This page provides an overview of configuration concepts and structure.
 
+For contract-level automation and CI validation, treat `Secretfile.schema.json` as authoritative.
+
 ## Configuration Files
 
 ### Secretfile.yml
@@ -142,6 +144,7 @@ Secrets are the core entities managed by SecretZero. Each secret definition incl
 
 - **Name**: Unique identifier for the secret
 - **Kind**: Generator type or template reference
+- **Source** (optional): Non-human value source resolved before generation
 - **Config**: Generator-specific configuration
 - **Targets**: Where to store the generated value
 - **Rotation Policy**: When to regenerate the secret
@@ -161,6 +164,39 @@ secrets:
         config:
           name: /prod/api-key
 ```
+
+### Secret Sources (`source`)
+
+Use `source` to resolve a value from non-human inputs before generator execution.
+
+```yaml
+secrets:
+  - name: app_api_token
+    kind: static
+    source:
+      kind: secret_ref
+      required: true
+      config:
+        secret: shared_seed_token
+    targets:
+      - provider: aws
+        kind: secrets_manager
+        config:
+          name: /prod/app/api-token
+```
+
+Supported kinds:
+
+- `file`: `config.path` required; optional `format`, `key`, `encoding`
+- `env`: `config.name` required; optional `trim`
+- `secret_ref`: `config.secret` required; optional `field`
+- `provider_read`: `config.provider`, `config.kind`, and object `config.read` required; optional `field`, `profile`, `method`
+
+`secret_ref` behavior:
+
+- references a previously resolved non-template secret in the same sync run
+- self-reference is rejected
+- if `required: false`, unresolved sources fall back to normal generator flow
 
 ### Templates
 

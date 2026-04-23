@@ -10,6 +10,8 @@ from secretzero.models import (
     Provider,
     ProviderAuth,
     Secret,
+    SecretSource,
+    SecretSourceKind,
     Secretfile,
     TargetConfig,
     TargetKind,
@@ -145,6 +147,38 @@ def test_secret_with_rotation() -> None:
     )
     assert secret.rotation_period == "90d"
     assert not secret.one_time
+
+
+def test_secret_source_creation() -> None:
+    """Test creating a secret with non-human source config."""
+    secret = Secret(
+        name="seeded_secret",
+        kind="static",
+        source=SecretSource(
+            kind=SecretSourceKind.ENV,
+            required=False,
+            config={"name": "SEEDED_SECRET"},
+        ),
+        targets=[],
+    )
+    assert secret.source is not None
+    assert secret.source.kind == SecretSourceKind.ENV
+    assert secret.source.required is False
+
+
+def test_secret_source_secret_ref_requires_secret_key() -> None:
+    """secret_ref source requires config.secret."""
+    with pytest.raises(ValueError, match="source.config.secret"):
+        SecretSource(kind=SecretSourceKind.SECRET_REF, config={})
+
+
+def test_secret_source_provider_read_requires_read_object() -> None:
+    """provider_read source requires an object read config."""
+    with pytest.raises(ValueError, match="source.config.read"):
+        SecretSource(
+            kind=SecretSourceKind.PROVIDER_READ,
+            config={"provider": "aws", "kind": "secrets_manager", "read": "bad"},
+        )
 
 
 def test_one_time_secret() -> None:

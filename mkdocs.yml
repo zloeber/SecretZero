@@ -136,6 +136,7 @@ nav:
       - Quick Start: getting-started/quickstart.md
       - Your First Project: getting-started/first-project.md
       - Basic Concepts: getting-started/concepts.md
+      - Workflow Visuals: getting-started/workflows.md
   - User Guide:
       - user-guide/index.md
       - Configuration:
