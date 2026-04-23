@@ -363,23 +363,23 @@ See local `Secretfile.*.yml` files or other [local examples](./examples/). Here 
 
 ### Secret Graph Overview
 
-![Secret graph overview](../inc/sz-graph-1.png)
+![Secret graph overview](./docs/inc/sz-graph-1.png)
 
 This view shows the top-level relationship between generated/resolved secrets and their targets.
 
 ### Sync State Across Targets
 
-![Sync state graph](../inc/sz-graph-2.png)
+![Sync state graph](./docs/inc/sz-graph-2.png)
 
 Edges reflect target sync state so you can quickly identify what is already synced versus pending/drifted.
 
 ### Destination-Centric View
 
-![Destination-centric graph](../inc/sz-graph-3.png)
+![Destination-centric graph](./docs/inc/sz-graph-3.png)
 
 ## Documentation
 
-- **[Docs][https://docs.secret0.com]**
+- **[Docs](https://docs.secret0.com)**
 - **[Extending SecretZero](./docs/extending.md)** - Guide for adding new secret types and providers
 
 ## Security
@@ -404,6 +404,6 @@ SecretZero is designed to complement, not replace, the External Secrets Operator
 
 SecretZero manages secret creation, bootstrap, lifecycle, and auditability upstream, while External Secrets handles runtime projection into Kubernetes.
 
-## Relationship to [Vault|Infiscal|Others]
+## Relationship to <Vault|Infiscal|Others>
 
-A secrets management solution like Infisical is a strong control plane for secret storage and policy. SecretZero compliments this and other secrets solutions by adding deterministic orchestration and cross-provider lifecycle modeling. SecretZero simply maps out the secrets from inception to usage and beyond.
+A secrets management solution like Infisical is a strong control plane for secret storage and policy. SecretZero compliments this and other secrets solutions by adding deterministic orchestration and cross-provider lifecycle modeling. SecretZero maps out the secrets from inception to usage and beyond regardless of the backend secrets platforms in place.
