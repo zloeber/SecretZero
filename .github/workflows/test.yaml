@@ -32,7 +32,7 @@ jobs:
 
       - name: Enforce schema/docs parity policy
         run: |
-          zsh ./scripts/check-schema-doc-parity.sh --changed-file-list /tmp/changed_files.txt
+          bash ./scripts/check-schema-doc-parity.sh --changed-file-list /tmp/changed_files.txt
 
   unit-tests:
     name: Unit Tests - ${{ matrix.os }} - ${{ matrix.python-version }} - ${{ github.ref_name }}
