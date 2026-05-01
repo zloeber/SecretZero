@@ -49,6 +49,9 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+
       - name: Cache uv
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
@@ -59,8 +62,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install uv
-          uv sync --all-extras
+          uv sync --frozen --all-extras
 
       - name: Unit Tests - ${{ matrix.os }}
         run: uv run pytest --maxfail=1 --disable-warnings -v tests
@@ -80,6 +82,9 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+
       - name: Cache uv
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
@@ -90,8 +95,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install uv
-          uv sync --all-extras
+          uv sync --frozen --all-extras
 
       - name: E2E Tavern Tests
         run: uv run pytest --maxfail=1 --disable-warnings -v tests/e2e
@@ -111,6 +115,9 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+
       - name: Cache uv
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
@@ -121,8 +128,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install uv
-          uv sync --extra dev
+          uv sync --frozen --extra dev
 
       - name: Lint Checks - ${{ matrix.os }}
         run: |
@@ -144,6 +150,9 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+
       - name: Cache uv
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
@@ -154,8 +163,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install uv
-          uv sync --extra security
+          uv sync --frozen --extra security
 
       - name: Security Scans - ${{ matrix.os }}
         run: |
@@ -177,6 +185,9 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+
       - name: Cache uv
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
@@ -187,5 +198,4 @@ jobs:
 
       - name: Build Tests - ${{ matrix.os }}
         run: |
-          pip install uv
           uv build

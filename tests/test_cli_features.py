@@ -152,6 +152,71 @@ templates: {{}}
         assert payload["synced"] == 1
 
 
+def test_status_text_default_compact_mapping(runner: CliRunner) -> None:
+    """Default text status should show compact secret->target mapping."""
+    with TemporaryDirectory() as tmpdir:
+        sf = Path(tmpdir) / "Secretfile.yml"
+        sf.write_text(SECRETFILE_WITH_SECRETS)
+        lock = Path(tmpdir) / ".lock"
+
+        result = runner.invoke(main, ["status", "--file", str(sf), "--lockfile", str(lock)])
+        assert result.exit_code == 0, result.output
+        assert "Secret -> Target Status" in result.output
+        assert "db_password (random_password)" in result.output
+        assert "local/file - .env.test" in result.output
+        assert "├─" in result.output or "└─" in result.output
+        assert "synced:" in result.output
+        assert "pending:1 unknown:0" in result.output
+
+
+def test_status_text_detailed_keeps_full_report(runner: CliRunner) -> None:
+    """`status --detailed` should show the prior full report format."""
+    with TemporaryDirectory() as tmpdir:
+        sf = Path(tmpdir) / "Secretfile.yml"
+        sf.write_text(SECRETFILE_WITH_SECRETS)
+        lock = Path(tmpdir) / ".lock"
+
+        result = runner.invoke(
+            main, ["status", "--file", str(sf), "--lockfile", str(lock), "--detailed"]
+        )
+        assert result.exit_code == 0, result.output
+        assert "Secret Synchronization Status:" in result.output
+        assert "Targets:" in result.output
+
+
+def test_status_compact_file_target_shows_path_and_target_key(runner: CliRunner) -> None:
+    """Compact status should include file path and target key/template variable details."""
+    with TemporaryDirectory() as tmpdir:
+        sf = Path(tmpdir) / "Secretfile.yml"
+        sf.write_text("""
+version: '1.0'
+variables: {}
+providers:
+  local:
+    kind: local
+secrets:
+  - name: api_token
+    kind: random_string
+    config:
+      length: 12
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: .env.custom
+          key: APP_API_TOKEN
+          template_variable: app_api_token
+templates: {}
+""")
+        lock = Path(tmpdir) / ".lock"
+
+        result = runner.invoke(main, ["status", "--file", str(sf), "--lockfile", str(lock)])
+        assert result.exit_code == 0, result.output
+        assert ".env.custom" in result.output
+        assert "APP_API_TOKEN" in result.output
+        assert "app_api_token" in result.output
+
+
 def test_get_json_metadata_only_default(runner: CliRunner, monkeypatch: pytest.MonkeyPatch) -> None:
     """`get` returns metadata by default without plaintext value."""
     with TemporaryDirectory() as tmpdir:

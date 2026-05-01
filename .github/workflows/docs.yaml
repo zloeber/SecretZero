@@ -24,15 +24,12 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install uv
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          source "$HOME/.cargo/env"
+      - name: Set up uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
           
       - name: Install dependencies
         run: |
-          uv venv
-          uv sync --all-extras
+          uv sync --frozen --all-extras
 
       - name: Export Secretfile schema for docs
         run: |

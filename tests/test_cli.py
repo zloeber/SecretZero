@@ -6,6 +6,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import pytest
+import yaml
 from click.testing import CliRunner
 
 from secretzero.cli import main
@@ -24,11 +25,50 @@ def test_cli_version(runner: CliRunner) -> None:
     assert "version" in result.output.lower()
 
 
+def test_version_subcommand_text(runner: CliRunner) -> None:
+    """Test version subcommand default text output."""
+    result = runner.invoke(main, ["version"])
+    assert result.exit_code == 0
+    assert "SecretZero" in result.output
+    assert "version" in result.output.lower()
+    assert "https://secret0.com" in result.output
+
+
+def test_version_subcommand_json_detailed(runner: CliRunner) -> None:
+    """Test version subcommand with detailed JSON output."""
+    result = runner.invoke(main, ["version", "--detailed", "--format", "json"])
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["name"] == "secretzero"
+    assert isinstance(payload["version"], str)
+    assert payload["website"] == "https://secret0.com"
+    assert "python_version" in payload
+    assert "platform" in payload
+    assert "executable" in payload
+
+
+def test_version_subcommand_yaml(runner: CliRunner) -> None:
+    """Test version subcommand YAML output."""
+    result = runner.invoke(main, ["version", "--format", "yaml"])
+    assert result.exit_code == 0
+    payload = json.loads(json.dumps(yaml.safe_load(result.output)))
+    assert payload["name"] == "secretzero"
+    assert isinstance(payload["version"], str)
+    assert payload["website"] == "https://secret0.com"
+
+
 def test_cli_help(runner: CliRunner) -> None:
     """Test CLI help command."""
     result = runner.invoke(main, ["--help"])
     assert result.exit_code == 0
     assert "SecretZero" in result.output
+
+
+def test_cli_without_subcommand_exits_zero(runner: CliRunner) -> None:
+    """Running bare CLI should print help and exit cleanly."""
+    result = runner.invoke(main, [])
+    assert result.exit_code == 0
+    assert "Usage:" in result.output
 
 
 def test_create_command(runner: CliRunner) -> None:
@@ -415,6 +455,94 @@ secrets:
 
         # Check output mentions what would be cleaned
         assert "Would remove" in result.output or "dry run" in result.output.lower()
+
+
+def test_clean_command_removes_orphaned_entries(runner: CliRunner) -> None:
+    """Test clean command removes orphaned lockfile entries without syncing."""
+    with TemporaryDirectory() as tmpdir:
+        secretfile = Path(tmpdir) / "Secretfile.yml"
+        lockfile_path = Path(tmpdir) / "test.lock"
+        output_file = Path(tmpdir) / "secret.txt"
+
+        secretfile.write_text(f"""
+version: "1.0"
+secrets:
+  - name: current_secret
+    kind: random_password
+    config:
+      length: 16
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: {output_file}
+""")
+
+        from datetime import UTC, datetime
+
+        from secretzero.lockfile import Lockfile, SecretLockEntry
+
+        lock = Lockfile()
+        now = datetime.now(UTC).isoformat()
+        lock.secrets["current_secret"] = SecretLockEntry(
+            hash="abc123", created_at=now, updated_at=now
+        )
+        lock.secrets["orphaned_secret"] = SecretLockEntry(
+            hash="def456", created_at=now, updated_at=now
+        )
+        lock.save(lockfile_path)
+
+        result = runner.invoke(
+            main, ["clean", "--file", str(secretfile), "--lockfile", str(lockfile_path)]
+        )
+        assert result.exit_code == 0, result.output
+        cleaned_lock = Lockfile.load(lockfile_path)
+        assert "current_secret" in cleaned_lock.secrets
+        assert "orphaned_secret" not in cleaned_lock.secrets
+
+
+def test_clean_command_dry_run_preserves_orphans(runner: CliRunner) -> None:
+    """Test clean command dry-run does not mutate lockfile."""
+    with TemporaryDirectory() as tmpdir:
+        secretfile = Path(tmpdir) / "Secretfile.yml"
+        lockfile_path = Path(tmpdir) / "test.lock"
+        output_file = Path(tmpdir) / "secret.txt"
+
+        secretfile.write_text(f"""
+version: "1.0"
+secrets:
+  - name: current_secret
+    kind: random_password
+    config:
+      length: 16
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: {output_file}
+""")
+
+        from datetime import UTC, datetime
+
+        from secretzero.lockfile import Lockfile, SecretLockEntry
+
+        lock = Lockfile()
+        now = datetime.now(UTC).isoformat()
+        lock.secrets["current_secret"] = SecretLockEntry(
+            hash="abc123", created_at=now, updated_at=now
+        )
+        lock.secrets["orphaned_secret"] = SecretLockEntry(
+            hash="def456", created_at=now, updated_at=now
+        )
+        lock.save(lockfile_path)
+
+        result = runner.invoke(
+            main,
+            ["clean", "--file", str(secretfile), "--lockfile", str(lockfile_path), "--dry-run"],
+        )
+        assert result.exit_code == 0, result.output
+        cleaned_lock = Lockfile.load(lockfile_path)
+        assert "orphaned_secret" in cleaned_lock.secrets
 
 
 def test_show_command(runner: CliRunner) -> None:

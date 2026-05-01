@@ -149,7 +149,7 @@ tasks:
   docs:build:
     desc: Build the MkDocs site into ./site
     cmds:
-      - uv sync --all-extras
+      - uv sync --frozen --all-extras
       - uv run secretzero schema export --output docs/Secretfile.schema.json
       - task: docs:generate:provider-bundles
       - uv run mkdocs build --clean
@@ -157,7 +157,7 @@ tasks:
   docs:serve:
     desc: Serve MkDocs locally with live reload
     cmds:
-      - uv sync --all-extras
+      - uv sync --frozen --all-extras
       - uv run secretzero schema export --output docs/Secretfile.schema.json
       - task: docs:generate:provider-bundles
       - uv run mkdocs serve --dev-addr 127.0.0.1:8001
@@ -247,14 +247,14 @@ tasks:
     desc: Run the tests
     cmds:
       - |
-        uv sync --all-extras
+        uv sync --frozen --all-extras
         uv run pytest --maxfail=1 --disable-warnings -v tests --ignore=tests/e2e
 
   test:e2e:
     desc: Run Tavern HTTP E2E tests (requires dev extras)
     cmds:
       - |
-        uv sync --all-extras
+        uv sync --frozen --all-extras
         uv run pytest --maxfail=1 --disable-warnings -v tests/e2e
 
   format:
@@ -278,7 +278,7 @@ tasks:
     desc: Publish docs to Cloudflare Pages
     cmds:
       - |
-        npm i -D wrangler@latest
+        npm ci --ignore-scripts
         #npx wrangler login --api-token $CLOUDFLARE_API_TOKEN
         npx wrangler pages deploy site/ --project-name secretzero --branch main
 
@@ -286,7 +286,7 @@ tasks:
       desc: "Install demo recording dependencies"
       cmds:
         - |
-          uv sync --all-extras
+          uv sync --frozen --all-extras
 
   demo:record:
     desc: "Record CLI demos and convert to SVG"

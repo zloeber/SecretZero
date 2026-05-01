@@ -2,6 +2,7 @@
 
 import json
 import os
+import platform
 import sys
 from pathlib import Path
 from typing import Any
@@ -25,6 +26,7 @@ from secretzero.environment_resolution import apply_target_profile, resolve_envi
 from secretzero.graph import generate_graph
 from secretzero.lockfile import Lockfile
 from secretzero.lockfile_import import run_lockfile_import
+from secretzero.lockfile_state import sync_state_for_secret_target
 from secretzero.models import SECRETFILE_MANIFEST_SPEC_VERSION, AgentMode, Secretfile
 from secretzero.policy import PolicyEngine
 from secretzero.provider_identity import collect_provider_identity_rows
@@ -132,7 +134,7 @@ def _print_sync_readiness_panel(readiness: dict[str, Any]) -> None:
         console.print()
 
 
-@click.group(context_settings={"help_option_names": ["-h", "--help"]})
+@click.group(context_settings={"help_option_names": ["-h", "--help"]}, invoke_without_command=True)
 @click.version_option(version=__version__)
 @click.option(
     "--non-interactive",
@@ -150,6 +152,9 @@ def main(ctx: click.Context, non_interactive: bool) -> None:
     """
     ctx.ensure_object(dict)
     ctx.obj["non_interactive"] = non_interactive
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
+        ctx.exit(EXIT_SUCCESS)
 
 
 def _is_non_interactive() -> bool:
@@ -207,6 +212,57 @@ def _parse_get_args(raw_args: tuple[str, ...]) -> dict[str, Any]:
         except json.JSONDecodeError:
             parsed[key] = raw_value
     return parsed
+
+
+@main.command()
+@click.option(
+    "--detailed",
+    is_flag=True,
+    help="Include runtime and environment details.",
+)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json", "yaml"]),
+    default="text",
+    show_default=True,
+    help="Output format.",
+)
+def version(detailed: bool, output_format: str) -> None:
+    """Show installed SecretZero version information."""
+    payload: dict[str, Any] = {
+        "name": "secretzero",
+        "version": __version__,
+        "website": "https://secret0.com",
+    }
+    if detailed:
+        payload.update(
+            {
+                "python_version": platform.python_version(),
+                "platform": platform.platform(),
+                "executable": sys.executable,
+                "manifest_spec_version": SECRETFILE_MANIFEST_SPEC_VERSION,
+            }
+        )
+
+    if output_format == "json":
+        click.echo(json.dumps(payload, indent=2))
+        return
+    if output_format == "yaml":
+        click.echo(yaml.safe_dump(payload, sort_keys=False).strip())
+        return
+
+    if detailed:
+        table = Table(title="SecretZero Version", box=box.ROUNDED)
+        table.add_column("Field", style="cyan", no_wrap=True)
+        table.add_column("Value", style="green")
+        for key, value in payload.items():
+            table.add_row(key, str(value))
+        console.print(table)
+    else:
+        console.print(
+            f"SecretZero version [green]{__version__}[/green] ([link={payload['website']}]{payload['website']}[/link])"
+        )
 
 
 @main.command()
@@ -607,13 +663,18 @@ def render(file: str, var_files: tuple[str, ...], format: str, output: str | Non
     help="Show detailed information including target hashes",
 )
 @click.option(
+    "--detailed",
+    is_flag=True,
+    help="Show full status report (previous default text output).",
+)
+@click.option(
     "--format",
     "output_format",
     type=click.Choice(["text", "json"]),
     default="text",
     help="Output format (text or json)",
 )
-def status(file: str, lockfile: str, verbose: bool, output_format: str) -> None:
+def status(file: str, lockfile: str, verbose: bool, detailed: bool, output_format: str) -> None:
     """Show synchronization status of secrets and targets.
 
     This command displays which secrets have been generated and synced to their
@@ -692,32 +753,145 @@ def status(file: str, lockfile: str, verbose: bool, output_format: str) -> None:
         click.echo(json.dumps(result, indent=2, default=str))
         return
 
-    console.print("[bold]Secret Synchronization Status:[/bold]\n")
-    _print_provider_identity_panel(config)
-    _print_sync_readiness_panel(sync_readiness)
+    if verbose and not detailed:
+        detailed = True
+
+    if detailed:
+        console.print("[bold]Secret Synchronization Status:[/bold]\n")
+        _print_provider_identity_panel(config)
+        _print_sync_readiness_panel(sync_readiness)
+
+        if not config.secrets:
+            console.print("[dim]No secrets configured[/dim]")
+            return
+
+        # Process regular secrets
+        for secret in config.secrets:
+            _show_secret_status(secret, config, lock, verbose)
+
+        # Show lockfile info
+        if lockfile_path.exists():
+            console.print(f"\n[dim]Lockfile: {lockfile_path}[/dim]")
+            console.print(f"[dim]Total tracked secrets: {len(lock.secrets)}[/dim]")
+            _show_secretfile_tracking_status(
+                file_path,
+                current_secretfile_hash,
+                tracked_secretfile,
+                secretfile_changed,
+                verbose,
+            )
+        else:
+            console.print(f"\n[yellow]⚠[/yellow] No lockfile found at {lockfile_path}")
+            console.print(
+                "[dim]Run 'secretzero sync' to generate secrets and create lockfile[/dim]"
+            )
+        return
+
+    _show_status_compact(
+        config=config, lock=lock, lockfile_path=lockfile_path, sync_readiness=sync_readiness
+    )
+
+
+def _show_status_compact(
+    config, lock: Lockfile, lockfile_path: Path, sync_readiness: dict[str, Any]
+) -> None:
+    """Show compact, relation-focused status mapping for secrets and targets."""
+    console.print("[bold]Secret -> Target Status[/bold]")
+    console.print(
+        "[dim]Legend: [green]→ synced[/green], [red]→ pending/drift[/red], [yellow]→ unknown[/yellow][/dim]\n"
+    )
 
     if not config.secrets:
         console.print("[dim]No secrets configured[/dim]")
         return
 
-    # Process regular secrets
-    for secret in config.secrets:
-        _show_secret_status(secret, config, lock, verbose)
+    provider_status = {
+        row.get("alias", ""): row.get("status", "unknown")
+        for row in sync_readiness.get("provider_identity", {}).get("rows", [])
+    }
+    provider_access = {
+        str(item.get("provider") or ""): bool(item.get("ok"))
+        for item in sync_readiness.get("target_access", {}).get("results", [])
+    }
 
-    # Show lockfile info
-    if lockfile_path.exists():
-        console.print(f"\n[dim]Lockfile: {lockfile_path}[/dim]")
-        console.print(f"[dim]Total tracked secrets: {len(lock.secrets)}[/dim]")
-        _show_secretfile_tracking_status(
-            file_path,
-            current_secretfile_hash,
-            tracked_secretfile,
-            secretfile_changed,
-            verbose,
+    for secret in config.secrets:
+        secret_label = _compact_secret_label(secret)
+        console.print(f"[bold cyan]{secret_label}[/bold cyan]")
+        if not secret.targets:
+            console.print("  [dim]└─ no targets configured[/dim]")
+            console.print("  [dim]synced:0 pending:0 unknown:0[/dim]\n")
+            continue
+
+        state_counts = {"synced": 0, "pending": 0, "unknown": 0}
+        for idx, target in enumerate(secret.targets):
+            target_state = sync_state_for_secret_target(lock, secret.name, target)
+            provider_state = provider_status.get(target.provider)
+            arrow = _status_arrow_for_target(
+                target_state, provider_state, provider_access.get(target.provider)
+            )
+            target_label = _compact_target_label(target)
+            connector = "└─" if idx == len(secret.targets) - 1 else "├─"
+            if target_state == "synced":
+                state_counts["synced"] += 1
+            elif provider_access.get(target.provider) is True or provider_state in {"ok", "local"}:
+                state_counts["pending"] += 1
+            else:
+                state_counts["unknown"] += 1
+            console.print(f"  {connector} {arrow} {target_label}")
+        console.print(
+            f"  [dim]synced:{state_counts['synced']} pending:{state_counts['pending']} unknown:{state_counts['unknown']}[/dim]\n"
         )
-    else:
-        console.print(f"\n[yellow]⚠[/yellow] No lockfile found at {lockfile_path}")
-        console.print("[dim]Run 'secretzero sync' to generate secrets and create lockfile[/dim]")
+    console.print(
+        f"\n[dim]Secrets: {len(config.secrets)} | Tracked lock entries: {len(lock.secrets)} | Lockfile: {lockfile_path}[/dim]"
+    )
+
+
+def _status_arrow_for_target(
+    target_state: str, provider_identity_status: str | None, provider_access_ok: bool | None
+) -> str:
+    """Return color-coded arrow for compact status output."""
+    if target_state == "synced":
+        return "[green]→[/green]"
+    if provider_access_ok is True:
+        return "[red]→[/red]"
+    if provider_identity_status in {"ok", "local"}:
+        return "[red]→[/red]"
+    return "[yellow]→[/yellow]"
+
+
+def _compact_secret_label(secret) -> str:
+    """Return compact secret label: <name> (<optional provider>/<type>)."""
+    secret_provider = getattr(secret, "provider", None)
+    if secret_provider:
+        return f"{secret.name} ({secret_provider}/{secret.kind})"
+    return f"{secret.name} ({secret.kind})"
+
+
+def _compact_target_label(target) -> str:
+    """Return compact target label: <provider>/<type> - <path>."""
+    location_keys = (
+        "path",
+        "name",
+        "secret_name",
+        "variable_name",
+        "credential_id",
+        "repository",
+        "project_id",
+        "vault_name",
+        "namespace",
+    )
+    location = next(
+        (str(target.config.get(k)) for k in location_keys if target.config.get(k)), "unconfigured"
+    )
+    annotations: list[str] = []
+    if target.kind == "file":
+        if target.config.get("key"):
+            annotations.append(f"key={target.config.get('key')}")
+        template_var = target.config.get("template_variable") or target.config.get("template_var")
+        if template_var:
+            annotations.append(f"template={template_var}")
+    suffix = f" ({', '.join(annotations)})" if annotations else ""
+    return f"{target.provider}/{target.kind} - {location}{suffix}"
 
 
 def _show_secret_status(secret, config, lock: Lockfile, verbose: bool) -> None:
@@ -2618,6 +2792,83 @@ def _clean_lockfile_orphans(config, lock: Lockfile, dry_run: bool) -> list[str]:
             lock.remove_secret(secret_name)
 
     return orphaned_entries
+
+
+@main.command()
+@click.option(
+    "--file",
+    "-f",
+    type=click.Path(exists=True),
+    default="Secretfile.yml",
+    help="Path to Secretfile",
+)
+@click.option(
+    "--lockfile",
+    "-l",
+    type=click.Path(),
+    default=".gitsecrets.lock",
+    help="Path to lockfile",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Show orphaned lockfile entries without removing them.",
+)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    help="Output format (text or json)",
+)
+def clean(file: str, lockfile: str, dry_run: bool, output_format: str) -> None:
+    """Remove orphaned lockfile entries without running sync."""
+    file_path = Path(file)
+    lockfile_path = Path(lockfile)
+    loader = ConfigLoader()
+
+    try:
+        config = loader.load_file(file_path)
+    except Exception as e:
+        if output_format == "json":
+            click.echo(json.dumps({"error": str(e), "exit_code": EXIT_CONFIG_ERROR}))
+        else:
+            console.print(f"[red]Error loading Secretfile:[/red] {e}")
+        sys.exit(EXIT_CONFIG_ERROR)
+
+    lock = Lockfile.load(lockfile_path)
+    orphaned_entries = _clean_lockfile_orphans(config, lock, dry_run=dry_run)
+
+    if not dry_run and orphaned_entries:
+        lock.save(lockfile_path)
+
+    if output_format == "json":
+        click.echo(
+            json.dumps(
+                {
+                    "cleaned": len(orphaned_entries),
+                    "orphaned_entries": orphaned_entries,
+                    "dry_run": dry_run,
+                    "lockfile": str(lockfile_path),
+                },
+                indent=2,
+            )
+        )
+        return
+
+    if orphaned_entries:
+        action = "Would remove" if dry_run else "Removed"
+        console.print(
+            f"[cyan]🗑 {action}[/cyan] {len(orphaned_entries)} orphaned lockfile entr"
+            f"{'y' if len(orphaned_entries) == 1 else 'ies'}"
+        )
+        for secret_name in orphaned_entries:
+            console.print(f"  • {secret_name}")
+    else:
+        console.print("[green]✓[/green] No orphaned lockfile entries found.")
+
+    if dry_run:
+        console.print("[yellow]Dry run only; no changes written.[/yellow]")
 
 
 def _show_all_secrets(engine: SyncEngine, config) -> None:
