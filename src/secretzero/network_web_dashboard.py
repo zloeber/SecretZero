@@ -93,7 +93,6 @@ def build_target_lane_ui(secret_name: str, tc: TargetConfig) -> dict[str, Any]:
         obj = str(cfg.get("secret_name", "") or "")
         dkey = str(cfg.get("data_key") or secret_name)
         dest = f"{ns}/{obj}" if obj else ns
-        add("Secret object", obj)
         add("Data key", dkey)
         return {"dest": dest, "details": details}
 
@@ -153,6 +152,31 @@ _ARROW_TITLE = {
     "pending": "This target is not recorded in the lockfile yet — run Sync.",
     "drift": "Recorded hash for this target differs from the current secret hash — re-sync.",
 }
+
+
+def lane_identity_blocked(
+    provider_alias: str,
+    identity_preflight: dict[str, Any] | None,
+) -> tuple[bool, str]:
+    """Whether UI should disable target actions for this provider (policy failure)."""
+    if not identity_preflight:
+        return False, ""
+    if identity_preflight.get("preflight_error"):
+        return True, "Could not evaluate provider identity policies. Check server logs."
+    if not identity_preflight.get("has_policies") or identity_preflight.get("all_ok"):
+        return False, ""
+    reasons: list[str] = []
+    for row in identity_preflight.get("rows") or []:
+        if row.get("provider_alias") != provider_alias:
+            continue
+        if row.get("status") == "ok":
+            continue
+        pname = str(row.get("policy_name") or "policy")
+        detail = str(row.get("detail") or row.get("status") or "").strip()
+        reasons.append(f"{pname}: {detail}".strip() if detail else pname)
+    if reasons:
+        return True, "Blocked by identity policy — " + "; ".join(reasons)
+    return False, ""
 
 
 def apply_force_resync_flags(target_groups: list[dict[str, Any]]) -> None:
@@ -306,7 +330,11 @@ def build_manifest_rows(
     return base
 
 
-def build_secret_rows(secretfile: Secretfile, lockfile: Lockfile) -> list[dict[str, Any]]:
+def build_secret_rows(
+    secretfile: Secretfile,
+    lockfile: Lockfile,
+    identity_preflight: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
     """One card per secret: grouped targets, per-target sync arrows, agent instructions."""
     rows: list[dict[str, Any]] = []
     for sec in secretfile.secrets:
@@ -325,13 +353,19 @@ def build_secret_rows(secretfile: Secretfile, lockfile: Lockfile) -> list[dict[s
                 locked = lock_hash_for_target(entry, tid, tc)
                 sync_state = sync_state_for_target(entry, locked)
                 lane_ui = build_target_lane_ui(sec.name, tc)
+                blocked, block_reason = lane_identity_blocked(tc.provider, identity_preflight)
+                arrow_css = "unknown" if blocked else sync_state
+                arrow_title = block_reason if blocked else _ARROW_TITLE[sync_state]
                 bucket[key].append(
                     {
                         "dest": lane_ui["dest"],
                         "details": lane_ui["details"],
                         "sync_state": sync_state,
-                        "arrow_title": _ARROW_TITLE[sync_state],
+                        "arrow_css_class": arrow_css,
+                        "arrow_title": arrow_title,
                         "target_id": tid,
+                        "lane_identity_blocked": blocked,
+                        "lane_identity_reason": block_reason,
                     }
                 )
             for key in order:

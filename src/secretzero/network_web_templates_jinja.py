@@ -17,6 +17,7 @@ _BASE_STYLE = """
   --flow-synced: #198754;
   --flow-pending: #e97109;
   --flow-drift: #c82832;
+  --flow-unknown: #ffc107;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -32,6 +33,7 @@ _BASE_STYLE = """
     --flow-synced: #3dd68c;
     --flow-pending: #ffb347;
     --flow-drift: #ff7b7b;
+    --flow-unknown: #ffd54f;
   }
 }
 * { box-sizing: border-box; }
@@ -175,6 +177,11 @@ table.sz td.actions form { display: inline; margin-right: 0.25rem; }
 .sync-legend__i--synced { background: var(--flow-synced); }
 .sync-legend__i--pending { background: var(--flow-pending); }
 .sync-legend__i--drift { background: var(--flow-drift); }
+.sync-legend__i--unknown { background: var(--flow-unknown); }
+button.btn[disabled], button.btn:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
 .sz-flow {
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -275,6 +282,8 @@ table.sz td.actions form { display: inline; margin-right: 0.25rem; }
 .sz-flow__arrow--pending::after { border-left: 8px solid var(--flow-pending); }
 .sz-flow__arrow--drift { background: var(--flow-drift); }
 .sz-flow__arrow--drift::after { border-left: 8px solid var(--flow-drift); }
+.sz-flow__arrow--unknown { background: var(--flow-unknown); }
+.sz-flow__arrow--unknown::after { border-left: 8px solid var(--flow-unknown); }
 .sz-flow__dest-wrap {
   flex: 1 1 auto;
   min-width: 0;
@@ -719,6 +728,7 @@ TEMPLATES = {
     <span><span class="sync-legend__i sync-legend__i--synced" aria-hidden="true"></span> Synced</span>
     <span><span class="sync-legend__i sync-legend__i--pending" aria-hidden="true"></span> Pending</span>
     <span><span class="sync-legend__i sync-legend__i--drift" aria-hidden="true"></span> Drift</span>
+    <span><span class="sync-legend__i sync-legend__i--unknown" aria-hidden="true"></span> Unknown / blocked</span>
   </p>
   <div class="flow-list" role="list" aria-label="Secrets and deployment targets">
     {% for row in rows %}
@@ -775,7 +785,7 @@ TEMPLATES = {
             <div class="sz-flow__group-inner">
               {% for item in group.lanes %}
               <div class="sz-flow__lane">
-                <div class="sz-flow__arrow sz-flow__arrow--{{ item.sync_state }}" role="img" title="{{ item.arrow_title }}"></div>
+                <div class="sz-flow__arrow sz-flow__arrow--{{ item.arrow_css_class }}" role="img" title="{{ item.arrow_title }}"></div>
                 <div class="sz-flow__dest-wrap">
                   <p class="sz-flow__dest-text"><code>{{ item.dest }}</code></p>
                   {% if item.details %}
@@ -792,7 +802,7 @@ TEMPLATES = {
                     <input type="hidden" name="environment" value="{{ selected_environment }}"/>
                     <input type="hidden" name="secret_name" value="{{ row.name }}"/>
                     <input type="hidden" name="target_id" value="{{ item.target_id }}"/>
-                    <button type="submit" class="btn btn-sm" title="Write the current secret value to this target again">Force to target</button>
+                    <button type="submit" class="btn btn-sm" {% if item.lane_identity_blocked %}disabled aria-disabled="true" title="{{ item.lane_identity_reason | e }}"{% else %}title="Write the current secret value to this target again"{% endif %}>Force to target</button>
                   </form>
                   {% endif %}
                 </div>
