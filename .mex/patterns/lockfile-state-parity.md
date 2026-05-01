@@ -41,7 +41,7 @@ Do not duplicate target sync-state logic in renderers. Use shared helpers in `sr
 - [ ] No duplicated lockfile target-state branching remains outside `lockfile_state.py`.
 - [ ] Synced/pending/drift outcomes are identical for dashboard and graph consumers.
 - [ ] Legacy file target ID fallback behavior is covered by tests.
-- [ ] Consumer tests still verify expected labels (`synced with` vs `syncs to`) and styling.
+- [ ] Consumer tests still verify expected Mermaid edge labels (`|synced|`, `|pending|`, `|drift|`, optional `|unknown|`) and `linkStyle` ordering (generator edges declared before secret→target edges).
 
 ## Gotchas
 - Graph rendering can hide parity regressions if it reimplements fallback target ID behavior.

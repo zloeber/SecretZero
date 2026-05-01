@@ -4,8 +4,10 @@ from pathlib import Path
 
 import pytest
 
+from secretzero.config import ConfigLoader
 from secretzero.graph import SecretGraphGenerator, generate_graph
 from secretzero.lockfile import Lockfile
+from secretzero.sync import SyncEngine
 
 
 @pytest.fixture
@@ -98,9 +100,9 @@ def test_generate_flow_diagram(sample_secretfile: Path):
     assert "random_password" in diagram.lower()
     assert "random_string" in diagram.lower()
 
-    # Verify connections
+    # Verify connections (edge labels are lockfile-driven: pending when no lockfile)
     assert "generates" in diagram
-    assert "syncs to" in diagram
+    assert "|pending|" in diagram
     assert "subgraph Targets" in diagram
     assert "name: db_password" in diagram
     assert "secret_name: API_KEY" in diagram
@@ -191,8 +193,17 @@ def test_generate_graph_flow(sample_secretfile: Path):
 
 def test_generate_graph_flow_emits_status_colored_thick_edges(sample_secretfile: Path):
     """Flow graph should include sync-aware thick edge styles when lockfile is provided."""
+    loader = ConfigLoader()
+    sf = loader.load_file(sample_secretfile)
+    api = next(s for s in sf.secrets if s.name == "api_key")
+    api_file_tid = SyncEngine._build_target_id(api.targets[0])
+
     lockfile = Lockfile()
     lockfile.add_secret("db_password", "value", target_id="local/file/.env")
+    lockfile.add_secret("api_key", "same_value")
+    entry = lockfile.secrets["api_key"]
+    entry.targets[api_file_tid] = "not_matching_main_hash"
+
     diagram = generate_graph(
         sample_secretfile,
         graph_type="flow",
@@ -203,9 +214,29 @@ def test_generate_graph_flow_emits_status_colored_thick_edges(sample_secretfile:
     assert "linkStyle" in diagram
     assert "stroke:#198754" in diagram
     assert "stroke:#e97109" in diagram
+    assert "stroke:#c82832" in diagram
     assert "stroke-width:4px" in diagram
-    assert "synced with" in diagram
-    assert "syncs to" in diagram
+    assert "|synced|" in diagram
+    assert "|pending|" in diagram
+    assert "|drift|" in diagram
+
+
+def test_generate_flow_linkstyle_order_matches_edge_declaration(sample_secretfile: Path):
+    """linkStyle index N must style the Nth declared edge (generator edges before secret→target)."""
+    lockfile = Lockfile()
+    lockfile.add_secret("db_password", "value", target_id="local/file/.env")
+    diagram = generate_graph(
+        sample_secretfile,
+        graph_type="flow",
+        output_format="mermaid",
+        lockfile=lockfile,
+    )
+    lines = [ln.strip() for ln in diagram.splitlines() if ln.strip().startswith("linkStyle")]
+    # Two secrets → two generator edges first → those linkStyles must be neutral (grey thin stroke).
+    assert lines[0].startswith("linkStyle 0")
+    assert "stroke-width:2px" in lines[0]
+    assert lines[1].startswith("linkStyle 1")
+    assert "stroke-width:2px" in lines[1]
 
 
 def test_generate_graph_detailed(sample_secretfile: Path):
@@ -261,7 +292,7 @@ def test_generate_graph_destination(sample_secretfile: Path):
     assert "```mermaid" in diagram
     assert "flowchart LR" in diagram
     assert "Target Destinations" in diagram
-    assert "syncs to" in diagram
+    assert "|pending|" in diagram
 
 
 def test_generate_graph_terminal(sample_secretfile: Path):

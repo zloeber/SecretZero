@@ -454,7 +454,16 @@ def create_network_web_app(
             if graph_type in ("flow", "detailed", "architecture", "destination")
             else "flow"
         )
-        all_rows = build_secret_rows(state.secretfile, state.lockfile)
+        manifest_data = build_manifest_rows(
+            state.lockfile,
+            secretfile_path,
+            state.secretfile,
+            selected_environment=state.selected_environment,
+            resolved_var_files=state.resolved_var_files,
+            resolved_target_profile=state.resolved_target_profile,
+        )
+        id_pf = manifest_data.get("identity_preflight")
+        all_rows = build_secret_rows(state.secretfile, state.lockfile, identity_preflight=id_pf)
         row_total = len(all_rows)
         unsynced_count = sum(1 for r in all_rows if r.get("is_unsynced"))
         if list_filter == "unsynced":
@@ -490,6 +499,7 @@ def create_network_web_app(
                     graph_type=current_graph_type,  # type: ignore[arg-type]
                     output_format="mermaid",
                     lockfile=state.lockfile,
+                    identity_preflight=id_pf,
                 )
                 mermaid_source = _renderable_mermaid(mermaid_raw)
             except Exception:
@@ -516,14 +526,7 @@ def create_network_web_app(
             ),
             selected_environment=state.selected_environment or "",
             tools_available=tools_available,
-            manifest=build_manifest_rows(
-                state.lockfile,
-                secretfile_path,
-                state.secretfile,
-                selected_environment=state.selected_environment,
-                resolved_var_files=state.resolved_var_files,
-                resolved_target_profile=state.resolved_target_profile,
-            ),
+            manifest=manifest_data,
             dry_run=dry_run,
             debug=debug,
             debug_log_text=debug_log_text,

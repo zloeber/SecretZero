@@ -1,7 +1,7 @@
 """Graph visualization for Secretfile relationships."""
 
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from secretzero.config import ConfigLoader
 from secretzero.lockfile import Lockfile
@@ -11,26 +11,70 @@ from secretzero.models import Secretfile
 GraphType = Literal["flow", "detailed", "architecture", "destination"]
 OutputFormat = Literal["mermaid", "terminal"]
 
+# Mermaid linkStyle classes (order must match edge declaration order in each diagram).
+_EDGE_LINK_STYLES = {
+    "neutral": "stroke:#6c757d,stroke-width:2px,color:#6c757d",
+    "synced": "stroke:#198754,stroke-width:4px,color:#198754",
+    "pending": "stroke:#e97109,stroke-width:4px,color:#e97109",
+    "drift": "stroke:#c82832,stroke-width:4px,color:#c82832",
+    # Match CLI compact status "unknown" when identity/access prevents classifying as pending.
+    "unknown": "stroke:#ffc107,stroke-width:4px,color:#ffc107",
+}
+
 
 class SecretGraphGenerator:
     """Generate visual representations of Secretfile relationships."""
 
-    def __init__(self, secretfile_path: Path, lockfile: Lockfile | None = None):
+    def __init__(
+        self,
+        secretfile_path: Path,
+        lockfile: Lockfile | None = None,
+        identity_preflight: dict[str, Any] | None = None,
+    ):
         """Initialize graph generator with a Secretfile.
 
         Args:
             secretfile_path: Path to Secretfile
+            lockfile: Optional lockfile for per-target sync edge coloring
+            identity_preflight: Optional ``preflight_provider_identity_policies()`` result for
+                policy-aware edge styling (unknown when policies fail for that provider).
         """
         self.secretfile_path = secretfile_path
         self.config_loader = ConfigLoader()
         self.secretfile: Secretfile = self.config_loader.load_file(secretfile_path)
         self.lockfile = lockfile
+        self.identity_preflight = identity_preflight
 
     def _target_sync_state(self, secret_name: str, target) -> str:
         """Return sync state for target: synced | pending | drift."""
         if self.lockfile is None:
             return "pending"
         return sync_state_for_secret_target(self.lockfile, secret_name, target)
+
+    def _mermaid_edge_class(self, lock_state: str, provider_alias: str) -> str:
+        """Map lockfile + identity preflight to Mermaid linkStyle token."""
+        if lock_state == "synced":
+            return "synced"
+        pf = self.identity_preflight
+        if pf and pf.get("preflight_error"):
+            return "unknown"
+        if pf and pf.get("has_policies") and not pf.get("all_ok"):
+            for row in pf.get("rows") or []:
+                if row.get("provider_alias") == provider_alias and row.get("status") != "ok":
+                    return "unknown"
+        if lock_state == "pending":
+            return "pending"
+        return "drift"
+
+    @staticmethod
+    def _edge_status_label(edge_class: str) -> str:
+        """Short edge label for secret→target links."""
+        return {
+            "synced": "synced",
+            "pending": "pending",
+            "drift": "drift",
+            "unknown": "unknown",
+        }.get(edge_class, "pending")
 
     @staticmethod
     def _emit_edge_styles(lines: list[str], edge_styles: list[str]) -> None:
@@ -39,11 +83,8 @@ class SecretGraphGenerator:
             return
         lines.append("")
         for idx, edge_class in enumerate(edge_styles):
-            if edge_class == "synced":
-                style = "stroke:#198754,stroke-width:4px,color:#198754"
-            elif edge_class == "unsynced":
-                style = "stroke:#e97109,stroke-width:4px,color:#e97109"
-            else:
+            style = _EDGE_LINK_STYLES.get(edge_class)
+            if style is None:
                 style = "stroke:#6c757d,stroke-width:3px,color:#6c757d"
             lines.append(f"    linkStyle {idx} {style}")
 
@@ -57,8 +98,8 @@ class SecretGraphGenerator:
 
         generators_seen: set[str] = set()
         destination_groups: dict[tuple[str, str, str], dict[str, str]] = {}
-        edges: list[tuple[str, str, bool]] = []
-        edge_styles: list[str] = []
+        generator_edge_count = 0
+        edges: list[tuple[str, str, str]] = []
 
         for secret in self.secretfile.secrets:
             secret_id = self._safe_id(secret.name)
@@ -73,7 +114,7 @@ class SecretGraphGenerator:
             secret_label = f"Secret<br/>{secret.name}<br/>type: {generator_kind}"
             lines.append(f'    {secret_id}["{self._escape_mermaid_label(secret_label)}"]')
             lines.append(f"    {generator_id} -->|generates| {secret_id}")
-            edge_styles.append("neutral")
+            generator_edge_count += 1
 
             for idx, target in enumerate(secret.targets):
                 provider, kind, destination = self._target_destination(target)
@@ -83,9 +124,9 @@ class SecretGraphGenerator:
                 entry_id = self._safe_id(f"entry_{provider}_{kind}_{destination}_{entry_label}")
                 group[entry_id] = entry_label
                 state = self._target_sync_state(secret.name, target)
-                synced = state == "synced"
-                edges.append((secret_id, entry_id, synced))
-                edge_styles.append("synced" if synced else "unsynced")
+                prov = target.provider or "local"
+                edge_class = self._mermaid_edge_class(state, prov)
+                edges.append((secret_id, entry_id, edge_class))
 
         lines.append("")
         lines.append('    subgraph Targets["Target Destinations"]')
@@ -93,7 +134,7 @@ class SecretGraphGenerator:
             sorted(destination_groups.items())
         ):
             cluster_id = self._safe_id(f"dest_cluster_{idx}_{provider}_{kind}_{destination}")
-            cluster_title = f"{provider}/{kind} · {destination}"
+            cluster_title = f"{provider}/{kind}"
             lines.append(
                 f'        subgraph {cluster_id}["{self._escape_mermaid_label(cluster_title)}"]'
             )
@@ -102,10 +143,11 @@ class SecretGraphGenerator:
             lines.append("        end")
         lines.append("    end")
 
-        for secret_id, entry_id, synced in edges:
-            label = "synced with" if synced else "syncs to"
+        for secret_id, entry_id, edge_class in edges:
+            label = self._edge_status_label(edge_class)
             lines.append(f"    {secret_id} -->|{label}| {entry_id}")
 
+        edge_styles = ["neutral"] * generator_edge_count + [e[2] for e in edges]
         self._emit_edge_styles(lines, edge_styles)
         lines.append("```")
         return "\n".join(lines)
@@ -118,8 +160,8 @@ class SecretGraphGenerator:
         """
         lines = ["```mermaid", "flowchart TB", "    %% Detailed Secret Configuration", ""]
         destination_groups: dict[tuple[str, str, str], dict[str, str]] = {}
-        edges: list[tuple[str, str, bool]] = []
-        edge_styles: list[str] = []
+        generator_edge_count = 0
+        edges: list[tuple[str, str, str]] = []
 
         for secret in self.secretfile.secrets:
             secret_id = self._safe_id(secret.name)
@@ -133,7 +175,7 @@ class SecretGraphGenerator:
             secret_label = f"🔐 {secret.name}"
             lines.append(f'    {secret_id}["{self._escape_mermaid_label(secret_label)}"]')
             lines.append(f"    {generator_id} --> {secret_id}")
-            edge_styles.append("neutral")
+            generator_edge_count += 1
 
             for idx, target in enumerate(secret.targets):
                 provider, kind, destination = self._target_destination(target)
@@ -145,9 +187,9 @@ class SecretGraphGenerator:
                 entry_id = self._safe_id(f"d_entry_{provider}_{kind}_{destination}_{entry_label}")
                 group[entry_id] = child_label
                 state = self._target_sync_state(secret.name, target)
-                synced = state == "synced"
-                edges.append((secret_id, entry_id, synced))
-                edge_styles.append("synced" if synced else "unsynced")
+                prov = target.provider or "local"
+                edge_class = self._mermaid_edge_class(state, prov)
+                edges.append((secret_id, entry_id, edge_class))
 
             lines.append("")  # Add spacing between secrets
 
@@ -156,7 +198,7 @@ class SecretGraphGenerator:
             sorted(destination_groups.items())
         ):
             cluster_id = self._safe_id(f"d_dest_cluster_{idx}_{provider}_{kind}_{destination}")
-            cluster_title = f"{provider}/{kind} · {destination}"
+            cluster_title = f"{provider}/{kind}"
             lines.append(
                 f'        subgraph {cluster_id}["{self._escape_mermaid_label(cluster_title)}"]'
             )
@@ -165,10 +207,11 @@ class SecretGraphGenerator:
             lines.append("        end")
         lines.append("    end")
 
-        for secret_id, entry_id, synced in edges:
-            label = "synced with" if synced else "syncs to"
+        for secret_id, entry_id, edge_class in edges:
+            label = self._edge_status_label(edge_class)
             lines.append(f"    {secret_id} -->|{label}| {entry_id}")
 
+        edge_styles = ["neutral"] * generator_edge_count + [e[2] for e in edges]
         self._emit_edge_styles(lines, edge_styles)
         lines.append("```")
         return "\n".join(lines)
@@ -256,7 +299,7 @@ class SecretGraphGenerator:
         lines.append('    subgraph Destinations["Target Destinations"]')
 
         destination_groups: dict[tuple[str, str, str], dict[str, str]] = {}
-        edges: list[tuple[str, str, bool]] = []
+        edges: list[tuple[str, str, str]] = []
         edge_styles: list[str] = []
         for secret in self.secretfile.secrets:
             secret_id = self._safe_id(f"secret_{secret.name}")
@@ -269,24 +312,25 @@ class SecretGraphGenerator:
                 )
                 destination_groups.setdefault(key, {})[entry_id] = entry_label
                 state = self._target_sync_state(secret.name, target)
-                synced = state == "synced"
-                edges.append((secret_id, entry_id, synced))
-                edge_styles.append("synced" if synced else "unsynced")
+                prov = target.provider or "local"
+                edge_class = self._mermaid_edge_class(state, prov)
+                edges.append((secret_id, entry_id, edge_class))
+                edge_styles.append(edge_class)
 
         for idx, ((provider, kind, destination), entries) in enumerate(
             sorted(destination_groups.items())
         ):
             cluster_id = self._safe_id(f"dest_group_{idx}_{provider}_{kind}_{destination}")
             lines.append(
-                f'        subgraph {cluster_id}["{self._escape_mermaid_label(f"{provider}/{kind} · {destination}")}"]'
+                f'        subgraph {cluster_id}["{self._escape_mermaid_label(f"{provider}/{kind}")}"]'
             )
             for entry_id, entry_label in sorted(entries.items(), key=lambda x: x[1]):
                 lines.append(f'            {entry_id}["{self._escape_mermaid_label(entry_label)}"]')
             lines.append("        end")
         lines.append("    end")
         lines.append("")
-        for secret_id, entry_id, synced in edges:
-            label = "synced with" if synced else "syncs to"
+        for secret_id, entry_id, edge_class in edges:
+            label = self._edge_status_label(edge_class)
             lines.append(f"    {secret_id} -->|{label}| {entry_id}")
         self._emit_edge_styles(lines, edge_styles)
         lines.append("```")
@@ -491,6 +535,7 @@ def generate_graph(
     graph_type: GraphType = "flow",
     output_format: OutputFormat = "mermaid",
     lockfile: Lockfile | None = None,
+    identity_preflight: dict[str, Any] | None = None,
 ) -> str:
     """Generate visual graph from Secretfile.
 
@@ -498,11 +543,18 @@ def generate_graph(
         secretfile_path: Path to Secretfile
         graph_type: Type of graph to generate
         output_format: Output format (mermaid or terminal)
+        lockfile: Optional lockfile for per-target edge colors
+        identity_preflight: Optional result of
+            :meth:`secretzero.sync.SyncEngine.preflight_provider_identity_policies`
 
     Returns:
         Graph representation as string
     """
-    generator = SecretGraphGenerator(secretfile_path, lockfile=lockfile)
+    generator = SecretGraphGenerator(
+        secretfile_path,
+        lockfile=lockfile,
+        identity_preflight=identity_preflight,
+    )
 
     if output_format == "terminal":
         return generator.generate_terminal_summary()
