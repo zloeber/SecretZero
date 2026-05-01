@@ -88,7 +88,7 @@ fi
 
 log "==> Mode: ${MODE}"
 log "==> Bootstrapping dependencies once"
-uv sync --all-extras >/dev/null
+uv sync --frozen --all-extras >/dev/null
 
 log "==> Running quality + schema gate"
 task lint:fix && task format && task schema:update
