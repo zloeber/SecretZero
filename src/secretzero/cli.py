@@ -4072,8 +4072,16 @@ def backup_group() -> None:
 
 
 @backup_group.command("create")
-@click.option("--file", "-f", type=click.Path(exists=True), default="Secretfile.yml", help="Path to Secretfile")
-@click.option("--lockfile", "-l", type=click.Path(), default=".gitsecrets.lock", help="Path to lockfile")
+@click.option(
+    "--file",
+    "-f",
+    type=click.Path(exists=True),
+    default="Secretfile.yml",
+    help="Path to Secretfile",
+)
+@click.option(
+    "--lockfile", "-l", type=click.Path(), default=".gitsecrets.lock", help="Path to lockfile"
+)
 @click.option(
     "--var-file",
     "-v",
@@ -4089,7 +4097,9 @@ def backup_group() -> None:
     default=None,
     help="Named environment profile from Secretfile.environments.profiles",
 )
-@click.option("--secret", "-s", "secrets", multiple=True, help="Backup only these secrets (repeatable)")
+@click.option(
+    "--secret", "-s", "secrets", multiple=True, help="Backup only these secrets (repeatable)"
+)
 @click.option(
     "--output",
     "-o",
@@ -4224,8 +4234,16 @@ def backup_create_cmd(
 
 
 @backup_group.command("restore")
-@click.option("--file", "-f", type=click.Path(exists=True), default="Secretfile.yml", help="Path to Secretfile")
-@click.option("--lockfile", "-l", type=click.Path(), default=".gitsecrets.lock", help="Path to lockfile")
+@click.option(
+    "--file",
+    "-f",
+    type=click.Path(exists=True),
+    default="Secretfile.yml",
+    help="Path to Secretfile",
+)
+@click.option(
+    "--lockfile", "-l", type=click.Path(), default=".gitsecrets.lock", help="Path to lockfile"
+)
 @click.option(
     "--var-file",
     "-v",
@@ -4241,7 +4259,9 @@ def backup_create_cmd(
     default=None,
     help="Named environment profile from Secretfile.environments.profiles",
 )
-@click.option("--backup-file", type=click.Path(exists=True), required=True, help="Encrypted backup file path")
+@click.option(
+    "--backup-file", type=click.Path(exists=True), required=True, help="Encrypted backup file path"
+)
 @click.option(
     "--age-key-file",
     type=click.Path(exists=True),
@@ -4266,7 +4286,9 @@ def backup_create_cmd(
     multiple=True,
     help="Do not write target; only update lockfile for selector secret or secret@target_id",
 )
-@click.option("--yes", "assume_yes", is_flag=True, help="Non-interactive: accept per-target restore prompts")
+@click.option(
+    "--yes", "assume_yes", is_flag=True, help="Non-interactive: accept per-target restore prompts"
+)
 @click.option("--dry-run", is_flag=True, help="Show what would be restored")
 @click.option("--format", "output_format", type=click.Choice(["text", "json"]), default="text")
 def backup_restore_cmd(
@@ -4321,7 +4343,11 @@ def backup_restore_cmd(
     raw_entries = payload.get("entries") or []
     if not isinstance(raw_entries, list):
         if output_format == "json":
-            click.echo(json.dumps({"error": "Backup entries payload is invalid", "exit_code": EXIT_CONFIG_ERROR}))
+            click.echo(
+                json.dumps(
+                    {"error": "Backup entries payload is invalid", "exit_code": EXIT_CONFIG_ERROR}
+                )
+            )
         else:
             console.print("[red]Error:[/red] Backup entries payload is invalid")
         sys.exit(EXIT_CONFIG_ERROR)
@@ -4367,7 +4393,9 @@ def backup_restore_cmd(
             click.echo(json.dumps(summary, indent=2))
         else:
             console.print("[bold]Backup restore (dry-run)[/bold]")
-            console.print(f"  Selected entries: {summary['selected']} / {summary['available_entries']}")
+            console.print(
+                f"  Selected entries: {summary['selected']} / {summary['available_entries']}"
+            )
         return
 
     result = restore_backup_entries(

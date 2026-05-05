@@ -85,7 +85,9 @@ def resolve_backup_age_recipients(
     return [_public_age_key_from_private_key_file(generated_key_file)], generated_key_file
 
 
-def _run_sops(args: list[str], input_text: str | None = None, env: dict[str, str] | None = None) -> str:
+def _run_sops(
+    args: list[str], input_text: str | None = None, env: dict[str, str] | None = None
+) -> str:
     if shutil.which("sops") is None:
         raise ValueError("sops CLI not found in PATH")
     proc = subprocess.run(  # noqa: S603
@@ -132,7 +134,9 @@ def decrypt_backup_document(*, backup_file: Path, age_key_file: Path | None) -> 
     return payload
 
 
-def _plain_secret_entries(engine: SyncEngine, secret: Secret) -> tuple[list[dict[str, Any]], list[str]]:
+def _plain_secret_entries(
+    engine: SyncEngine, secret: Secret
+) -> tuple[list[dict[str, Any]], list[str]]:
     rows: list[dict[str, Any]] = []
     warnings: list[str] = []
     lock_entry = engine.lockfile.get_secret_info(secret.name)
@@ -268,7 +272,9 @@ def restore_backup_entries(
 
         if import_only:
             engine.lockfile.add_secret(secret_ref, value, target_id=target_id, is_rotation=True)
-            engine.lockfile.record_target_update(secret_ref, target_id, actor=engine._sync_actor_dict())
+            engine.lockfile.record_target_update(
+                secret_ref, target_id, actor=engine._sync_actor_dict()
+            )
             imported_only += 1
             continue
 

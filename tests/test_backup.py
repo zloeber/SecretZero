@@ -20,7 +20,11 @@ class _FakeEngine:
         self._values = values
 
     def _build_target_id(self, target: TargetConfig) -> str:
-        ident = target.config.get("path", "") if str(target.kind) == "file" else target.config.get("name", "")
+        ident = (
+            target.config.get("path", "")
+            if str(target.kind) == "file"
+            else target.config.get("name", "")
+        )
         return f"{target.provider}/{target.kind}/{ident}"
 
     def _retrieve_from_target(self, secret_name: str, target: TargetConfig) -> str | None:
@@ -31,7 +35,9 @@ class _FakeRestoreEngine:
     def __init__(self, lockfile: Lockfile) -> None:
         self.lockfile = lockfile
 
-    def _store_in_target(self, secret_name: str, secret_value: str, target: TargetConfig) -> dict[str, Any]:
+    def _store_in_target(
+        self, secret_name: str, secret_value: str, target: TargetConfig
+    ) -> dict[str, Any]:
         _ = (secret_name, secret_value, target)
         return {"status": "stored", "actor": {"provider": "local", "username": "tester"}}
 
@@ -52,7 +58,9 @@ def test_collect_backup_entries_from_synced_plain_and_template_targets() -> None
                     "token": TemplateField(
                         description="token",
                         generator={"kind": "static", "config": {"value": "x"}},
-                        targets=[TargetConfig(provider="local", kind="file", config={"path": ".tmpl"})],
+                        targets=[
+                            TargetConfig(provider="local", kind="file", config={"path": ".tmpl"})
+                        ],
                     )
                 },
             )
@@ -79,7 +87,9 @@ def test_collect_backup_entries_from_synced_plain_and_template_targets() -> None
     out = collect_backup_entries(engine=engine, secretfile=secretfile)
     entries = out["entries"]
     assert len(entries) == 2
-    assert any(e["secret_ref"] == "api_key" and e["target_secret_key"] == "api_key" for e in entries)
+    assert any(
+        e["secret_ref"] == "api_key" and e["target_secret_key"] == "api_key" for e in entries
+    )
     assert any(
         e["secret_ref"] == "svc_secret.token" and e["target_secret_key"] == "token" for e in entries
     )

@@ -393,9 +393,8 @@ def build_secret_rows(
             target_groups=target_groups,
         )
         actions_blocked = bool(blocked_reasons)
-        actions_blocked_reason = (
-            "Policy/auth check failed for one or more targets."
-            + (f" {blocked_reasons[0]}" if blocked_reasons else "")
+        actions_blocked_reason = "Policy/auth check failed for one or more targets." + (
+            f" {blocked_reasons[0]}" if blocked_reasons else ""
         )
         rows.append(
             {

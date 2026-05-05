@@ -217,7 +217,9 @@ def test_build_secret_rows_marks_actions_blocked_for_policy_or_auth_failures(
         ],
     )
     lk_path = tmp_path / "l.lock"
-    lk_path.write_text('{"version":"1.0","secrets":{"cfg":{"hash":"H","created_at":"t","updated_at":"t"}}}\n')
+    lk_path.write_text(
+        '{"version":"1.0","secrets":{"cfg":{"hash":"H","created_at":"t","updated_at":"t"}}}\n'
+    )
     lk = Lockfile.load(lk_path)
     pf = {
         "has_policies": True,
