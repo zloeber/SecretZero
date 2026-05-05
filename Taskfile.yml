@@ -181,36 +181,12 @@ tasks:
       - |
         docker build -f "{{.DOCKERFILE}}" -t "{{.DOCKER_IMAGE}}" {{.DOCKER_BUILD_ARGS}} "{{.DOCKER_CONTEXT}}"
 
-  mcp:inspector:
-    desc: Start MCP Inspector
-    cmds:
-      - npx -y @modelcontextprotocol/inspector
-    env:
-      DANGEROUSLY_OMIT_AUTH: true
-
   update:github:actions:
     desc: Update GitHub Actions in workflows
     cmds:
       - npx actions-up -y
   
-  mcp:scan:
-    desc: Scan MCP package for issues
-    env:
-      MCP_SCANNER_LLM_API_KEY: test
-      MCP_SCANNER_API_KEY: test
-      MCP_SCANNER_LLM_ENDPOINT: http://linbox5:11434
-      MCP_SCANNER_LLM_MODEL: gemma3:12b
-    cmds:
-      - |
-        uv tool install cisco-ai-mcp-scanner
-        uv tool upgrade cisco-ai-mcp-scanner
-        mcp-scanner --format summary \
-          --stdio-command uvx \
-          --stdio-arg=pl-cli --stdio-arg=mcp --stdio-arg=-c --stdio-arg=config.yaml \
-          --stdio-arg=--no-ingest-on-startup \
-          --format table \
-          --analyzers yara \
-          -o security_scan_results.md
+
 
   schema:to:yaml:
     desc: Convert JSON schema files to YAML

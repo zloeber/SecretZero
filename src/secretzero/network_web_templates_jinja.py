@@ -15,7 +15,7 @@ _BASE_STYLE = """
   --radius: 12px;
   --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --flow-synced: #198754;
-  --flow-pending: #e97109;
+  --flow-pending: #fff;
   --flow-drift: #c82832;
   --flow-unknown: #ffc107;
 }
@@ -31,7 +31,7 @@ _BASE_STYLE = """
     --danger: #f4717a;
     --shadow: 0 4px 24px rgba(0,0,0,.45);
     --flow-synced: #3dd68c;
-    --flow-pending: #ffb347;
+    --flow-pending: #fff;
     --flow-drift: #ff7b7b;
     --flow-unknown: #ffd54f;
   }
@@ -61,6 +61,22 @@ main {
   border-radius: 8px;
   border: 1px solid var(--border);
 }
+.sz-expand {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(127,127,127,0.04);
+  margin-bottom: 0.7rem;
+}
+.sz-expand > summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0.55rem 0.75rem;
+  list-style: none;
+}
+.sz-expand > summary::-webkit-details-marker { display: none; }
+.sz-expand > summary::before { content: "▸ "; }
+.sz-expand[open] > summary::before { content: "▾ "; }
+.sz-expand__body { padding: 0 0.75rem 0.7rem; }
 .pi-status { font-weight: 600; font-size: 0.82rem; }
 .pi-status--ok { color: #1a7f37; }
 .pi-status--local { color: var(--muted); }
@@ -189,6 +205,16 @@ button.btn[disabled], button.btn:disabled {
   background: rgba(127,127,127,0.05);
   box-shadow: 0 1px 0 rgba(0,0,0,.04);
 }
+.sz-flow-details > summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: 0.86rem;
+  color: var(--muted);
+  margin-bottom: 0.65rem;
+}
+.sz-flow-details > summary::-webkit-details-marker { display: none; }
+.sz-flow-details > summary::before { content: "▸ "; }
+.sz-flow-details[open] > summary::before { content: "▾ "; }
 .sz-flow__top {
   display: flex;
   align-items: flex-start;
@@ -227,6 +253,11 @@ button.btn[disabled], button.btn:disabled {
   gap: 0.35rem;
 }
 .sz-flow__source-actions form { display: inline; margin: 0; }
+.sz-flow__policy-note {
+  margin-top: 0.35rem;
+  font-size: 0.74rem;
+  color: var(--muted);
+}
 .sz-flow__right {
   flex: 1 1 50%;
   min-width: 0;
@@ -564,34 +595,44 @@ TEMPLATES = {
     <a href="/dashboard?filter={{ list_filter }}&tab=graph&graph_view={{ graph_view }}&graph_type={{ graph_type }}{% if selected_environment %}&environment={{ selected_environment | uquote }}{% endif %}" class="btn btn-sm{% if current_tab == 'graph' %} btn-primary{% endif %}">Graph</a>
   </nav>
   {% if current_tab == "dashboard" %}
-  <div class="manifest-meta">
-    <div><strong>Secretfile</strong> {{ manifest.secretfile_display }}</div>
-    <div><strong>Lockfile synced</strong> {{ manifest.synced_at }}</div>
-    <div><strong>Manifest hash (lock)</strong> {{ manifest.secretfile_hash }}</div>
-    <div><strong>Var files</strong> {{ manifest.var_files }}</div>
-    <div><strong>Environment</strong> {{ manifest.selected_environment }}</div>
-    <div><strong>Resolved var files</strong> {{ manifest.resolved_var_files }}</div>
-    <div><strong>Target profile</strong> {{ manifest.resolved_target_profile }}</div>
-  </div>
-  {% if manifest.provider_rows %}
-  <div class="manifest-meta" style="margin-top:0.5rem;">
-    <div><strong>Provider identity</strong> <span style="font-weight:400;">— who your configured credentials resolve to (no secret values shown)</span></div>
-    <div class="table-wrap" style="margin-top:0.5rem;">
-      <table class="sz" role="table" aria-label="Provider authentication identity">
-        <thead><tr><th>Provider</th><th>Kind</th><th>Status</th><th>Identity</th></tr></thead>
-        <tbody>
-          {% for p in manifest.provider_rows %}
-          <tr>
-            <td><strong>{{ p.alias }}</strong></td>
-            <td><code>{{ p.kind }}</code></td>
-            <td><span class="pi-status pi-status--{{ p.status }}">{{ p.status }}</span></td>
-            <td class="pi-ident">{{ p.primary }}{% if p.secondary %}<br/><span style="font-size:0.92em;opacity:0.9;">{{ p.secondary }}</span>{% endif %}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+  <details class="sz-expand">
+    <summary>Secretfile & runtime context</summary>
+    <div class="sz-expand__body">
+      <div class="manifest-meta" style="margin-bottom:0;">
+        <div><strong>Secretfile</strong> {{ manifest.secretfile_display }}</div>
+        <div><strong>Lockfile synced</strong> {{ manifest.synced_at }}</div>
+        <div><strong>Manifest hash (lock)</strong> {{ manifest.secretfile_hash }}</div>
+        <div><strong>Var files</strong> {{ manifest.var_files }}</div>
+        <div><strong>Environment</strong> {{ manifest.selected_environment }}</div>
+        <div><strong>Resolved var files</strong> {{ manifest.resolved_var_files }}</div>
+        <div><strong>Target profile</strong> {{ manifest.resolved_target_profile }}</div>
+      </div>
     </div>
-  </div>
+  </details>
+  {% if manifest.provider_rows %}
+  <details class="sz-expand">
+    <summary>Provider identity</summary>
+    <div class="sz-expand__body">
+      <div class="manifest-meta" style="margin-bottom:0;">
+        <div><strong>Provider identity</strong> <span style="font-weight:400;">— who your configured credentials resolve to (no secret values shown)</span></div>
+      </div>
+      <div class="table-wrap" style="margin-top:0.5rem;">
+        <table class="sz" role="table" aria-label="Provider authentication identity">
+          <thead><tr><th>Provider</th><th>Kind</th><th>Status</th><th>Identity</th></tr></thead>
+          <tbody>
+            {% for p in manifest.provider_rows %}
+            <tr>
+              <td><strong>{{ p.alias }}</strong></td>
+              <td><code>{{ p.kind }}</code></td>
+              <td><span class="pi-status pi-status--{{ p.status }}">{{ p.status }}</span></td>
+              <td class="pi-ident">{{ p.primary }}{% if p.secondary %}<br/><span style="font-size:0.92em;opacity:0.9;">{{ p.secondary }}</span>{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
   {% endif %}
   {% elif current_tab == "secretfile" %}
   <section class="tab-panel" aria-label="Secretfile source">
@@ -726,13 +767,15 @@ TEMPLATES = {
   </div>
   <p class="sync-legend" role="note" aria-label="Per-target arrow colors">
     <span><span class="sync-legend__i sync-legend__i--synced" aria-hidden="true"></span> Synced</span>
-    <span><span class="sync-legend__i sync-legend__i--pending" aria-hidden="true"></span> Pending</span>
+    <span><span class="sync-legend__i sync-legend__i--pending" aria-hidden="true"></span> Unsynced</span>
     <span><span class="sync-legend__i sync-legend__i--drift" aria-hidden="true"></span> Drift</span>
     <span><span class="sync-legend__i sync-legend__i--unknown" aria-hidden="true"></span> Unknown / blocked</span>
   </p>
   <div class="flow-list" role="list" aria-label="Secrets and deployment targets">
     {% for row in rows %}
     <article class="sz-flow" role="listitem">
+      <details class="sz-flow-details">
+      <summary><strong>{{ row.name }}</strong> · <code>{{ row.kind }}</code></summary>
       <div class="sz-flow__top">
         <div class="sz-flow__source">
           <div class="sz-flow__name">{{ row.name }}</div>
@@ -741,9 +784,15 @@ TEMPLATES = {
             <span><strong>Value hash</strong> <code>{{ row.hash_preview }}</code></span>
             <span><strong>Updated</strong> {{ row.updated_at }}</span>
             <div class="sz-flow__source-actions">
+              {% if row.actions_blocked %}
               {% if row.can_set_value %}
               <a class="btn btn-sm" href="/secret/{{ row.name | uquote }}/edit?filter={{ list_filter }}{% if selected_environment %}&environment={{ selected_environment | uquote }}{% endif %}">Update</a>
               {% endif %}
+              {% else %}
+              {% if row.can_set_value %}
+              <a class="btn btn-sm" href="/secret/{{ row.name | uquote }}/edit?filter={{ list_filter }}{% if selected_environment %}&environment={{ selected_environment | uquote }}{% endif %}">Update</a>
+              {% endif %}
+              {% if not row.actions_blocked %}
               <form method="post" action="/action/sync-secret">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
                 <input type="hidden" name="list_filter" value="{{ list_filter }}"/>
@@ -758,6 +807,7 @@ TEMPLATES = {
                 <input type="hidden" name="secret_name" value="{{ row.name }}"/>
                 <button type="submit" class="btn btn-sm">Refresh</button>
               </form>
+              {% endif %}
               {% if row.can_web_rotate %}
                 {% if row.can_set_value %}
               <a class="btn btn-sm" href="/secret/{{ row.name | uquote }}/edit?filter={{ list_filter }}{% if selected_environment %}&environment={{ selected_environment | uquote }}{% endif %}">Rotate</a>
@@ -771,7 +821,13 @@ TEMPLATES = {
               </form>
                 {% endif %}
               {% endif %}
+              {% endif %}
             </div>
+            {% if row.actions_blocked %}
+            <div class="sz-flow__policy-note" role="note" title="{{ row.actions_blocked_reason | e }}">
+              Policy/auth check failed for one or more targets.
+            </div>
+            {% endif %}
           </div>
           {% with agent_instructions=row.agent_instructions %}
           {% include "agent_instructions_partial.html" %}
@@ -816,6 +872,7 @@ TEMPLATES = {
           {% endif %}
         </div>
       </div>
+      </details>
     </article>
     {% endfor %}
   </div>
@@ -892,6 +949,25 @@ TEMPLATES = {
     <label for="value">New value</label>
     <input id="value" name="value" type="password" required autocomplete="off"/>
     {% endif %}
+    <label style="display:flex;align-items:center;gap:0.45rem;font-size:0.82rem;margin-top:0.65rem;">
+      <input id="sz-show-values" type="checkbox" style="width:auto;"/>
+      <span>Show input values</span>
+    </label>
+    <p style="margin:0.2rem 0 0;font-size:0.78rem;color:var(--muted);">Toggle visibility for password fields on this form.</p>
+    <script>
+    (function () {
+      var form = document.getElementById("sz-static-edit-form");
+      var toggle = document.getElementById("sz-show-values");
+      if (!form || !toggle) return;
+      toggle.addEventListener("change", function () {
+        var show = !!toggle.checked;
+        form.querySelectorAll("input[type=password], input[data-secret-password='true']").forEach(function (inp) {
+          inp.type = show ? "text" : "password";
+          inp.setAttribute("data-secret-password", "true");
+        });
+      });
+    })();
+    </script>
     <button type="submit" class="btn btn-primary" style="margin-top:1rem;width:auto;">Apply and sync</button>
   </form>
   <p style="margin-top:1.25rem;"><a href="/dashboard?filter={{ list_filter }}">← Back to manifest</a></p>

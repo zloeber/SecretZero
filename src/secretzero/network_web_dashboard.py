@@ -149,7 +149,7 @@ def build_target_lane_ui(secret_name: str, tc: TargetConfig) -> dict[str, Any]:
 
 _ARROW_TITLE = {
     "synced": "Lockfile shows this target has the current secret value (hash matches).",
-    "pending": "This target is not recorded in the lockfile yet — run Sync.",
+    "pending": "This target is unsynced — run Sync.",
     "drift": "Recorded hash for this target differs from the current secret hash — re-sync.",
 }
 
@@ -378,12 +378,24 @@ def build_secret_rows(
                     }
                 )
             apply_force_resync_flags(target_groups)
+        blocked_reasons: list[str] = []
+        for group in target_groups:
+            for lane in group["lanes"]:
+                if lane.get("lane_identity_blocked"):
+                    reason = str(lane.get("lane_identity_reason") or "").strip()
+                    if reason and reason not in blocked_reasons:
+                        blocked_reasons.append(reason)
         agent_payload = build_agent_instructions_payload(secretfile, sec)
         in_lock = entry is not None
         is_unsynced = compute_is_unsynced(
             has_targets=has_targets,
             in_lock=in_lock,
             target_groups=target_groups,
+        )
+        actions_blocked = bool(blocked_reasons)
+        actions_blocked_reason = (
+            "Policy/auth check failed for one or more targets."
+            + (f" {blocked_reasons[0]}" if blocked_reasons else "")
         )
         rows.append(
             {
@@ -399,6 +411,8 @@ def build_secret_rows(
                 "rotation_count": entry.rotation_count if entry else 0,
                 "in_lock": in_lock,
                 "is_unsynced": is_unsynced,
+                "actions_blocked": actions_blocked,
+                "actions_blocked_reason": actions_blocked_reason if actions_blocked else "",
                 "can_set_value": _secret_can_set_value_web(sec),
                 "can_web_rotate": secret_supports_automatic_generation(sec)
                 and not secret_prompts_like_static(sec),

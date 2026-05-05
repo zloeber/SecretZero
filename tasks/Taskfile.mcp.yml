@@ -1,0 +1,37 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+
+version: "3"
+silent: true
+
+tasks:
+  show:
+    desc: Show MCP variables for this task
+    cmds:
+      - |
+        echo "OLLAMA_HOST: {{.OLLAMA_HOST}}"
+
+  inspector:
+    desc: Start MCP Inspector
+    cmds:
+      - npx -y @modelcontextprotocol/inspector
+    env:
+      DANGEROUSLY_OMIT_AUTH: true
+
+  scan:
+    desc: Scan MCP package for issues
+    env:
+      MCP_SCANNER_LLM_API_KEY: test
+      MCP_SCANNER_API_KEY: test
+      MCP_SCANNER_LLM_ENDPOINT: $OLLAMA_HOST
+      MCP_SCANNER_LLM_MODEL: gemma4:31b
+    cmds:
+      - |
+        uv tool install cisco-ai-mcp-scanner
+        uv tool upgrade cisco-ai-mcp-scanner
+        mcp-scanner --format summary \
+          --stdio-command uvx \
+          --stdio-arg=pl-cli --stdio-arg=mcp --stdio-arg=-c --stdio-arg=config.yaml \
+          --stdio-arg=--no-ingest-on-startup \
+          --format table \
+          --analyzers yara \
+          -o security_scan_results.md
