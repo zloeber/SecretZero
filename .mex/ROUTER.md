@@ -26,6 +26,8 @@ Then read this file fully before doing anything else in this session.
 ## Current Project State
 **Working:**
 - End-to-end secrets pipeline: `Secretfile.yml` -> `ConfigLoader` -> `SyncEngine` -> targets -> `.gitsecrets.lock`.
+- `secretzero backup`: new `backup create` / `backup restore` CLI workflow to extract retrievable values from synced targets, write SOPS+AGE encrypted local backup snapshots, and restore selected entries to captured targets with optional import-only lockfile updates.
+- `secretzero web` target-state wording/UI: per-target **pending** lanes are presented as **Unsynced** in dashboard copy/legend, pending arrow color token is white (`--flow-pending: #fff`), policy/auth-blocked lanes suppress sync/refresh actions in favor of an inline policy note (manual **Update** remains when available, with show/hide input toggle on the update form), and dashboard sections (Secretfile context, Provider identity, and each secret/target card) are now collapsed/expandable by default.
 - Bundle extensibility for providers/generators/targets via `BundleRegistry` and manifest factories.
 - Built-in generators (`random_password`, `random_string`, `static`, `script`, `provider_backed`) and provider-backed targets across AWS/Azure/Vault/GitHub/GitLab/Jenkins/Kubernetes/Infisical.
 - Policy/status/drift/terraform command families and comprehensive pytest suite.

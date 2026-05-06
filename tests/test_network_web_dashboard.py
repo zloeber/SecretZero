@@ -6,12 +6,14 @@ from pathlib import Path
 from secretzero.lockfile import Lockfile
 from secretzero.models import Secret, Secretfile, TargetConfig
 from secretzero.network_web_dashboard import (
+    _ARROW_TITLE,
     build_secret_rows,
     build_target_lane_ui,
     compute_is_unsynced,
     lane_identity_blocked,
     target_groups_show_only_unsynced_lanes,
 )
+from secretzero.network_web_templates_jinja import TEMPLATES
 
 
 def test_build_secret_rows_groups_targets_and_sync_state(tmp_path: Path) -> None:
@@ -183,3 +185,77 @@ def test_target_groups_show_only_unsynced_lanes() -> None:
     assert len(out) == 1
     assert len(out[0]["lanes"]) == 1
     assert out[0]["lanes"][0]["sync_state"] == "pending"
+
+
+def test_pending_target_status_uses_unsynced_copy() -> None:
+    assert _ARROW_TITLE["pending"] == "This target is unsynced — run Sync."
+
+
+def test_dashboard_legend_uses_unsynced_white_pending_color() -> None:
+    dashboard_template = TEMPLATES["dashboard.html"]
+    base_template = TEMPLATES["base.html"]
+
+    assert "Pending</span>" not in dashboard_template
+    assert "Unsynced</span>" in dashboard_template
+    assert "--flow-pending: #fff;" in base_template
+
+
+def test_build_secret_rows_marks_actions_blocked_for_policy_or_auth_failures(
+    tmp_path: Path,
+) -> None:
+    sf = Secretfile(
+        version="1.0",
+        secrets=[
+            Secret(
+                name="cfg",
+                kind="static",
+                config={"value": "x"},
+                targets=[
+                    TargetConfig(provider="aws", kind="ssm_parameter", config={"name": "/cfg"}),
+                ],
+            )
+        ],
+    )
+    lk_path = tmp_path / "l.lock"
+    lk_path.write_text(
+        '{"version":"1.0","secrets":{"cfg":{"hash":"H","created_at":"t","updated_at":"t"}}}\n'
+    )
+    lk = Lockfile.load(lk_path)
+    pf = {
+        "has_policies": True,
+        "all_ok": False,
+        "preflight_error": False,
+        "rows": [
+            {
+                "policy_name": "provider-auth",
+                "provider_alias": "aws",
+                "status": "auth_failed",
+                "detail": "Missing credentials",
+            }
+        ],
+    }
+
+    row = build_secret_rows(sf, lk, identity_preflight=pf)[0]
+    assert row["actions_blocked"] is True
+    assert "provider-auth" in row["actions_blocked_reason"]
+
+
+def test_dashboard_template_has_blocked_actions_note_and_sync_gating() -> None:
+    dashboard_template = TEMPLATES["dashboard.html"]
+    assert "Policy/auth check failed for one or more targets." in dashboard_template
+    assert "{% if row.actions_blocked %}" in dashboard_template
+    assert "{% if not row.actions_blocked %}" in dashboard_template
+
+
+def test_secret_edit_template_supports_show_values_toggle() -> None:
+    secret_edit_template = TEMPLATES["secret_edit.html"]
+    assert 'id="sz-show-values"' in secret_edit_template
+    assert "Toggle visibility for password fields on this form." in secret_edit_template
+
+
+def test_dashboard_template_uses_collapsed_expandable_sections() -> None:
+    dashboard_template = TEMPLATES["dashboard.html"]
+    assert '<details class="sz-expand">' in dashboard_template
+    assert "Secretfile & runtime context" in dashboard_template
+    assert "Provider identity" in dashboard_template
+    assert '<details class="sz-flow-details">' in dashboard_template
