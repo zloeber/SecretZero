@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=../Secretfile.schema.json
+# yaml-language-server: $schema=https://github.com/zloeber/SecretZero/raw/refs/heads/main/Secretfile.schema.json
 #
 # Example: Generate a scoped GitHub App installation token (fine-grained PAT
 # equivalent) with specific permissions declared in the manifest.

@@ -29,7 +29,7 @@ dependencies = [
     "setuptools-scm>=8.3.1",
     "fastapi>=0.129.0",
     "uvicorn[standard]>=0.41.0",
-    "python-multipart>=0.0.26",
+    "python-multipart>=0.0.27",
 ]
 
 [project.urls]
@@ -55,7 +55,7 @@ override-dependencies = [
     "pip>=26.0.2",
     "pyjwt>=2.12.0",
     "pytest>=9.0.3",
-    "python-multipart>=0.0.26",
+    "python-multipart>=0.0.27",
     "requests>=2.33.0",
 ]
 
@@ -116,7 +116,7 @@ cicd = [
 api = [
     "fastapi>=0.129.0",
     "uvicorn[standard]>=0.41.0",
-    "python-multipart>=0.0.26",
+    "python-multipart>=0.0.27",
 ]
 docs = [
     "mkdocs>=1.5.0",
@@ -159,7 +159,7 @@ all = [
     "kubernetes>=28.0.0",
     "fastapi>=0.104.0",
     "uvicorn[standard]>=0.24.0",
-    "python-multipart>=0.0.26",
+    "python-multipart>=0.0.27",
 ]
 
 [project.scripts]

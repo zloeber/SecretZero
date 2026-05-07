@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=../Secretfile.schema.json
+# yaml-language-server: $schema=https://github.com/zloeber/SecretZero/raw/refs/heads/main/Secretfile.schema.json
 # Secretfile.yml for AWS Publisher - Claude Artifact Publishing System
 # Environment variables that can be overridden at runtime
 

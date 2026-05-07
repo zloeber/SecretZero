@@ -983,7 +983,7 @@ graph LR
 - Ansible modules
 - Chef/Puppet integrations
 
-**Phase 10: Enterprise Features** (Future)
+**Phase 10: Operational maturity** (Future)
 - Multi-tenancy
 - RBAC
 - SSO integration

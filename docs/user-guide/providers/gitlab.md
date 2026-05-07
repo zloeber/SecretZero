@@ -11,7 +11,7 @@ The GitLab provider is ideal for:
 - **Environment-specific deployments** (production, staging, development)
 - **Group-level secret sharing** across multiple projects in a GitLab group
 - **Self-hosted GitLab instances** with custom URLs
-- **Teams using GitLab Enterprise** with advanced CI/CD features
+- **Advanced GitLab CI/CD** setups on GitLab.com or self-managed instances
 
 ### Supported Target Types
 

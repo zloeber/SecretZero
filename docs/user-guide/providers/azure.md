@@ -8,7 +8,7 @@ The Azure provider is ideal for:
 
 - **Azure-native applications** running on Azure App Service, Azure Functions, AKS, or Azure VMs
 - **Managed Identity authentication** for secure, credential-free access
-- **Enterprise applications** requiring centralized secret management with RBAC
+- **Production applications** requiring centralized secret management with RBAC
 - **Multi-cloud deployments** needing Azure integration
 - **Compliance requirements** that mandate Azure-native security services
 
@@ -892,15 +892,11 @@ steps:
      --bypass AzureServices
    ```
 
-## Cost Optimization
+## Cost optimization
 
-### Azure Key Vault Pricing
+Azure Key Vault transaction and certificate pricing is published by Microsoft and changes over time. See [Azure Key Vault pricing](https://azure.microsoft.com/pricing/details/key-vault/) for current rates and tier differences (including HSM-backed keys on Premium SKUs).
 
-- **Standard tier**: $0.03 per 10,000 transactions
-- **Premium tier**: $0.03 per 10,000 transactions + HSM-backed keys ($1.00 per key per month)
-- **Certificate operations**: $0.30 per renewal request
-
-**Cost-saving tips**:
+**Practical tips**:
 
 1. Cache secrets in application memory
 2. Use managed identities (no additional cost)

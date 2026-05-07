@@ -2,7 +2,7 @@
 
 ## Scope
 
-Implement a Vercel-deployable enterprise microsite (`ent-site`) with a distinctive dark-mode experience, embedded workflow diagrams, Three.js visuals, and a signup-only waitlist flow.  
+Implement a Vercel-deployable optional project site (`ent-site`) with a distinctive dark-mode experience, embedded workflow diagrams, Three.js visuals, and a signup-only waitlist flow.  
 Add a new SecretZero `vercel` provider for Vercel project environment variable management (v1).
 
 ## Goals

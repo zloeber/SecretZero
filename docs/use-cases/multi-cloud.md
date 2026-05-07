@@ -1242,7 +1242,7 @@ providers:
       kind: ambient
 
 secrets:
-  # High-value secrets → AWS Secrets Manager ($0.40/month + $0.05/10k API calls)
+  # High-value secrets → AWS Secrets Manager (see AWS pricing for current rates)
   - name: database_master_password
     kind: random_password
     rotation_period: 90d
@@ -1259,7 +1259,7 @@ secrets:
             Cost-Optimization: secrets-manager
             Rotation: enabled
 
-  # Standard secrets → SSM Parameter Store ($0.05/month for Standard tier)
+  # Standard secrets → SSM Parameter Store Standard tier (see AWS pricing)
   - name: api_key
     kind: random_string
     config:
@@ -1275,7 +1275,7 @@ secrets:
           tags:
             Cost-Optimization: ssm-standard
 
-  # Configuration values → SSM Parameter Store String (Free)
+  # Configuration values → SSM Parameter Store String type (typically lowest cost)
   - name: app_version
     kind: static
     config:
@@ -1291,7 +1291,7 @@ secrets:
           tags:
             Cost-Optimization: ssm-string-free
 
-  # Large secrets → SSM Parameter Store Advanced tier ($0.05/month)
+  # Large secrets → SSM Parameter Store Advanced tier (required for >4KB parameters)
   - name: large_certificate
     kind: static
     config:
@@ -1581,11 +1581,9 @@ aws secretsmanager replicate-secret-to-regions \
 **Solutions**:
 
 ```bash
-# Analyze AWS costs
-# Secrets Manager: $0.40/month per secret + $0.05/10k API calls
+# Analyze AWS inventory (compare with current AWS pricing pages)
 aws secretsmanager list-secrets --query 'SecretList | length'
 
-# SSM Parameter Store: $0.05/month (Standard), $0.05/month (Advanced)
 aws ssm describe-parameters --query 'Parameters | length'
 
 # Check API call metrics
@@ -1606,17 +1604,14 @@ secretzero sync --target-type ssm_parameter
 # Use AWS Secrets Manager caching client
 pip install aws-secretsmanager-caching
 
-# Azure Key Vault costs
-# $0.03 per 10,000 operations
+# Azure Key Vault API volume (compare with Microsoft pricing)
 az monitor metrics list \
   --resource /subscriptions/{subscription-id}/resourceGroups/{rg}/providers/Microsoft.KeyVault/vaults/{vault-name} \
   --metric ServiceApiHit \
   --start-time 2024-01-01T00:00:00Z \
   --end-time 2024-01-31T23:59:59Z
 
-# Vault costs depend on deployment model
-# Self-hosted: infrastructure costs
-# HCP Vault: per-client pricing
+# Vault: compare self-hosted infrastructure vs managed offerings using HashiCorp’s docs
 ```
 
 ### Provider API Rate Limiting

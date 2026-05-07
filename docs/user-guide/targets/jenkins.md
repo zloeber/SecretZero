@@ -1320,7 +1320,7 @@ Jenkins credentials targets in SecretZero provide:
 - ✅ Folder-scoped credentials for better organization
 - ✅ Multiple deployment strategies (XML API and Groovy scripts)
 - ✅ Seamless integration with Jenkins pipelines and jobs
-- ✅ Enterprise-grade security with Jenkins encryption
+- ✅ Jenkins-managed credential encryption at rest
 - ✅ Multi-Jenkins instance support
 
 For additional help or examples, refer to the [examples directory](../../examples/index.md) or [open an issue](https://github.com/yourusername/secretzero/issues).

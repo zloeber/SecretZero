@@ -124,7 +124,7 @@ production posture (for example requiring federated credentials in prod lanes).
 Foundry-created blueprints can be reconciled in SecretZero so credential
 rotation, drift checks, and audit trails remain Git-native.
 
-### Scenario B: Enterprise-Wide Agent Governance
+### Scenario B: Organization-wide agent governance
 
 Security teams define blueprint templates in SecretZero; application teams
 consume and extend them with lane-specific overrides.

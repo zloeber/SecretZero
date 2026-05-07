@@ -9,6 +9,7 @@ Lookup table for all pattern files in this directory. Check here before starting
 | [add-cli-command.md](add-cli-command.md) | Adding or changing `secretzero` CLI commands/options |
 | [add-secret.md#task-add-a-simple-secret](add-secret.md#task-add-a-simple-secret) | Adding a standard secret definition to `Secretfile.yml` |
 | [add-secret.md#task-add-a-template-secret](add-secret.md#task-add-a-template-secret) | Adding a template-backed multi-field secret |
+| [gitnexus-metagit-integration.md](gitnexus-metagit-integration.md) | GitNexus `secrets_overlay`, MetaGit registry, discovery bindings, blast-radius CLI |
 | [debug-sync.md](debug-sync.md) | Diagnosing sync failures across config/provider/generator/target boundaries |
 | [lockfile-state-parity.md](lockfile-state-parity.md) | Changing synced/pending/drift target-state logic across web/graph/CLI surfaces |
 | [lockfile-sync-identity.md](lockfile-sync-identity.md) | Extending lockfile operator/CI identity metadata or sync provenance |

@@ -2,6 +2,14 @@
 
 Complete reference documentation for `Secretfile.yml`, the declarative configuration file for SecretZero.
 
+## YAML Schema Hint
+
+Add this as the first line of your manifest so editors can validate and autocomplete from the published schema:
+
+```yaml
+# yaml-language-server: $schema=https://github.com/zloeber/SecretZero/raw/refs/heads/main/Secretfile.schema.json
+```
+
 ## Overview
 
 The Secretfile is a YAML file that defines all aspects of your secret management:
@@ -17,6 +25,7 @@ The Secretfile is a YAML file that defines all aspects of your secret management
 ## Root Structure
 
 ```yaml
+# yaml-language-server: $schema=https://github.com/zloeber/SecretZero/raw/refs/heads/main/Secretfile.schema.json
 version: '1.0'              # Required: Schema version
 variables: {}               # Optional: Variables for interpolation
 environments: {}            # Optional: Named environment lanes
@@ -857,6 +866,7 @@ policies:
 Here's a comprehensive example combining all features:
 
 ```yaml
+# yaml-language-server: $schema=https://github.com/zloeber/SecretZero/raw/refs/heads/main/Secretfile.schema.json
 version: '1.0'
 
 # Dynamic variables

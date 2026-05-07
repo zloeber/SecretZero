@@ -8,7 +8,7 @@ The HashiCorp Vault provider is ideal for:
 
 - **Multi-cloud deployments** requiring vendor-neutral secret management
 - **Dynamic secret generation** with Vault's secrets engines
-- **Enterprise environments** with strict audit and compliance requirements
+- **Production environments** with strict audit and compliance requirements
 - **Kubernetes deployments** using Vault Agent or CSI driver integration
 - **Organizations standardized on HashiCorp stack** (Terraform, Consul, Nomad)
 - **Zero-trust architectures** requiring fine-grained access control
@@ -1184,11 +1184,9 @@ jobs:
 
 ## Cost Optimization and Performance
 
-### Vault Editions
+### Vault deployment options
 
-- **Open Source**: Free, self-hosted
-- **Enterprise**: Paid, includes namespaces, replication, HSM support
-- **HCP Vault**: Managed service, pay-as-you-go
+HashiCorp publishes multiple Vault distribution and hosting options; features such as namespaces, replication, and HSM support depend on the edition and how you deploy. Refer to [HashiCorp Vault](https://www.vaultproject.io/) documentation for current capabilities and deployment models.
 
 ### Performance Tips
 

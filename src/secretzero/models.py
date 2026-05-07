@@ -415,6 +415,13 @@ class Secret(BaseModel):
         default=None,
         description="Instructions for agents to obtain this secret",
     )
+    process_tags: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Optional labels that associate this secret with execution flows / processes "
+            "(e.g. auth_flow, payment_gateway) for graph tooling and policy filtering."
+        ),
+    )
 
 
 class Metadata(BaseModel):

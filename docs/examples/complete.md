@@ -699,14 +699,14 @@ git push
 
 ---
 
-## Example 5: Multi-Cloud Enterprise Setup
+## Example 5: Multi-Cloud Setup
 
 **Use Case**: Large organization using AWS, Azure, and Vault
 
 **What You'll Learn**:
 - Multi-provider configuration
 - Complex secret distribution
-- Enterprise policies
+- Policy-backed rotation and compliance rules
 - Centralized management
 
 ### Configuration
@@ -717,7 +717,7 @@ Create `Secretfile.yml`:
 version: '1.0'
 
 metadata:
-  project: enterprise-secrets
+  project: multi-cloud-secrets
   organization: acme-corp
   compliance:
     - soc2
@@ -821,7 +821,7 @@ secrets:
           path: azure/api-key
 
 policies:
-  enterprise_rotation:
+  strict_rotation:
     kind: rotation
     config:
       require_rotation_period: true

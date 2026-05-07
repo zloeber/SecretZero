@@ -1118,8 +1118,8 @@ az keyvault create \
 ```
 
 **Key differences:**
-- **Standard**: Software-protected keys, $0.03/10,000 operations
-- **Premium**: HSM-backed keys (FIPS 140-2 Level 2), $1/key/month
+- **Standard**: Software-protected keys; see [Azure Key Vault pricing](https://azure.microsoft.com/pricing/details/key-vault/) for current per-operation costs.
+- **Premium**: HSM-backed keys (FIPS 140-2 Level 2); refer to Microsoft’s pricing page for HSM-related charges.
 
 **2. Encryption Keys**
 
@@ -1345,7 +1345,7 @@ version: '1.0'
 
 variables:
   environment: production
-  app_name: enterprise-app
+  app_name: production-app
   azure_region: eastus
   compliance_frameworks:
     - soc2

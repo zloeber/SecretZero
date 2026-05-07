@@ -31,6 +31,13 @@ from secretzero.cli_providers import providers_group
 from secretzero.config import ConfigLoader
 from secretzero.drift import DriftDetector
 from secretzero.environment_resolution import apply_target_profile, resolve_environment_context
+from secretzero.gitnexus_intel import (
+    emit_gitnexus_sidecars,
+    format_blast_radius_cli,
+    print_impact_suggestion,
+    run_gitnexus_analyze_skills,
+    run_gitnexus_blast_radius,
+)
 from secretzero.graph import generate_graph
 from secretzero.lockfile import Lockfile
 from secretzero.lockfile_import import run_lockfile_import
@@ -56,6 +63,35 @@ EXIT_AUTH_FAILURE = 3
 EXIT_DRIFT_DETECTED = 4
 EXIT_CONFIG_ERROR = 5
 EXIT_UNKNOWN_ERROR = 127
+
+
+def _should_emit_gitnexus_sidecar(
+    dry_run: bool,
+    results: dict[str, Any],
+    cleaned_entries: list[str],
+) -> bool:
+    """Mirror lockfile persist conditions for GitNexus sidecar emission."""
+    if dry_run:
+        return False
+    if results.get("secrets_stored", 0) > 0 or cleaned_entries:
+        return True
+    if results.get("secretfile_changed") is not None:
+        return True
+    return False
+
+
+def _try_emit_gitnexus_sidecar(
+    file_path: Path, config: Secretfile, *, echo: bool = False
+) -> dict[str, Any] | None:
+    try:
+        summary = emit_gitnexus_sidecars(secretfile_path=file_path, secretfile=config)
+        if echo and not summary.get("skipped") and summary.get("secrets_overlay"):
+            console.print(f"[dim]GitNexus overlay:[/dim] {summary['secrets_overlay']}")
+        return summary
+    except Exception as exc:  # noqa: BLE001 — never block primary command
+        if echo:
+            console.print(f"[dim]GitNexus overlay skipped:[/dim] {exc}")
+        return {"error": str(exc)}
 
 
 def _print_provider_identity_panel(
@@ -300,7 +336,8 @@ def create(template_type: str, output: str) -> None:
         raise click.Abort()
 
     # Basic template
-    template = """# Secretfile.yml
+    template = """# yaml-language-server: $schema=https://github.com/zloeber/SecretZero/raw/refs/heads/main/Secretfile.schema.json
+# Secretfile.yml
 version: '1.0'
 
 # Variables for dynamic configuration
@@ -2492,6 +2529,10 @@ def sync(
                 json_result["cleaned"] = cleaned_entries
             if refresh:
                 json_result["refresh"] = results.get("refresh")
+            if _should_emit_gitnexus_sidecar(dry_run, results, cleaned_entries):
+                gn = _try_emit_gitnexus_sidecar(file_path, config, echo=False)
+                if gn is not None:
+                    json_result["gitnexus"] = gn
             click.echo(json.dumps(json_result, indent=2, default=str))
             # Mirror text mode: persist lockfile after sync (JSON path used to return here without saving).
             if not dry_run:
@@ -2723,6 +2764,9 @@ def sync(
                     console.print(
                         "\n[yellow]⚠[/yellow]  Lockfile not saved (no secrets stored successfully)"
                     )
+
+            if _should_emit_gitnexus_sidecar(dry_run, results, cleaned_entries):
+                _try_emit_gitnexus_sidecar(file_path, config, echo=True)
 
         if dry_run:
             console.print(
@@ -3324,9 +3368,18 @@ def get(
     if reveal and result["revealable"]:
         response["value"] = result["value"]
 
+    gn_summary = _try_emit_gitnexus_sidecar(file_path, config, echo=False)
+    if gn_summary is not None:
+        response["gitnexus"] = gn_summary
+
     if output_format == "json":
         click.echo(json.dumps(response, indent=2))
         return
+
+    if gn_summary and not gn_summary.get("skipped"):
+        p = gn_summary.get("secrets_overlay")
+        if p:
+            console.print(f"[dim]GitNexus overlay:[/dim] {p}")
 
     console.print("[bold]Secret Retrieval[/bold]")
     console.print(f"  Provider: [cyan]{response['provider']}[/cyan]")
@@ -3392,6 +3445,14 @@ def get(
     multiple=True,
     help="Rotate only this secret by name (repeat for multiple secrets)",
 )
+@click.option(
+    "--trigger-reindex",
+    is_flag=True,
+    help=(
+        "After a successful rotation, run `gitnexus analyze --skills` in the Secretfile directory "
+        "(requires GitNexus CLI on PATH)."
+    ),
+)
 @click.argument("secret_name", required=False)
 def rotate(
     file: str,
@@ -3401,6 +3462,7 @@ def rotate(
     show_input: bool,
     output_format: str,
     secrets: tuple[str, ...],
+    trigger_reindex: bool,
     secret_name: str | None,
 ) -> None:
     """Rotate secrets based on rotation policies.
@@ -3566,17 +3628,24 @@ def rotate(
         results = engine.sync(dry_run=False, force_rotation=True)
 
         if output_format == "json":
-            click.echo(
-                json.dumps(
-                    {
-                        "dry_run": False,
-                        "secrets_rotated": results.get("secrets_generated", 0),
-                        "details": rotation_details,
-                        "errors": results.get("errors", []),
-                    },
-                    indent=2,
-                )
-            )
+            payload: dict[str, Any] = {
+                "dry_run": False,
+                "secrets_rotated": results.get("secrets_generated", 0),
+                "details": rotation_details,
+                "errors": results.get("errors", []),
+            }
+            if (
+                trigger_reindex
+                and results.get("secrets_generated", 0) > 0
+                and not results.get("errors")
+            ):
+                proc = run_gitnexus_analyze_skills(file_path.parent)
+                payload["gitnexus_reindex"] = {
+                    "returncode": proc.returncode,
+                    "stdout": proc.stdout[-8000:] if proc.stdout else "",
+                    "stderr": proc.stderr[-8000:] if proc.stderr else "",
+                }
+            click.echo(json.dumps(payload, indent=2))
         else:
             console.print(f"[green]✓[/green] Rotated {results['secrets_generated']} secrets")
 
@@ -3584,6 +3653,22 @@ def rotate(
                 console.print("\n[red]Errors:[/red]")
                 for error in results["errors"]:
                     console.print(f"  • {error}")
+
+            if (
+                trigger_reindex
+                and results.get("secrets_generated", 0) > 0
+                and not results.get("errors")
+            ):
+                proc = run_gitnexus_analyze_skills(file_path.parent)
+                if proc.returncode == 0:
+                    console.print(
+                        "[dim]GitNexus re-index:[/dim] gitnexus analyze --skills completed"
+                    )
+                else:
+                    console.print(
+                        f"[yellow]GitNexus re-index exited {proc.returncode}[/yellow]"
+                        + (f": {proc.stderr.strip()}" if proc.stderr else "")
+                    )
 
         # Save lockfile regardless of output format
         lock.save(lockfile_path)
@@ -5051,6 +5136,61 @@ def detect(directory: str, output_format: str, output: str | None) -> None:
         console.print(f"[dim]{fragment}[/dim]")
 
 
+@main.group("gitnexus")
+def gitnexus_group() -> None:
+    """GitNexus knowledge-graph bridge commands (optional GitNexus CLI on PATH)."""
+
+
+@gitnexus_group.command("blast-radius")
+@click.option(
+    "--symbol",
+    "-s",
+    "symbol_fqn",
+    required=True,
+    help="Fully qualified symbol name to pass to GitNexus impact analysis",
+)
+@click.option(
+    "--cwd",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+    default=None,
+    help="Repository root (default: current working directory)",
+)
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    help="Print raw subprocess result as JSON",
+)
+def gitnexus_blast_radius_cmd(symbol_fqn: str, cwd: str | None, as_json: bool) -> None:
+    """Run GitNexus impact analysis for blast-radius / security review."""
+    root = Path(cwd).resolve() if cwd else Path.cwd()
+    proc = run_gitnexus_blast_radius(symbol_fqn, cwd=root)
+    if as_json:
+        click.echo(
+            json.dumps(
+                {
+                    "returncode": proc.returncode,
+                    "stdout": proc.stdout,
+                    "stderr": proc.stderr,
+                    "hint_cli": format_blast_radius_cli(symbol_fqn, cwd=root),
+                },
+                indent=2,
+            )
+        )
+        if proc.returncode == 127:
+            sys.exit(EXIT_MISSING_DEPENDENCY)
+        sys.exit(EXIT_SUCCESS if proc.returncode == 0 else EXIT_UNKNOWN_ERROR)
+    if proc.returncode == 127:
+        print_impact_suggestion(symbol_fqn)
+        sys.exit(EXIT_MISSING_DEPENDENCY)
+    out = (proc.stdout or "").strip() or (proc.stderr or "").strip()
+    if out:
+        console.print(out)
+    else:
+        console.print("[dim](no output from gitnexus)[/dim]")
+    sys.exit(EXIT_SUCCESS if proc.returncode == 0 else EXIT_UNKNOWN_ERROR)
+
+
 # Register config, format, and provider CLI groups/commands
 main.add_command(config_group)
 main.add_command(format_command)
@@ -6044,6 +6184,9 @@ def discover(
                     "source_file": c.source_file,
                     "line": c.line_number,
                     "tags": c.tags,
+                    "containing_symbol": c.containing_symbol,
+                    "symbol_fqn": c.symbol_fqn,
+                    "symbol_id": c.symbol_id,
                 }
                 for c in result.candidates
             ],

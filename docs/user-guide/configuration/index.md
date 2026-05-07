@@ -148,12 +148,15 @@ Secrets are the core entities managed by SecretZero. Each secret definition incl
 - **Config**: Generator-specific configuration
 - **Targets**: Where to store the generated value
 - **Rotation Policy**: When to regenerate the secret
+- **Process tags** (optional): Short labels (for example `auth_flow`) used by GitNexus/MetaGit overlays to relate secrets to execution flows
 
 ```yaml
 secrets:
   - name: api_key
     kind: random_password
     rotation_period: 90d
+    process_tags:
+      - auth_flow
     one_time: false
     config:
       length: 64
