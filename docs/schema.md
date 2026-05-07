@@ -13,9 +13,18 @@ This file is generated during docs builds from `secretzero schema export`.
 Runtime validator and typing cleanups may not change schema field shape, but the generated
 schema remains the source-of-truth contract for machine consumers.
 
+## YAML Language Server Directive
+
+For `Secretfile.yml` authoring, include this first line so YAML tooling uses the latest published schema:
+
+```yaml
+# yaml-language-server: $schema=https://github.com/zloeber/SecretZero/raw/refs/heads/main/Secretfile.schema.json
+```
+
 ## Root Structure
 
 ```yaml
+# yaml-language-server: $schema=https://github.com/zloeber/SecretZero/raw/refs/heads/main/Secretfile.schema.json
 version: '1.0'              # Required: Schema version
 variables: {}               # Optional: Variables for interpolation
 metadata: {}                # Optional: Project metadata
@@ -147,6 +156,8 @@ secrets:
       special: true
     one_time: false            # Generate once and never rotate
     rotation_period: 90d       # Rotation period
+    process_tags:               # Optional flow labels for graph tooling
+      - auth_flow
     targets:                   # Where to store this secret
       - provider: local
         kind: file
@@ -167,6 +178,7 @@ secrets:
 | `one_time` | boolean | If true, generate once and don't rotate |
 | `rotation_period` | string | Rotation period (e.g., 90d, 6m, 1y) |
 | `targets` | list | List of storage targets |
+| `process_tags` | list of strings | Optional labels tying secrets to execution flows (e.g., `auth_flow`, `payment_gateway`) for GitNexus/MetaGit tooling |
 
 ### Secret Source (`source`)
 
@@ -390,6 +402,7 @@ For a secret named `db_password` with template `database_credentials` and field 
 ## Complete Example
 
 ```yaml
+# yaml-language-server: $schema=https://github.com/zloeber/SecretZero/raw/refs/heads/main/Secretfile.schema.json
 version: '1.0'
 
 variables:

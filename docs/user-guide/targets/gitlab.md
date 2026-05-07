@@ -1493,6 +1493,6 @@ echo "GITLAB_TOKEN=*" >> .gitignore
 
 - Learn about [GitHub Actions Secrets](github.md) for GitHub workflows
 - Explore [Kubernetes Secrets](kubernetes.md) for container orchestration
-- Review [HashiCorp Vault](vault.md) for enterprise secret management
+- Review [HashiCorp Vault](vault.md) for centralized secret storage
 - Check [complete examples](../../examples/index.md) for more patterns
 - Read about [secret rotation strategies](../../advanced/rotation/index.md)

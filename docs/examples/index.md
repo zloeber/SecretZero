@@ -34,7 +34,7 @@ Access the complete collection of example Secretfiles in the GitHub repository w
 | **Local Development** | Testing and development | local-only.yml |
 | **Single Cloud (AWS)** | AWS-only deployments | aws-only.yml |
 | **Single Cloud (Azure)** | Azure-only deployments | - |
-| **Multi-Cloud** | Enterprise hybrid cloud | multi-cloud.yml |
+| **Multi-Cloud** | Hybrid / multi-provider cloud | multi-cloud.yml |
 | **Kubernetes** | Container orchestration | kubernetes-*.yml |
 | **CI/CD Pipelines** | Automated workflows | github-actions.yml, gitlab-cicd.yml |
 | **Jenkins** | Legacy CI/CD | jenkins-credentials.yml |
@@ -50,7 +50,7 @@ Access the complete collection of example Secretfiles in the GitHub repository w
 - [github-actions.yml](repository.md#cicd-examples) - CI/CD integration
 - [drift-detection.yml](repository.md#drift-detection) - Monitoring
 
-#### Advanced (Enterprise)
+#### Advanced (multi-provider)
 - [multi-cloud.yml](repository.md#multi-cloud) - Multi-cloud strategy
 - [kubernetes-complete.yml](repository.md#kubernetes-complete) - Full K8s setup
 - [multi-cicd.yml](repository.md#multi-cicd) - Complex CI/CD

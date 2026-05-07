@@ -465,7 +465,5 @@ secrets:
 
 # ## Cost Optimization
 
-# - GitHub: Repository secrets are free, organization secrets may require GitHub Enterprise
-# - GitLab: All tiers include CI/CD variables
-# - Jenkins: Free, but consider infrastructure costs
-# - SecretZero: Open source, free to use
+# - GitHub / GitLab / Jenkins: see each platform’s current documentation for limits and features.
+# - SecretZero: open source; vendor fees apply only to the underlying platforms you use.

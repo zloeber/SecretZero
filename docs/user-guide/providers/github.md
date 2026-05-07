@@ -10,7 +10,7 @@ The GitHub provider is ideal for:
 - **Repository automation** requiring secure credential management
 - **Multi-repository deployments** needing consistent secrets across repos
 - **Environment-specific deployments** (production, staging, development)
-- **Teams using GitHub Enterprise** with custom API endpoints
+- **Self-hosted GitHub** deployments that use a custom API base URL
 
 ### Supported Target Types
 

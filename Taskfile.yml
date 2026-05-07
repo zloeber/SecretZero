@@ -185,8 +185,6 @@ tasks:
     desc: Update GitHub Actions in workflows
     cmds:
       - npx actions-up -y
-  
-
 
   schema:to:yaml:
     desc: Convert JSON schema files to YAML

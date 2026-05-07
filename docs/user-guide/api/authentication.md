@@ -474,7 +474,7 @@ API_KEYS = {
 
 ### OAuth2/OIDC Integration (Future)
 
-For enterprise deployments, consider OAuth2/OIDC:
+For production or centrally governed deployments, consider OAuth2/OIDC:
 
 ```yaml
 # Future configuration example

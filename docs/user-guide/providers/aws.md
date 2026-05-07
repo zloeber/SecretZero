@@ -868,26 +868,11 @@ spec:
 3. Consider using Parameter Store's higher tier
 4. Batch parameter operations when possible
 
-## Cost Optimization
+## Cost optimization
 
-### SSM Parameter Store Pricing
+AWS prices and free tiers for Systems Manager Parameter Store and Secrets Manager change over time. See the [AWS Systems Manager pricing](https://aws.amazon.com/systems-manager/pricing/) and [AWS Secrets Manager pricing](https://aws.amazon.com/secrets-manager/pricing/) pages for current rates.
 
-- **Standard parameters**: Free (up to 10,000 parameters)
-- **Advanced parameters**: $0.05 per parameter per month
-- **Higher throughput**: $0.05 per 10,000 API calls
-
-**Recommendation**: Use standard parameters unless you need:
-- Parameters larger than 4KB
-- Parameter policies
-- More than 10,000 parameters
-
-### Secrets Manager Pricing
-
-- **Secret storage**: $0.40 per secret per month
-- **API calls**: $0.05 per 10,000 API calls
-- **Replication**: Additional $0.40 per replica per month
-
-**Cost-saving tips**:
+**Practical tips**:
 1. Use Parameter Store for non-rotated secrets
 2. Implement caching to reduce API calls
 3. Archive unused secrets instead of deleting

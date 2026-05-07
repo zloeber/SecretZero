@@ -112,7 +112,7 @@ secretzero sync
 
 #### multi-cloud.yml {#multi-cloud}
 
-**Purpose**: Enterprise multi-cloud secret distribution
+**Purpose**: Multi-provider (multi-cloud) secret distribution
 
 **Features**:
 - Multi-cloud secret distribution (AWS, Azure, Vault)
@@ -146,7 +146,7 @@ secretzero sync
 **Perfect For**:
 - Multi-cloud strategies
 - Hybrid cloud deployments
-- Enterprise environments
+- Large or regulated environments
 - Cloud migration scenarios
 
 ---
@@ -214,7 +214,7 @@ secretzero sync
 - Production Kubernetes
 - Multi-namespace deployments
 - Advanced secret management
-- Enterprise K8s clusters
+- Large-scale Kubernetes clusters
 
 ---
 
@@ -366,7 +366,7 @@ secretzero sync
 **Perfect For**:
 - Legacy Jenkins setups
 - Hybrid CI/CD
-- Enterprise CI/CD
+- Organization-wide CI/CD
 - Jenkins users
 
 ---
@@ -452,7 +452,7 @@ secretzero sync
 - Regulated industries
 - Compliance audits
 - Security teams
-- Enterprise governance
+- Governance and audit requirements
 
 ---
 

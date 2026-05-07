@@ -2406,4 +2406,4 @@ Kubernetes targets in SecretZero provide comprehensive secret management with tw
 - **KubernetesSecretTarget**: Direct secret deployment for immediate availability
 - **ExternalSecretTarget**: GitOps-friendly manifest generation for External Secrets Operator
 
-Both support all Kubernetes secret types, RBAC integration, multi-namespace deployments, and enterprise security requirements. Choose the approach that best fits your deployment workflow and security posture.
+Both support all Kubernetes secret types, RBAC integration, multi-namespace deployments, and production security requirements. Choose the approach that best fits your deployment workflow and security posture.

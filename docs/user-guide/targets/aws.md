@@ -437,7 +437,7 @@ secrets:
 | **Cross-Region Replication** | Yes | No |
 | **Versioning** | Yes (automatic) | Yes (manual) |
 | **Max Size** | 65,536 bytes | 4 KB (Standard), 8 KB (Advanced) |
-| **Cost** | $0.40/secret/month + API calls | Free (Standard), $0.05/param/month (Advanced) |
+| **Cost** | See [AWS Secrets Manager pricing](https://aws.amazon.com/secrets-manager/pricing/) | See [AWS Systems Manager Parameter Store pricing](https://aws.amazon.com/systems-manager/pricing/) |
 | **Use Case** | Sensitive credentials, rotating secrets | Configuration, non-rotating secrets |
 | **AWS Service Integration** | RDS, DocumentDB, Redshift | EC2, ECS, Lambda, Systems Manager |
 

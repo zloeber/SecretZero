@@ -21,6 +21,7 @@ definitions, generators, and targets.
 from __future__ import annotations
 
 import fnmatch
+import json
 import os
 import re
 from dataclasses import dataclass, field
@@ -49,6 +50,9 @@ class SecretCandidate(BaseModel):
     suggested_generator: str = "static"
     suggested_target_kind: str = "file"
     tags: list[str] = []
+    containing_symbol: str | None = None
+    symbol_fqn: str | None = None
+    symbol_id: str | None = None
 
     def to_secretfile_entry(self) -> dict[str, Any]:
         """Convert to a Secretfile secret definition.
@@ -233,6 +237,48 @@ _SECRET_PATTERNS: list[tuple[str, str, float, str, list[str]]] = [
 # Compiled patterns (lazy)
 _COMPILED: list[tuple[str, re.Pattern[str], float, str, list[str]]] | None = None
 
+_PY_DEF = re.compile(r"^\s*(?:async\s+)?def\s+([a-zA-Z_][\w]*)\s*\(")
+_PY_CLASS = re.compile(r"^\s*class\s+([a-zA-Z_][\w]*)")
+
+
+def _infer_python_containing_symbol(content: str, line_no: int) -> str | None:
+    """Best-effort parent function/class name for a 1-based line number."""
+    if line_no < 1:
+        return None
+    lines = content.splitlines()
+    idx = line_no - 1
+    if idx >= len(lines):
+        return None
+    current_class: str | None = None
+    class_indent = -1
+    current_fn: str | None = None
+    for i in range(idx + 1):
+        line = lines[i]
+        indent = len(line) - len(line.lstrip())
+        cm = _PY_CLASS.match(line)
+        if cm:
+            current_class = cm.group(1)
+            class_indent = indent
+            current_fn = None
+            continue
+        dm = _PY_DEF.match(line)
+        if not dm:
+            continue
+        if current_class is not None:
+            if indent > class_indent:
+                current_fn = dm.group(1)
+            elif indent <= class_indent:
+                current_class = None
+                class_indent = -1
+                current_fn = dm.group(1)
+        else:
+            current_fn = dm.group(1)
+    if current_class and current_fn:
+        return f"{current_class}.{current_fn}"
+    if current_fn:
+        return current_fn
+    return current_class
+
 
 def _get_compiled_patterns() -> list[tuple[str, re.Pattern[str], float, str, list[str]]]:
     global _COMPILED
@@ -348,8 +394,9 @@ class DiscoveryAgent:
             llm_interactions=llm_interactions if verbose else [],
         )
 
-        # 6. Write output unless dry-run
+        # 6. Write bindings + Secretfile unless dry-run
         if not dry_run and candidates:
+            self._write_discovery_bindings(candidates, root)
             self._write_secretfile(candidates, out)
 
         return result
@@ -474,6 +521,10 @@ class DiscoveryAgent:
                 if self._is_placeholder(raw):
                     continue
 
+                parent_sym: str | None = None
+                if file_path.suffix.lower() == ".py":
+                    parent_sym = _infer_python_containing_symbol(content, line_no)
+
                 candidates.append(
                     SecretCandidate(
                         name=var_name,
@@ -485,6 +536,7 @@ class DiscoveryAgent:
                         suggested_generator=generator,
                         suggested_target_kind="file",
                         tags=list(tags),
+                        containing_symbol=parent_sym,
                     )
                 )
 
@@ -710,13 +762,21 @@ class DiscoveryAgent:
             "You are a security expert analysing project files for secrets, credentials, "
             "and sensitive configuration values.\n\n"
             "Review the following file snippet and list any secrets you find. "
-            "For each secret, respond with one line in the format:\n"
-            "SECRET_NAME|description|generator_type|confidence\n\n"
+            "For each secret, respond with ONE line in this pipe-separated format:\n"
+            "SECRET_NAME|description|generator_type|confidence|LINE_NUMBER|"
+            "PARENT_SYMBOL|SYMBOL_FQN|TREE_SITTER_SYMBOL_ID\n\n"
             "Where:\n"
             "- SECRET_NAME: snake_case name for the secret\n"
             "- description: brief description of what it is\n"
             "- generator_type: one of: static, random_password, random_string\n"
-            "- confidence: a float from 0.0 to 1.0\n\n"
+            "- confidence: a float from 0.0 to 1.0\n"
+            "- LINE_NUMBER: approximate 1-based line number in the file where the secret appears\n"
+            "- PARENT_SYMBOL: innermost enclosing function or class name "
+            "(e.g. MyService.fetch or handle_request); use module scope name if none\n"
+            "- SYMBOL_FQN: fully qualified symbol string if inferable, else empty\n"
+            "- TREE_SITTER_SYMBOL_ID: GitNexus / Tree-sitter symbol id if known, else empty\n\n"
+            "Legacy 4-field lines (SECRET_NAME|description|generator_type|confidence) are accepted "
+            "but prefer the full 8-field format.\n"
             "Only list genuine secrets, not placeholder values.\n"
             "If no secrets are found, respond with: NONE\n\n"
             f"{prompt_context}"
@@ -775,17 +835,36 @@ class DiscoveryAgent:
             if generator not in valid_generators:
                 generator = "static"
 
+            line_number = 0
+            containing_symbol: str | None = None
+            symbol_fqn: str | None = None
+            symbol_id: str | None = None
+            if len(parts) >= 5:
+                try:
+                    line_number = int(parts[4].strip())
+                except ValueError:
+                    line_number = 0
+            if len(parts) >= 6 and parts[5].strip():
+                containing_symbol = parts[5].strip()
+            if len(parts) >= 7 and parts[6].strip():
+                symbol_fqn = parts[6].strip()
+            if len(parts) >= 8 and parts[7].strip():
+                symbol_id = parts[7].strip()
+
             candidates.append(
                 SecretCandidate(
                     name=secret_name,
                     description=description,
                     source_file=rel,
-                    line_number=0,
+                    line_number=max(0, line_number),
                     raw_value="",
                     confidence=confidence,
                     suggested_generator=generator,
                     suggested_target_kind="file",
                     tags=["llm-detected"],
+                    containing_symbol=containing_symbol,
+                    symbol_fqn=symbol_fqn,
+                    symbol_id=symbol_id,
                 )
             )
 
@@ -820,12 +899,21 @@ class DiscoveryAgent:
                 existing = by_name[llm_c.name]
                 # Boost confidence if both methods agree
                 merged_confidence = min(1.0, max(existing.confidence, llm_c.confidence) + 0.05)
-                by_name[llm_c.name] = existing.model_copy(
-                    update={
-                        "confidence": merged_confidence,
-                        "description": llm_c.description or existing.description,
-                    }
-                )
+                upd: dict[str, Any] = {
+                    "confidence": merged_confidence,
+                    "description": llm_c.description or existing.description,
+                }
+                if llm_c.containing_symbol:
+                    upd["containing_symbol"] = llm_c.containing_symbol
+                elif existing.containing_symbol:
+                    upd["containing_symbol"] = existing.containing_symbol
+                if llm_c.symbol_fqn:
+                    upd["symbol_fqn"] = llm_c.symbol_fqn
+                if llm_c.symbol_id:
+                    upd["symbol_id"] = llm_c.symbol_id
+                if llm_c.line_number and not existing.line_number:
+                    upd["line_number"] = llm_c.line_number
+                by_name[llm_c.name] = existing.model_copy(update=upd)
             else:
                 by_name[llm_c.name] = llm_c
 
@@ -849,6 +937,29 @@ class DiscoveryAgent:
     # ------------------------------------------------------------------
     # Output generation
     # ------------------------------------------------------------------
+
+    def _write_discovery_bindings(self, candidates: list[SecretCandidate], root: Path) -> None:
+        """Persist symbol/source bindings for GitNexus ``secrets_overlay`` merging."""
+        out_dir = root / ".gitnexus"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        bindings: dict[str, Any] = {}
+        for c in candidates:
+            sym_ids: list[str] = []
+            if c.symbol_id:
+                sym_ids.append(c.symbol_id)
+            bindings[c.name] = {
+                "source_file": c.source_file,
+                "line_number": c.line_number,
+                "containing_symbol": c.containing_symbol,
+                "symbol_fqn": c.symbol_fqn,
+                "symbol_id": c.symbol_id,
+                "symbol_ids": sym_ids,
+            }
+        doc = {"schema_version": "1", "bindings": bindings}
+        (out_dir / "discovery_bindings.json").write_text(
+            json.dumps(doc, indent=2, sort_keys=False) + "\n",
+            encoding="utf-8",
+        )
 
     def _write_secretfile(self, candidates: list[SecretCandidate], output_path: Path) -> None:
         """Write the generated Secretfile to disk.

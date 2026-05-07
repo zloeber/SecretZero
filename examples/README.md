@@ -112,7 +112,7 @@ secretzero sync
 
 ### 3. Multi-Cloud Distribution (`multi-cloud.yml`)
 
-Enterprise configuration distributing secrets across AWS, Azure, and HashiCorp Vault.
+Example configuration distributing secrets across AWS, Azure, and HashiCorp Vault.
 
 **Features:**
 - Multi-cloud secret distribution
