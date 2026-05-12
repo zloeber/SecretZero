@@ -5,6 +5,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import pytest
+import yaml
 from click.testing import CliRunner
 
 from secretzero.cli import (
@@ -503,6 +504,163 @@ templates: {{}}
         assert payload["selected_environment"] == "dev"
         assert payload["resolved_target_profile"] is None
         assert str(payload["resolved_lockfile"]).endswith(".gitsecrets.dev.lock")
+
+
+def test_render_uses_root_environment_profile_var_file(runner: CliRunner) -> None:
+    """Root `--environment` should affect render for Secretfile-backed commands."""
+    with TemporaryDirectory() as tmpdir:
+        sf = Path(tmpdir) / "Secretfile.yml"
+        dev_var = Path(tmpdir) / "dev.szvar"
+        dev_var.write_text("env: dev\nsecret_path: .env.dev\n", encoding="utf-8")
+        sf.write_text(f"""
+variables:
+  env: base
+  secret_path: .env.base
+environments:
+  profiles:
+    dev:
+      var_files:
+        - {dev_var}
+providers:
+  local:
+    kind: local
+secrets:
+  - name: api_key
+    kind: static
+    config:
+      default: demo
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: ${{secret_path}}
+          format: dotenv
+templates: {{}}
+""")
+        result = runner.invoke(
+            main,
+            ["--environment", "dev", "render", "--file", str(sf), "--format", "yaml"],
+        )
+        assert result.exit_code == 0, result.output
+        payload = yaml.safe_load(result.output)
+        assert payload["variables"]["env"] == "dev"
+        assert payload["secrets"][0]["targets"][0]["config"]["path"] == ".env.dev"
+
+
+def test_status_uses_environment_resolved_lockfile(runner: CliRunner) -> None:
+    """Status should resolve the environment profile lockfile when selected."""
+    with TemporaryDirectory() as tmpdir:
+        sf = Path(tmpdir) / "Secretfile.yml"
+        dev_var = Path(tmpdir) / "dev.szvar"
+        dev_var.write_text("env: dev\n", encoding="utf-8")
+        sf.write_text(f"""
+variables:
+  env: base
+environments:
+  profiles:
+    dev:
+      var_files:
+        - {dev_var}
+      lockfile: .gitsecrets.dev.lock
+providers:
+  local:
+    kind: local
+secrets: []
+templates: {{}}
+""")
+        result = runner.invoke(
+            main,
+            ["status", "--file", str(sf), "--environment", "dev", "--format", "json"],
+        )
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert str(payload["lockfile"]).endswith(".gitsecrets.dev.lock")
+
+
+def test_list_variables_subcommand_environment_overrides_root_environment(
+    runner: CliRunner,
+) -> None:
+    """Subcommand `--environment` should override the root default environment."""
+    with TemporaryDirectory() as tmpdir:
+        sf = Path(tmpdir) / "Secretfile.yml"
+        dev_var = Path(tmpdir) / "dev.szvar"
+        prod_var = Path(tmpdir) / "prod.szvar"
+        dev_var.write_text("env: dev\n", encoding="utf-8")
+        prod_var.write_text("env: prod\n", encoding="utf-8")
+        sf.write_text(f"""
+variables:
+  env: base
+environments:
+  profiles:
+    dev:
+      var_files:
+        - {dev_var}
+    prod:
+      var_files:
+        - {prod_var}
+providers:
+  local:
+    kind: local
+secrets: []
+templates: {{}}
+""")
+        result = runner.invoke(
+            main,
+            [
+                "--environment",
+                "dev",
+                "list",
+                "variables",
+                "--file",
+                str(sf),
+                "--environment",
+                "prod",
+                "--format",
+                "json",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["variables"]["env"] == "prod"
+
+
+def test_list_targets_uses_environment_profile_config(runner: CliRunner) -> None:
+    """List subcommands should render environment-specific target settings."""
+    with TemporaryDirectory() as tmpdir:
+        sf = Path(tmpdir) / "Secretfile.yml"
+        dev_var = Path(tmpdir) / "dev.szvar"
+        dev_var.write_text("secret_path: .env.dev\n", encoding="utf-8")
+        sf.write_text(f"""
+variables:
+  secret_path: .env.base
+environments:
+  profiles:
+    dev:
+      var_files:
+        - {dev_var}
+providers:
+  local:
+    kind: local
+secrets:
+  - name: api_key
+    kind: static
+    config:
+      default: demo
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: ${{secret_path}}
+          format: dotenv
+templates: {{}}
+""")
+        result = runner.invoke(
+            main,
+            ["list", "targets", "--file", str(sf), "--environment", "dev", "--format", "json"],
+        )
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["targets"][0]["config"]["path"] == ".env.dev"
 
 
 def test_rotate_json_output_dry_run(runner: CliRunner) -> None:

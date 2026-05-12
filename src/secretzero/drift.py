@@ -6,6 +6,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from secretzero.config import ConfigLoader
+from secretzero.environment_resolution import apply_target_profile, resolve_environment_context
 from secretzero.lockfile import Lockfile
 from secretzero.models import Secret, TargetConfig
 from secretzero.providers.registry import GLOBAL_PROVIDER_REGISTRY
@@ -23,18 +24,39 @@ class DriftStatus(BaseModel):
 class DriftDetector:
     """Detect drift between lockfile and actual targets."""
 
-    def __init__(self, secretfile_path: Path, lockfile_path: Path):
+    def __init__(
+        self,
+        secretfile_path: Path,
+        lockfile_path: Path,
+        *,
+        environment: str | None = None,
+        runtime_var_files: list[Path] | None = None,
+    ):
         """Initialize drift detector.
 
         Args:
             secretfile_path: Path to Secretfile
             lockfile_path: Path to lockfile
+            environment: Optional named environment profile
+            runtime_var_files: Optional runtime var-file overrides
         """
         self.secretfile_path = secretfile_path
         self.lockfile_path = lockfile_path
 
         loader = ConfigLoader()
-        self.config = loader.load_file(secretfile_path)
+        base_secretfile = loader.load_file(secretfile_path)
+        env_ctx = resolve_environment_context(
+            secretfile=base_secretfile,
+            secretfile_path=secretfile_path,
+            environment=environment,
+            runtime_var_files=runtime_var_files,
+            runtime_lockfile=str(lockfile_path),
+        )
+        self.config = loader.load_file(
+            secretfile_path, var_files=env_ctx.resolved_var_files or None
+        )
+        self.config = apply_target_profile(self.config, env_ctx.resolved_target_profile)
+        self.environment_context = env_ctx
         self.lockfile = Lockfile.load(lockfile_path)
 
     def check_drift(self, secret_name: str | None = None) -> list[DriftStatus]:

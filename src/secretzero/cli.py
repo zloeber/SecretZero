@@ -30,7 +30,11 @@ from secretzero.cli_format import format_command
 from secretzero.cli_providers import providers_group
 from secretzero.config import ConfigLoader
 from secretzero.drift import DriftDetector
-from secretzero.environment_resolution import apply_target_profile, resolve_environment_context
+from secretzero.environment_resolution import (
+    ResolvedEnvironmentContext,
+    apply_target_profile,
+    resolve_environment_context,
+)
 from secretzero.gitnexus_intel import (
     emit_gitnexus_sidecars,
     format_blast_radius_cli,
@@ -63,6 +67,15 @@ EXIT_AUTH_FAILURE = 3
 EXIT_DRIFT_DETECTED = 4
 EXIT_CONFIG_ERROR = 5
 EXIT_UNKNOWN_ERROR = 127
+
+
+_environment_option = click.option(
+    "--environment",
+    "-e",
+    type=str,
+    default=None,
+    help="Named environment profile from Secretfile.environments.profiles",
+)
 
 
 def _should_emit_gitnexus_sidecar(
@@ -187,8 +200,9 @@ def _print_sync_readiness_panel(readiness: dict[str, Any]) -> None:
     default=False,
     help="Disable all interactive prompts; error when human input would be required.",
 )
+@_environment_option
 @click.pass_context
-def main(ctx: click.Context, non_interactive: bool) -> None:
+def main(ctx: click.Context, non_interactive: bool, environment: str | None) -> None:
     """SecretZero: Secrets orchestration, lifecycle, and bootstrap engine.
 
     SecretZero helps automate the creation, seeding, and lifecycle management
@@ -196,6 +210,7 @@ def main(ctx: click.Context, non_interactive: bool) -> None:
     """
     ctx.ensure_object(dict)
     ctx.obj["non_interactive"] = non_interactive
+    ctx.obj["environment"] = environment
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
         ctx.exit(EXIT_SUCCESS)
@@ -219,6 +234,52 @@ def _is_non_interactive() -> bool:
 def _env_flag(name: str) -> bool:
     """Return True when environment variable is a truthy flag."""
     return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _root_environment() -> str | None:
+    """Return the root CLI environment selection, if any."""
+    ctx = click.get_current_context(silent=True)
+    if ctx is None:
+        return None
+    root = ctx.find_root()
+    obj = root.obj if root is not None else None
+    if not obj:
+        return None
+    value = obj.get("environment")
+    return str(value) if value else None
+
+
+def _effective_environment(environment: str | None) -> str | None:
+    """Prefer command-local environment, then fall back to the root CLI flag."""
+    return environment if environment is not None else _root_environment()
+
+
+def _load_secretfile_for_cli(
+    file: str,
+    *,
+    var_files: tuple[str, ...] = (),
+    environment: str | None = None,
+    lockfile: str | None = None,
+) -> tuple[Path, Secretfile, ResolvedEnvironmentContext]:
+    """Load a Secretfile with environment-aware var-file and target-profile resolution."""
+    file_path = Path(file)
+    runtime_var_file_paths = [Path(vf) for vf in var_files] if var_files else None
+    runtime_lockfile = None
+    if lockfile is not None:
+        runtime_lockfile = _runtime_lockfile_override(file, lockfile)
+
+    loader = ConfigLoader()
+    base_secretfile = loader.load_file(file_path)
+    env_ctx = resolve_environment_context(
+        secretfile=base_secretfile,
+        secretfile_path=file_path,
+        environment=_effective_environment(environment),
+        runtime_var_files=runtime_var_file_paths,
+        runtime_lockfile=runtime_lockfile,
+    )
+    secretfile = loader.load_file(file_path, var_files=env_ctx.resolved_var_files or None)
+    secretfile = apply_target_profile(secretfile, env_ctx.resolved_target_profile)
+    return file_path, secretfile, env_ctx
 
 
 def _runtime_lockfile_override(file: str, lockfile: str) -> str | None:
@@ -415,7 +476,8 @@ annotations: {}
     is_flag=True,
     help="Show what would be installed without installing",
 )
-def init(file: str, install: bool, dry_run: bool) -> None:
+@_environment_option
+def init(file: str, install: bool, dry_run: bool, environment: str | None) -> None:
     """Initialize project by checking and installing provider dependencies.
 
     This command reads your Secretfile, identifies configured providers,
@@ -425,17 +487,8 @@ def init(file: str, install: bool, dry_run: bool) -> None:
     import subprocess
     import sys
 
-    file_path = Path(file)
-
-    if not file_path.exists():
-        console.print(f"[red]Error:[/red] Secretfile not found: {file}")
-        console.print("\nCreate one first with: [cyan]secretzero create[/cyan]")
-        raise click.Abort()
-
-    loader = ConfigLoader()
-
     try:
-        config = loader.load_file(file_path)
+        file_path, config, _ = _load_secretfile_for_cli(file, environment=environment)
     except Exception as e:
         console.print(f"[red]Error loading Secretfile:[/red] {e}")
         raise click.Abort()
@@ -552,7 +605,13 @@ def init(file: str, install: bool, dry_run: bool) -> None:
     default="text",
     help="Output format (text or json)",
 )
-def validate(file: str, var_files: tuple[str, ...], output_format: str) -> None:
+@_environment_option
+def validate(
+    file: str,
+    var_files: tuple[str, ...],
+    output_format: str,
+    environment: str | None,
+) -> None:
     """Validate Secretfile configuration.
 
     This command checks the syntax and structure of your Secretfile.yml,
@@ -562,39 +621,45 @@ def validate(file: str, var_files: tuple[str, ...], output_format: str) -> None:
     final merged configuration is valid.
     """
     file_path = Path(file)
-    var_file_paths = [Path(vf) for vf in var_files] if var_files else None
-    loader = ConfigLoader()
-
-    is_valid, message = loader.validate_file(file_path, var_files=var_file_paths)
+    config: Secretfile | None = None
+    env_ctx: ResolvedEnvironmentContext | None = None
+    try:
+        file_path, config, env_ctx = _load_secretfile_for_cli(
+            file,
+            var_files=var_files,
+            environment=environment,
+        )
+        is_valid = True
+        message = "Secretfile is valid"
+    except Exception as exc:
+        is_valid = False
+        message = str(exc)
 
     if output_format == "json":
         result: dict = {"valid": is_valid, "message": message, "file": str(file_path)}
-        if is_valid:
-            try:
-                config = loader.load_file(file_path, var_files=var_file_paths)
-                result["config"] = {
-                    "manifest_spec_version": SECRETFILE_MANIFEST_SPEC_VERSION,
-                    "variables_count": len(config.variables),
-                    "providers_count": len(config.providers),
-                    "secrets_count": len(config.secrets),
-                    "templates_count": len(config.templates),
-                }
-            except (ValueError, KeyError, AttributeError):
-                pass
+        if is_valid and config is not None:
+            result["config"] = {
+                "manifest_spec_version": SECRETFILE_MANIFEST_SPEC_VERSION,
+                "variables_count": len(config.variables),
+                "providers_count": len(config.providers),
+                "secrets_count": len(config.secrets),
+                "templates_count": len(config.templates),
+            }
         click.echo(json.dumps(result, indent=2))
         if not is_valid:
             sys.exit(EXIT_VALIDATION_ERROR)
         return
 
     console.print(f"Validating: {file_path}")
-    if var_file_paths:
-        console.print(f"With variable file(s): {', '.join(str(vf) for vf in var_file_paths)}")
+    if env_ctx and env_ctx.resolved_var_files:
+        console.print(
+            "With variable file(s): " + ", ".join(str(vf) for vf in env_ctx.resolved_var_files)
+        )
 
-    if is_valid:
+    if is_valid and config is not None:
         console.print(f"[green]✓[/green] {message}")
 
         # Show summary of configuration
-        config = loader.load_file(file_path, var_files=var_file_paths)
         console.print("\n[bold]Configuration Summary:[/bold]")
         console.print(f"  Manifest spec version: {SECRETFILE_MANIFEST_SPEC_VERSION}")
         console.print(f"  Variables: {len(config.variables)}")
@@ -634,7 +699,14 @@ def validate(file: str, var_files: tuple[str, ...], output_format: str) -> None:
     type=click.Path(),
     help="Write output to file instead of stdout",
 )
-def render(file: str, var_files: tuple[str, ...], format: str, output: str | None) -> None:
+@_environment_option
+def render(
+    file: str,
+    var_files: tuple[str, ...],
+    format: str,
+    output: str | None,
+    environment: str | None,
+) -> None:
     """Render the final Secretfile configuration with variables interpolated.
 
     This command displays or saves the complete Secretfile configuration after
@@ -657,13 +729,12 @@ def render(file: str, var_files: tuple[str, ...], format: str, output: str | Non
         # Render to file in JSON format
         secretzero render --var-file dev.szvar --format json --output rendered.json
     """
-    file_path = Path(file)
-    var_file_paths = [Path(vf) for vf in var_files] if var_files else None
-    loader = ConfigLoader()
-
-    # Load configuration with optional variable files
     try:
-        config = loader.load_file(file_path, var_files=var_file_paths)
+        file_path, config, _ = _load_secretfile_for_cli(
+            file,
+            var_files=var_files,
+            environment=environment,
+        )
     except Exception as e:
         console.print(f"[red]Error loading Secretfile:[/red] {e}")
         raise click.Abort()
@@ -719,26 +790,35 @@ def render(file: str, var_files: tuple[str, ...], format: str, output: str | Non
     default="text",
     help="Output format (text or json)",
 )
-def status(file: str, lockfile: str, verbose: bool, detailed: bool, output_format: str) -> None:
+@_environment_option
+def status(
+    file: str,
+    lockfile: str,
+    verbose: bool,
+    detailed: bool,
+    output_format: str,
+    environment: str | None,
+) -> None:
     """Show synchronization status of secrets and targets.
 
     This command displays which secrets have been generated and synced to their
     configured targets, along with timestamps and rotation information.
     """
-    file_path = Path(file)
-    lockfile_path = Path(lockfile)
-    secretfile_content = file_path.read_text()
-
-    loader = ConfigLoader()
-
     try:
-        config = loader.load_file(file_path)
+        file_path, config, env_ctx = _load_secretfile_for_cli(
+            file,
+            environment=environment,
+            lockfile=lockfile,
+        )
     except Exception as e:
         if output_format == "json":
             click.echo(json.dumps({"error": str(e)}))
         else:
             console.print(f"[red]Error loading Secretfile:[/red] {e}")
         sys.exit(EXIT_CONFIG_ERROR)
+
+    lockfile_path = env_ctx.resolved_lockfile
+    secretfile_content = file_path.read_text()
 
     # Load lockfile
     lock = Lockfile.load(lockfile_path)
@@ -1645,7 +1725,8 @@ def _test_provider_profiles(config) -> None:
     is_flag=True,
     help="Show detailed error information including stack traces",
 )
-def test(file: str, include_profiles: bool, verbose: bool) -> None:
+@_environment_option
+def test(file: str, include_profiles: bool, verbose: bool, environment: str | None) -> None:
     """Test provider connectivity and authentication.
 
     This command validates that all configured providers can be authenticated
@@ -1653,11 +1734,8 @@ def test(file: str, include_profiles: bool, verbose: bool) -> None:
     defined authentication profile for providers that support them.
     Use --verbose to see detailed error information when tests fail.
     """
-    file_path = Path(file)
-    loader = ConfigLoader()
-
     try:
-        config = loader.load_file(file_path)
+        _file_path, config, _ = _load_secretfile_for_cli(file, environment=environment)
     except Exception as e:
         console.print(f"[red]Error loading Secretfile:[/red] {e}")
         raise click.Abort()
@@ -2368,7 +2446,7 @@ def sync(
         env_ctx = resolve_environment_context(
             secretfile=base_config,
             secretfile_path=file_path,
-            environment=environment,
+            environment=_effective_environment(environment),
             runtime_var_files=runtime_var_file_paths,
             runtime_lockfile=runtime_lockfile,
         )
@@ -2873,14 +2951,21 @@ def _clean_lockfile_orphans(config, lock: Lockfile, dry_run: bool) -> list[str]:
     default="text",
     help="Output format (text or json)",
 )
-def clean(file: str, lockfile: str, dry_run: bool, output_format: str) -> None:
+@_environment_option
+def clean(
+    file: str,
+    lockfile: str,
+    dry_run: bool,
+    output_format: str,
+    environment: str | None,
+) -> None:
     """Remove orphaned lockfile entries without running sync."""
-    file_path = Path(file)
-    lockfile_path = Path(lockfile)
-    loader = ConfigLoader()
-
     try:
-        config = loader.load_file(file_path)
+        _file_path, config, env_ctx = _load_secretfile_for_cli(
+            file,
+            environment=environment,
+            lockfile=lockfile,
+        )
     except Exception as e:
         if output_format == "json":
             click.echo(json.dumps({"error": str(e), "exit_code": EXIT_CONFIG_ERROR}))
@@ -2888,6 +2973,7 @@ def clean(file: str, lockfile: str, dry_run: bool, output_format: str) -> None:
             console.print(f"[red]Error loading Secretfile:[/red] {e}")
         sys.exit(EXIT_CONFIG_ERROR)
 
+    lockfile_path = env_ctx.resolved_lockfile
     lock = Lockfile.load(lockfile_path)
     orphaned_entries = _clean_lockfile_orphans(config, lock, dry_run=dry_run)
 
@@ -3171,7 +3257,14 @@ def _print_nested_dict(d: dict, indent: int = 0, max_depth: int = 3) -> None:
     is_flag=True,
     help="Show detailed configuration and sub-fields",
 )
-def show(secret_name: str | None, file: str, lockfile: str, detailed: bool) -> None:
+@_environment_option
+def show(
+    secret_name: str | None,
+    file: str,
+    lockfile: str,
+    detailed: bool,
+    environment: str | None,
+) -> None:
     """Show information about secrets.
 
     If no secret name is provided, displays a list of all secrets in the
@@ -3181,18 +3274,18 @@ def show(secret_name: str | None, file: str, lockfile: str, detailed: bool) -> N
 
     Use --detailed to show complete configuration and sub-fields.
     """
-    file_path = Path(file)
-    lockfile_path = Path(lockfile)
-    loader = ConfigLoader()
-
-    # Load configuration
     try:
-        config = loader.load_file(file_path)
+        file_path, config, env_ctx = _load_secretfile_for_cli(
+            file,
+            environment=environment,
+            lockfile=lockfile,
+        )
     except Exception as e:
         console.print(f"[red]Error loading Secretfile:[/red] {e}")
         raise click.Abort()
 
     # Load lockfile
+    lockfile_path = env_ctx.resolved_lockfile
     lock = Lockfile.load(lockfile_path)
 
     # Create sync engine
@@ -3271,6 +3364,7 @@ def show(secret_name: str | None, file: str, lockfile: str, detailed: bool) -> N
     default="text",
     help="Output format (text or json)",
 )
+@_environment_option
 def get(
     file: str,
     lockfile: str,
@@ -3281,6 +3375,7 @@ def get(
     reveal: bool,
     policy_check: bool,
     output_format: str,
+    environment: str | None,
 ) -> None:
     """Retrieve a secret value through provider bundle methods.
 
@@ -3291,13 +3386,13 @@ def get(
     By default, output is metadata-only. Pass ``--reveal`` to include plaintext
     when the provider API returns a revealable value.
     """
-    file_path = Path(file)
-    lockfile_path = Path(lockfile)
-    loader = ConfigLoader()
-
     try:
         _enforce_get_sandbox_policy()
-        config = loader.load_file(file_path)
+        file_path, config, env_ctx = _load_secretfile_for_cli(
+            file,
+            environment=environment,
+            lockfile=lockfile,
+        )
     except click.ClickException as e:
         if output_format == "json":
             click.echo(json.dumps({"error": str(e)}))
@@ -3311,6 +3406,7 @@ def get(
             console.print(f"[red]Error loading Secretfile:[/red] {e}")
         sys.exit(EXIT_CONFIG_ERROR)
 
+    lockfile_path = env_ctx.resolved_lockfile
     lock = Lockfile.load(lockfile_path) if lockfile_path.exists() else Lockfile()
 
     if policy_check:
@@ -3454,6 +3550,7 @@ def get(
     ),
 )
 @click.argument("secret_name", required=False)
+@_environment_option
 def rotate(
     file: str,
     lockfile: str,
@@ -3464,6 +3561,7 @@ def rotate(
     secrets: tuple[str, ...],
     trigger_reindex: bool,
     secret_name: str | None,
+    environment: str | None,
 ) -> None:
     """Rotate secrets based on rotation policies.
 
@@ -3473,13 +3571,12 @@ def rotate(
     Limit to specific secrets with ``--secret`` / ``-s`` (repeatable) or a single
     optional ``SECRET_NAME`` positional argument — not both.
     """
-    file_path = Path(file)
-    lockfile_path = Path(lockfile)
-    loader = ConfigLoader()
-
-    # Load configuration
     try:
-        config = loader.load_file(file_path)
+        file_path, config, env_ctx = _load_secretfile_for_cli(
+            file,
+            environment=environment,
+            lockfile=lockfile,
+        )
     except Exception as e:
         if output_format == "json":
             click.echo(json.dumps({"error": str(e)}))
@@ -3488,6 +3585,7 @@ def rotate(
         sys.exit(EXIT_CONFIG_ERROR)
 
     # Load lockfile
+    lockfile_path = env_ctx.resolved_lockfile
     lock = Lockfile.load(lockfile_path)
 
     if output_format == "text":
@@ -3713,19 +3811,25 @@ def rotate(
     default="text",
     help="Output format (text or json)",
 )
-def policy(file: str, lockfile: str, fail_on_warning: bool, output_format: str) -> None:
+@_environment_option
+def policy(
+    file: str,
+    lockfile: str,
+    fail_on_warning: bool,
+    output_format: str,
+    environment: str | None,
+) -> None:
     """Check secrets against policy rules.
 
     This command validates secrets against rotation, compliance, and
     access control policies defined in the Secretfile.
     """
-    file_path = Path(file)
-    lockfile_path = Path(lockfile)
-    loader = ConfigLoader()
-
-    # Load configuration
     try:
-        config = loader.load_file(file_path)
+        _file_path, config, env_ctx = _load_secretfile_for_cli(
+            file,
+            environment=environment,
+            lockfile=lockfile,
+        )
     except Exception as e:
         if output_format == "json":
             click.echo(json.dumps({"error": str(e)}))
@@ -3735,6 +3839,7 @@ def policy(file: str, lockfile: str, fail_on_warning: bool, output_format: str) 
 
     # Load lockfile
     lock = None
+    lockfile_path = env_ctx.resolved_lockfile
     if lockfile_path.exists():
         lock = Lockfile.load(lockfile_path)
 
@@ -3837,14 +3942,35 @@ def policy(file: str, lockfile: str, fail_on_warning: bool, output_format: str) 
     help="Output format (text or json)",
 )
 @click.argument("secret_name", required=False)
-def drift(file: str, lockfile: str, output_format: str, secret_name: str | None) -> None:
+@_environment_option
+def drift(
+    file: str,
+    lockfile: str,
+    output_format: str,
+    secret_name: str | None,
+    environment: str | None,
+) -> None:
     """Detect drift between lockfile and actual targets.
 
     This command checks if secrets have been modified outside of
     SecretZero's control.
     """
     file_path = Path(file)
-    lockfile_path = Path(lockfile)
+    effective_environment = _effective_environment(environment)
+    try:
+        file_path, _config, env_ctx = _load_secretfile_for_cli(
+            file,
+            environment=environment,
+            lockfile=lockfile,
+        )
+    except Exception as e:
+        if output_format == "json":
+            click.echo(json.dumps({"error": str(e)}))
+        else:
+            console.print(f"[red]Error loading Secretfile:[/red] {e}")
+        sys.exit(EXIT_CONFIG_ERROR)
+
+    lockfile_path = env_ctx.resolved_lockfile
 
     if not lockfile_path.exists():
         if output_format == "json":
@@ -3854,7 +3980,7 @@ def drift(file: str, lockfile: str, output_format: str, secret_name: str | None)
             console.print("Run 'secretzero sync' first to generate secrets")
         sys.exit(EXIT_CONFIG_ERROR)
 
-    detector = DriftDetector(file_path, lockfile_path)
+    detector = DriftDetector(file_path, lockfile_path, environment=effective_environment)
     results = detector.check_drift(secret_name)
 
     drift_found = any(r.has_drift for r in results)
@@ -3988,7 +4114,7 @@ def lockfile_import_cmd(
         env_ctx = resolve_environment_context(
             secretfile=base_config,
             secretfile_path=file_path,
-            environment=environment,
+            environment=_effective_environment(environment),
             runtime_var_files=runtime_var_file_paths,
             runtime_lockfile=runtime_lockfile,
         )
@@ -4008,7 +4134,12 @@ def lockfile_import_cmd(
             else:
                 console.print(f"[red]Error:[/red] Lockfile not found: {lockfile_path}")
             sys.exit(EXIT_CONFIG_ERROR)
-        detector = DriftDetector(file_path, lockfile_path)
+        detector = DriftDetector(
+            file_path,
+            lockfile_path,
+            environment=_effective_environment(environment),
+            runtime_var_files=runtime_var_file_paths,
+        )
         secret_name = secrets[0] if len(secrets) == 1 else None
         if len(secrets) > 1:
             if output_format == "json":
@@ -4229,7 +4360,7 @@ def backup_create_cmd(
         env_ctx = resolve_environment_context(
             secretfile=base_config,
             secretfile_path=file_path,
-            environment=environment,
+            environment=_effective_environment(environment),
             runtime_var_files=runtime_var_file_paths,
             runtime_lockfile=runtime_lockfile,
         )
@@ -4278,7 +4409,7 @@ def backup_create_cmd(
     backup_doc["meta"] = {
         "format_version": BACKUP_FORMAT_VERSION,
         "secretfile": str(file_path),
-        "environment": environment,
+        "environment": env_ctx.selected_environment,
         "target_profile": env_ctx.resolved_target_profile,
         "entry_count": len(backup_doc.get("entries") or []),
         "generated_age_key_file": str(generated_key_file) if generated_key_file else None,
@@ -4400,7 +4531,7 @@ def backup_restore_cmd(
         env_ctx = resolve_environment_context(
             secretfile=base_config,
             secretfile_path=file_path,
-            environment=environment,
+            environment=_effective_environment(environment),
             runtime_var_files=runtime_var_file_paths,
             runtime_lockfile=runtime_lockfile,
         )
@@ -4547,7 +4678,14 @@ def backup_restore_cmd(
     default=None,
     help="Output file path (prints to console if not specified)",
 )
-def graph(file: str, graph_type: str, output_format: str, output: str | None) -> None:
+@_environment_option
+def graph(
+    file: str,
+    graph_type: str,
+    output_format: str,
+    output: str | None,
+    environment: str | None,
+) -> None:
     """Generate visual graph of Secretfile relationships.
 
     This command creates visual representations of your secret flows,
@@ -4589,17 +4727,10 @@ def graph(file: str, graph_type: str, output_format: str, output: str | None) ->
         # Machine-readable JSON graph
         secretzero graph --format json
     """
-    file_path = Path(file)
-
-    if not file_path.exists():
-        console.print(f"[red]Error:[/red] Secretfile not found: {file_path}")
-        sys.exit(EXIT_CONFIG_ERROR)
-
     try:
+        file_path, config, _ = _load_secretfile_for_cli(file, environment=environment)
         if output_format == "json":
             # Build machine-readable graph
-            loader = ConfigLoader()
-            config = loader.load_file(file_path)
             nodes = []
             edges = []
             for secret in config.secrets:
@@ -4653,6 +4784,7 @@ def graph(file: str, graph_type: str, output_format: str, output: str | None) ->
             secretfile_path=file_path,
             graph_type=graph_type,  # type: ignore
             output_format=output_format,  # type: ignore
+            secretfile=config,
         )
 
         # Output to file or console
@@ -4709,11 +4841,16 @@ def list_group() -> None:
     default=None,
     help="Filter secrets by name substring",
 )
-def list_secrets(file: str, output_format: str, name_filter: str | None) -> None:
+@_environment_option
+def list_secrets(
+    file: str,
+    output_format: str,
+    name_filter: str | None,
+    environment: str | None,
+) -> None:
     """List all secrets defined in the Secretfile."""
-    loader = ConfigLoader()
     try:
-        config = loader.load_file(Path(file))
+        _file_path, config, _ = _load_secretfile_for_cli(file, environment=environment)
     except Exception as e:
         if output_format == "json":
             click.echo(json.dumps({"error": str(e)}))
@@ -4789,11 +4926,11 @@ def list_secrets(file: str, output_format: str, name_filter: str | None) -> None
     default="text",
     help="Output format (text or json)",
 )
-def list_providers(file: str, output_format: str) -> None:
+@_environment_option
+def list_providers(file: str, output_format: str, environment: str | None) -> None:
     """List all providers configured in the Secretfile."""
-    loader = ConfigLoader()
     try:
-        config = loader.load_file(Path(file))
+        _file_path, config, _ = _load_secretfile_for_cli(file, environment=environment)
     except Exception as e:
         if output_format == "json":
             click.echo(json.dumps({"error": str(e)}))
@@ -4855,11 +4992,11 @@ def list_providers(file: str, output_format: str) -> None:
     default="text",
     help="Output format (text or json)",
 )
-def list_targets(file: str, output_format: str) -> None:
+@_environment_option
+def list_targets(file: str, output_format: str, environment: str | None) -> None:
     """List all target destinations across all secrets in the Secretfile."""
-    loader = ConfigLoader()
     try:
-        config = loader.load_file(Path(file))
+        _file_path, config, _ = _load_secretfile_for_cli(file, environment=environment)
     except Exception as e:
         if output_format == "json":
             click.echo(json.dumps({"error": str(e)}))
@@ -4924,11 +5061,16 @@ def list_targets(file: str, output_format: str) -> None:
     default=None,
     help="Filter variables by name substring",
 )
-def list_variables(file: str, output_format: str, name_filter: str | None) -> None:
+@_environment_option
+def list_variables(
+    file: str,
+    output_format: str,
+    name_filter: str | None,
+    environment: str | None,
+) -> None:
     """List all variables defined in the Secretfile."""
-    loader = ConfigLoader()
     try:
-        config = loader.load_file(Path(file))
+        _file_path, config, _ = _load_secretfile_for_cli(file, environment=environment)
     except Exception as e:
         if output_format == "json":
             click.echo(json.dumps({"error": str(e)}))
@@ -5459,7 +5601,7 @@ def web_command(
         env_ctx = resolve_environment_context(
             secretfile=base_secretfile,
             secretfile_path=file_path,
-            environment=environment,
+            environment=_effective_environment(environment),
             runtime_var_files=runtime_var_file_paths,
             runtime_lockfile=runtime_lockfile,
         )
@@ -5736,7 +5878,7 @@ def agent_sync(
         env_ctx = resolve_environment_context(
             secretfile=base_secretfile,
             secretfile_path=file_path,
-            environment=environment,
+            environment=_effective_environment(environment),
             runtime_var_files=runtime_var_file_paths,
             runtime_lockfile=runtime_lockfile,
         )
@@ -6719,6 +6861,7 @@ def _scaffold_bundle_impl(
     is_flag=True,
     help="Show a summary of what would be generated without writing files",
 )
+@_environment_option
 def terraform(
     file: str,
     var_files: tuple[str, ...],
@@ -6726,6 +6869,7 @@ def terraform(
     tf_format: str,
     include_static_secrets: bool,
     dry_run: bool,
+    environment: str | None,
 ) -> None:
     """Generate Terraform manifests from a Secretfile.
 
@@ -6734,14 +6878,14 @@ def terraform(
     available. Generated configuration can be emitted as HCL (``.tf``)
     or Terraform JSON (``.tf.json``).
     """
-    file_path = Path(file)
-    var_file_paths = [Path(vf) for vf in var_files] if var_files else None
     output_path = Path(output_dir)
 
-    loader = ConfigLoader()
-
     try:
-        secretfile = loader.load_file(file_path, var_files=var_file_paths)
+        _file_path, secretfile, _ = _load_secretfile_for_cli(
+            file,
+            var_files=var_files,
+            environment=environment,
+        )
     except Exception as e:
         console.print(f"[red]Error loading Secretfile:[/red] {e}")
         sys.exit(EXIT_CONFIG_ERROR)

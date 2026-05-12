@@ -28,6 +28,8 @@ class SecretGraphGenerator:
     def __init__(
         self,
         secretfile_path: Path,
+        *,
+        secretfile: Secretfile | None = None,
         lockfile: Lockfile | None = None,
         identity_preflight: dict[str, Any] | None = None,
     ):
@@ -41,7 +43,9 @@ class SecretGraphGenerator:
         """
         self.secretfile_path = secretfile_path
         self.config_loader = ConfigLoader()
-        self.secretfile: Secretfile = self.config_loader.load_file(secretfile_path)
+        self.secretfile: Secretfile = (
+            secretfile if secretfile is not None else self.config_loader.load_file(secretfile_path)
+        )
         self.lockfile = lockfile
         self.identity_preflight = identity_preflight
 
@@ -534,6 +538,8 @@ def generate_graph(
     secretfile_path: Path,
     graph_type: GraphType = "flow",
     output_format: OutputFormat = "mermaid",
+    *,
+    secretfile: Secretfile | None = None,
     lockfile: Lockfile | None = None,
     identity_preflight: dict[str, Any] | None = None,
 ) -> str:
@@ -552,6 +558,7 @@ def generate_graph(
     """
     generator = SecretGraphGenerator(
         secretfile_path,
+        secretfile=secretfile,
         lockfile=lockfile,
         identity_preflight=identity_preflight,
     )
