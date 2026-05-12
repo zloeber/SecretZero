@@ -104,10 +104,8 @@ else
 fi
 
 log "==> Running security scan + validations"
-uv run pip-audit &
-pid_audit=$!
-uv run bandit -r src -ll &
-pid_bandit=$!
+task security:scan &
+pid_security=$!
 
 if [[ "${requires_all_validations}" -eq 1 ]]; then
   (
@@ -127,8 +125,7 @@ else
   pid_valid=$!
 fi
 
-wait "${pid_audit}"
-wait "${pid_bandit}"
+wait "${pid_security}"
 wait "${pid_valid}"
 
 git status --porcelain | awk '{print substr($0,4)}' | sort -u > "${tmp_after}"

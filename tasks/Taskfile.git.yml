@@ -24,8 +24,8 @@ tasks:
   pre-commit:
     desc: Install pre-commit hooks
     cmds:
-      - pre-commit install --install-hooks
-      - pre-commit run
+      - uvx pre-commit install --install-hooks
+      - uvx pre-commit run
 
   set:upstream:
     desc: Set the current git branch upstream to a branch by the same name on the origin

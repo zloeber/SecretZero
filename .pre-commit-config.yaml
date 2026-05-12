@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: secretzero-security-scan
+        name: secretzero security scan
+        entry: zsh -lc 'task security:scan'
+        language: system
+        pass_filenames: false
+        always_run: true

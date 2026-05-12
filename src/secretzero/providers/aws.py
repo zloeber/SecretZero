@@ -192,6 +192,7 @@ class AWSProvider(BaseProvider):
             "config": {
                 "name": "Parameter name/path (required)",
                 "type": "Parameter type: String, SecureString, or StringList (default: SecureString)",
+                "format": "Value encoding: raw or json (default: raw). Use json to require valid JSON payloads.",
                 "overwrite": "Whether to overwrite existing parameter (default: true)",
                 "description": "Parameter description (optional)",
                 "tier": "Parameter tier: Standard, Advanced, or Intelligent-Tiering (default: Standard)",
@@ -204,6 +205,7 @@ class AWSProvider(BaseProvider):
     config:
       name: /prod/database/password
       type: SecureString
+      format: json
       overwrite: true
       description: RDS master password
       tier: Standard""",
@@ -212,6 +214,7 @@ class AWSProvider(BaseProvider):
             "description": "AWS Secrets Manager",
             "config": {
                 "name": "Secret name (required)",
+                "format": "Value encoding: raw or json (default: raw). Use json to require valid JSON payloads.",
                 "description": "Secret description (optional)",
                 "kms_key_id": "KMS key ID for encryption (optional)",
                 "recovery_period": "Recovery period in days for scheduled deletion (default: 7)",
@@ -223,6 +226,7 @@ class AWSProvider(BaseProvider):
     kind: secrets_manager
     config:
       name: prod/database-credentials
+      format: json
       description: RDS master credentials
       kms_key_id: arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012""",
         },

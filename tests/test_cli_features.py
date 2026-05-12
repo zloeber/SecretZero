@@ -63,6 +63,62 @@ def runner() -> CliRunner:
     return CliRunner()
 
 
+def _write_multi_environment_backup_manifest(tmpdir: str) -> tuple[Path, Path, Path, Path, Path]:
+    """Create a multi-environment Secretfile and lane var files for backup tests."""
+    root = Path(tmpdir)
+    sf = root / "Secretfile.yml"
+    dev_var = root / "dev.szvar"
+    prod_var = root / "prod.szvar"
+    dev_target = root / ".env.dev"
+    prod_target = root / ".env.prod"
+    dev_var.write_text(
+        f"environment: dev\nsecret_path: {dev_target}\nsecret_value: dev-token\n", encoding="utf-8"
+    )
+    prod_var.write_text(
+        f"environment: prod\nsecret_path: {prod_target}\nsecret_value: prod-token\n",
+        encoding="utf-8",
+    )
+    sf.write_text(f"""
+variables:
+  environment: base
+  secret_path: .env.base
+  secret_value: base-token
+environments:
+  profiles:
+    dev:
+      var_files:
+        - {dev_var}
+      lockfile: .gitsecrets.dev.lock
+    prod:
+      var_files:
+        - {prod_var}
+      lockfile: .gitsecrets.prod.lock
+providers:
+  local:
+    kind: local
+secrets:
+  - name: api_key
+    kind: static
+    config:
+      value: "{{{{var.secret_value}}}}"
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: "{{{{var.secret_path}}}}"
+          format: dotenv
+templates: {{}}
+""")
+    return sf, dev_var, prod_var, dev_target, prod_target
+
+
+def _seed_backup_test_environments(runner: CliRunner, sf: Path) -> None:
+    """Sync both configured environments so backup retrieval has tracked targets."""
+    for env_name in ("dev", "prod"):
+        result = runner.invoke(main, ["sync", "--file", str(sf), "--environment", env_name])
+        assert result.exit_code == 0, result.output
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Task 1: JSON output format
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1266,3 +1322,243 @@ def test_import_dry_run_json(runner: CliRunner) -> None:
         data = json.loads(r.output)
         assert data.get("dry_run") is True
         assert "details" in data
+
+
+def test_backup_create_defaults_to_plain_json_for_all_environments(runner: CliRunner) -> None:
+    """`backup create` should emit a plain JSON payload for every configured environment."""
+    with TemporaryDirectory() as tmpdir:
+        sf, _dev_var, _prod_var, _dev_target, _prod_target = (
+            _write_multi_environment_backup_manifest(tmpdir)
+        )
+        _seed_backup_test_environments(runner, sf)
+
+        result = runner.invoke(main, ["backup", "create", "--file", str(sf)])
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["meta"]["encrypted"] is False
+        assert {entry["environment"] for entry in payload["entries"]} == {"dev", "prod"}
+        assert {item["name"] for item in payload["meta"]["environments"]} == {"dev", "prod"}
+
+
+def test_backup_create_can_target_single_environment(runner: CliRunner) -> None:
+    """`backup create --environment` should narrow the backup to one environment."""
+    with TemporaryDirectory() as tmpdir:
+        sf, _dev_var, _prod_var, _dev_target, _prod_target = (
+            _write_multi_environment_backup_manifest(tmpdir)
+        )
+        _seed_backup_test_environments(runner, sf)
+
+        result = runner.invoke(
+            main, ["backup", "create", "--file", str(sf), "--environment", "dev"]
+        )
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["meta"]["encrypted"] is False
+        assert {entry["environment"] for entry in payload["entries"]} == {"dev"}
+        assert [item["name"] for item in payload["meta"]["environments"]] == ["dev"]
+
+
+def test_backup_create_plain_mode_blocked_when_sz_agent_enabled(runner: CliRunner) -> None:
+    """Plain backup output must be blocked when `SZ_AGENT` is set."""
+    with TemporaryDirectory() as tmpdir:
+        sf, _dev_var, _prod_var, _dev_target, _prod_target = (
+            _write_multi_environment_backup_manifest(tmpdir)
+        )
+        _seed_backup_test_environments(runner, sf)
+
+        result = runner.invoke(
+            main,
+            ["backup", "create", "--file", str(sf)],
+            env={"SZ_AGENT": "true"},
+        )
+        assert result.exit_code == EXIT_CONFIG_ERROR, result.output
+        assert "--encrypted" in result.output
+
+
+def test_backup_create_encrypted_mode_writes_summary_and_file(
+    runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`backup create --encrypted` should keep the encrypted-file workflow."""
+    with TemporaryDirectory() as tmpdir:
+        sf, _dev_var, _prod_var, _dev_target, _prod_target = (
+            _write_multi_environment_backup_manifest(tmpdir)
+        )
+        _seed_backup_test_environments(runner, sf)
+        output_file = Path(tmpdir) / "backup.enc.json"
+        encrypted_calls: list[dict] = []
+
+        monkeypatch.setattr(
+            "secretzero.cli.resolve_backup_age_recipients",
+            lambda *, output_file, explicit_recipients, age_key_file: (["age1testrecipient"], None),
+        )
+
+        def _fake_encrypt_backup_document(**kwargs) -> None:
+            encrypted_calls.append(kwargs)
+            kwargs["output_file"].write_text("encrypted-payload", encoding="utf-8")
+
+        monkeypatch.setattr("secretzero.cli.encrypt_backup_document", _fake_encrypt_backup_document)
+
+        result = runner.invoke(
+            main,
+            [
+                "backup",
+                "create",
+                "--file",
+                str(sf),
+                "--environment",
+                "dev",
+                "--encrypted",
+                "--output",
+                str(output_file),
+                "--format",
+                "json",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["encrypted"] is True
+        assert payload["output_file"] == str(output_file)
+        assert output_file.read_text(encoding="utf-8") == "encrypted-payload"
+        assert len(encrypted_calls) == 1
+        assert encrypted_calls[0]["backup_doc"]["meta"]["encrypted"] is True
+
+
+def test_backup_restore_plain_json_can_target_single_environment(runner: CliRunner) -> None:
+    """Plain backup restore should filter entries by the selected environment."""
+    with TemporaryDirectory() as tmpdir:
+        sf, _dev_var, _prod_var, dev_target, prod_target = _write_multi_environment_backup_manifest(
+            tmpdir
+        )
+        backup_file = Path(tmpdir) / "plain-backup.json"
+        backup_file.write_text(
+            json.dumps(
+                {
+                    "version": "1",
+                    "created_at": "2026-05-12T00:00:00+00:00",
+                    "entries": [
+                        {
+                            "entry_id": "e1",
+                            "environment": "dev",
+                            "secret_ref": "api_key",
+                            "target_secret_key": "api_key",
+                            "target_id": f"local/file/{dev_target}",
+                            "provider": "local",
+                            "kind": "file",
+                            "target_config": {"path": str(dev_target), "format": "dotenv"},
+                            "value": "DEV",
+                        },
+                        {
+                            "entry_id": "e2",
+                            "environment": "prod",
+                            "secret_ref": "api_key",
+                            "target_secret_key": "api_key",
+                            "target_id": f"local/file/{prod_target}",
+                            "provider": "local",
+                            "kind": "file",
+                            "target_config": {"path": str(prod_target), "format": "dotenv"},
+                            "value": "PROD",
+                        },
+                    ],
+                    "meta": {
+                        "encrypted": False,
+                        "environments": [{"name": "dev"}, {"name": "prod"}],
+                    },
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            main,
+            [
+                "backup",
+                "restore",
+                "--file",
+                str(sf),
+                "--backup-file",
+                str(backup_file),
+                "--environment",
+                "dev",
+                "--yes",
+                "--format",
+                "json",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["restored"] == 1
+        assert payload["selected_entries"] == 1
+        assert dev_target.exists()
+        assert "DEV" in dev_target.read_text(encoding="utf-8")
+        assert not prod_target.exists()
+
+
+def test_backup_restore_plain_json_defaults_to_all_environments(runner: CliRunner) -> None:
+    """Plain backup restore without `--environment` should restore every environment in the payload."""
+    with TemporaryDirectory() as tmpdir:
+        sf, _dev_var, _prod_var, dev_target, prod_target = _write_multi_environment_backup_manifest(
+            tmpdir
+        )
+        backup_file = Path(tmpdir) / "plain-backup.json"
+        backup_file.write_text(
+            json.dumps(
+                {
+                    "version": "1",
+                    "created_at": "2026-05-12T00:00:00+00:00",
+                    "entries": [
+                        {
+                            "entry_id": "e1",
+                            "environment": "dev",
+                            "secret_ref": "api_key",
+                            "target_secret_key": "api_key",
+                            "target_id": f"local/file/{dev_target}",
+                            "provider": "local",
+                            "kind": "file",
+                            "target_config": {"path": str(dev_target), "format": "dotenv"},
+                            "value": "DEV",
+                        },
+                        {
+                            "entry_id": "e2",
+                            "environment": "prod",
+                            "secret_ref": "api_key",
+                            "target_secret_key": "api_key",
+                            "target_id": f"local/file/{prod_target}",
+                            "provider": "local",
+                            "kind": "file",
+                            "target_config": {"path": str(prod_target), "format": "dotenv"},
+                            "value": "PROD",
+                        },
+                    ],
+                    "meta": {
+                        "encrypted": False,
+                        "environments": [{"name": "dev"}, {"name": "prod"}],
+                    },
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            main,
+            [
+                "backup",
+                "restore",
+                "--file",
+                str(sf),
+                "--backup-file",
+                str(backup_file),
+                "--yes",
+                "--format",
+                "json",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["restored"] == 2
+        assert payload["selected_entries"] == 2
+        assert dev_target.exists()
+        assert prod_target.exists()
+        assert "DEV" in dev_target.read_text(encoding="utf-8")
+        assert "PROD" in prod_target.read_text(encoding="utf-8")

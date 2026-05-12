@@ -214,6 +214,7 @@ tasks:
     desc: Run Python security scans (dependencies + code)
     cmds:
       - |
+        uv sync --frozen --all-extras
         uv run pip-audit
         uv run bandit -r src -ll
   

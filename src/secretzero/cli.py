@@ -4,6 +4,7 @@ import json
 import os
 import platform
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -21,6 +22,7 @@ from secretzero.backup import (
     collect_backup_entries,
     decrypt_backup_document,
     encrypt_backup_document,
+    load_plain_backup_document,
     resolve_backup_age_recipients,
     restore_backup_entries,
 )
@@ -287,6 +289,64 @@ def _runtime_lockfile_override(file: str, lockfile: str) -> str | None:
     if lockfile == ".gitsecrets.lock":
         return None
     return lockfile
+
+
+def _backup_target_environments(
+    secretfile: Secretfile, environment: str | None
+) -> list[str | None]:
+    """Return environments targeted by backup commands."""
+    selected = _effective_environment(environment)
+    if selected is not None:
+        return [selected]
+    env_cfg = secretfile.environments
+    if env_cfg and env_cfg.profiles:
+        return sorted(env_cfg.profiles.keys())
+    return [None]
+
+
+def _build_backup_engine(
+    *,
+    file: str,
+    lockfile: str,
+    var_files: tuple[str, ...],
+    environment: str | None,
+) -> tuple[Path, Secretfile, ResolvedEnvironmentContext, Lockfile, SyncEngine, str]:
+    """Load the environment-aware manifest and engine used by backup workflows."""
+    file_path, config, env_ctx = _load_secretfile_for_cli(
+        file,
+        var_files=var_files,
+        environment=environment,
+        lockfile=lockfile,
+    )
+    lock = Lockfile.load(env_ctx.resolved_lockfile)
+    secretfile_content = file_path.read_text()
+    engine = SyncEngine(
+        config,
+        lock,
+        secretfile_path=file_path,
+        secretfile_content=secretfile_content,
+        hide_input=True,
+        prompt_on_empty=False,
+        sync_client="cli",
+    )
+    return file_path, config, env_ctx, lock, engine, secretfile_content
+
+
+def _backup_entry_environment(entry: dict[str, Any], payload: dict[str, Any]) -> str | None:
+    """Resolve the environment label for a backup entry, including legacy payloads."""
+    value = entry.get("environment")
+    if value is not None:
+        return str(value) if value else None
+    meta = payload.get("meta") if isinstance(payload.get("meta"), dict) else {}
+    meta_environment = meta.get("environment")
+    if meta_environment:
+        return str(meta_environment)
+    environments = meta.get("environments")
+    if isinstance(environments, list) and len(environments) == 1:
+        only = environments[0]
+        if isinstance(only, dict) and only.get("name"):
+            return str(only["name"])
+    return None
 
 
 def _enforce_get_sandbox_policy() -> None:
@@ -4321,8 +4381,13 @@ def backup_group() -> None:
     "-o",
     "output_file",
     type=click.Path(),
-    default="secretzero.backup.enc.json",
-    help="Encrypted backup file path",
+    default=None,
+    help="Write backup payload to this file (default: stdout for plain, default file for encrypted)",
+)
+@click.option(
+    "--encrypted",
+    is_flag=True,
+    help="Encrypt the backup payload with SOPS/AGE before writing it",
 )
 @click.option(
     "--age-recipient",
@@ -4344,28 +4409,34 @@ def backup_create_cmd(
     var_files: tuple[str, ...],
     environment: str | None,
     secrets: tuple[str, ...],
-    output_file: str,
+    output_file: str | None,
+    encrypted: bool,
     age_recipients: tuple[str, ...],
     age_key_file: str | None,
     dry_run: bool,
     output_format: str,
 ) -> None:
-    """Extract retrievable values from synced targets into an encrypted local backup."""
+    """Extract retrievable values from synced targets into a local backup payload."""
+    if not encrypted and (age_recipients or age_key_file):
+        msg = "--age-recipient and --age-key-file require --encrypted"
+        if output_format == "json":
+            click.echo(json.dumps({"error": msg, "exit_code": EXIT_CONFIG_ERROR}))
+        else:
+            console.print(f"[red]Error:[/red] {msg}")
+        sys.exit(EXIT_CONFIG_ERROR)
+    if not encrypted and _env_flag("SZ_AGENT"):
+        msg = "Plain backup output is blocked while SZ_AGENT is enabled; rerun with --encrypted."
+        if output_format == "json":
+            click.echo(json.dumps({"error": msg, "exit_code": EXIT_CONFIG_ERROR}))
+        else:
+            console.print(f"[red]Error:[/red] {msg}")
+        sys.exit(EXIT_CONFIG_ERROR)
+
     file_path = Path(file)
-    runtime_lockfile = _runtime_lockfile_override(file, lockfile)
-    runtime_var_file_paths = [Path(vf) for vf in var_files] if var_files else None
     loader = ConfigLoader()
     try:
         base_config = loader.load_file(file_path)
-        env_ctx = resolve_environment_context(
-            secretfile=base_config,
-            secretfile_path=file_path,
-            environment=_effective_environment(environment),
-            runtime_var_files=runtime_var_file_paths,
-            runtime_lockfile=runtime_lockfile,
-        )
-        config = loader.load_file(file_path, var_files=env_ctx.resolved_var_files or None)
-        config = apply_target_profile(config, env_ctx.resolved_target_profile)
+        target_environments = _backup_target_environments(base_config, environment)
     except Exception as exc:
         if output_format == "json":
             click.echo(json.dumps({"error": str(exc), "exit_code": EXIT_CONFIG_ERROR}))
@@ -4373,76 +4444,129 @@ def backup_create_cmd(
             console.print(f"[red]Error loading Secretfile:[/red] {exc}")
         sys.exit(EXIT_CONFIG_ERROR)
 
-    lockfile_path = env_ctx.resolved_lockfile
-    lock = Lockfile.load(lockfile_path)
-    engine = SyncEngine(
-        config,
-        lock,
-        secretfile_path=file_path,
-        secretfile_content=file_path.read_text(),
-        hide_input=True,
-        prompt_on_empty=False,
-        sync_client="cli",
-    )
-    backup_doc = collect_backup_entries(
-        engine=engine,
-        secretfile=config,
-        secret_names=list(secrets) if secrets else None,
-    )
-    for idx, entry in enumerate(backup_doc.get("entries") or [], start=1):
-        entry["entry_id"] = f"e{idx}"
-    recipients: list[str] = []
-    generated_key_file: Path | None = None
+    backup_doc: dict[str, Any] = {
+        "version": BACKUP_FORMAT_VERSION,
+        "created_at": datetime.now(UTC).isoformat(),
+        "entries": [],
+        "warnings": [],
+        "secret_count": 0,
+    }
+    environment_meta: list[dict[str, Any]] = []
     try:
-        recipients, generated_key_file = resolve_backup_age_recipients(
-            output_file=Path(output_file),
-            explicit_recipients=age_recipients,
-            age_key_file=Path(age_key_file) if age_key_file else None,
-        )
+        for env_name in target_environments:
+            _, config, env_ctx, _lock, engine, _secretfile_content = _build_backup_engine(
+                file=file,
+                lockfile=lockfile,
+                var_files=var_files,
+                environment=env_name,
+            )
+            env_doc = collect_backup_entries(
+                engine=engine,
+                secretfile=config,
+                secret_names=list(secrets) if secrets else None,
+            )
+            env_label = env_ctx.selected_environment
+            for entry in env_doc.get("entries") or []:
+                entry["environment"] = env_label
+            backup_doc["entries"].extend(env_doc.get("entries") or [])
+            backup_doc["warnings"].extend(env_doc.get("warnings") or [])
+            backup_doc["secret_count"] += int(env_doc.get("secret_count") or 0)
+            environment_meta.append(
+                {
+                    "name": env_label,
+                    "lockfile": str(env_ctx.resolved_lockfile),
+                    "target_profile": env_ctx.resolved_target_profile,
+                    "var_files": [str(path) for path in env_ctx.resolved_var_files or []],
+                    "entry_count": len(env_doc.get("entries") or []),
+                    "secret_count": int(env_doc.get("secret_count") or 0),
+                }
+            )
     except Exception as exc:
         if output_format == "json":
             click.echo(json.dumps({"error": str(exc), "exit_code": EXIT_CONFIG_ERROR}))
         else:
-            console.print(f"[red]Backup recipient resolution failed:[/red] {exc}")
+            console.print(f"[red]Backup create failed:[/red] {exc}")
         sys.exit(EXIT_CONFIG_ERROR)
+
+    for idx, entry in enumerate(backup_doc.get("entries") or [], start=1):
+        entry["entry_id"] = f"e{idx}"
+    resolved_output_file = output_file
+    if encrypted and not resolved_output_file:
+        resolved_output_file = "secretzero.backup.enc.json"
 
     backup_doc["meta"] = {
         "format_version": BACKUP_FORMAT_VERSION,
         "secretfile": str(file_path),
-        "environment": env_ctx.selected_environment,
-        "target_profile": env_ctx.resolved_target_profile,
+        "environment": environment_meta[0]["name"] if len(environment_meta) == 1 else None,
+        "environments": environment_meta,
         "entry_count": len(backup_doc.get("entries") or []),
-        "generated_age_key_file": str(generated_key_file) if generated_key_file else None,
+        "encrypted": encrypted,
     }
 
-    if not dry_run:
+    recipients: list[str] = []
+    generated_key_file: Path | None = None
+    if encrypted:
         try:
-            encrypt_backup_document(
-                backup_doc=backup_doc,
-                output_file=Path(output_file),
-                recipients=recipients,
-                age_key_file=Path(age_key_file) if age_key_file else generated_key_file,
+            recipients, generated_key_file = resolve_backup_age_recipients(
+                output_file=Path(resolved_output_file),
+                explicit_recipients=age_recipients,
+                age_key_file=Path(age_key_file) if age_key_file else None,
             )
         except Exception as exc:
             if output_format == "json":
-                click.echo(json.dumps({"error": str(exc), "exit_code": EXIT_UNKNOWN_ERROR}))
+                click.echo(json.dumps({"error": str(exc), "exit_code": EXIT_CONFIG_ERROR}))
             else:
-                console.print(f"[red]Backup encryption failed:[/red] {exc}")
-            sys.exit(EXIT_UNKNOWN_ERROR)
+                console.print(f"[red]Backup recipient resolution failed:[/red] {exc}")
+            sys.exit(EXIT_CONFIG_ERROR)
+        backup_doc["meta"]["generated_age_key_file"] = (
+            str(generated_key_file) if generated_key_file else None
+        )
+    else:
+        backup_doc["meta"]["generated_age_key_file"] = None
+
+    if not dry_run:
+        if encrypted:
+            try:
+                encrypt_backup_document(
+                    backup_doc=backup_doc,
+                    output_file=Path(resolved_output_file),
+                    recipients=recipients,
+                    age_key_file=Path(age_key_file) if age_key_file else generated_key_file,
+                )
+            except Exception as exc:
+                if output_format == "json":
+                    click.echo(json.dumps({"error": str(exc), "exit_code": EXIT_UNKNOWN_ERROR}))
+                else:
+                    console.print(f"[red]Backup encryption failed:[/red] {exc}")
+                sys.exit(EXIT_UNKNOWN_ERROR)
+        else:
+            plain_payload = json.dumps(backup_doc, indent=2)
+            if resolved_output_file:
+                Path(resolved_output_file).write_text(plain_payload, encoding="utf-8")
+            else:
+                click.echo(plain_payload)
+                return
 
     summary = {
         "dry_run": dry_run,
-        "output_file": output_file,
+        "encrypted": encrypted,
+        "output_file": resolved_output_file,
         "entries": len(backup_doc.get("entries") or []),
         "warnings": backup_doc.get("warnings") or [],
         "generated_age_key_file": str(generated_key_file) if generated_key_file else None,
+        "environments": [item["name"] for item in environment_meta],
     }
     if output_format == "json":
         click.echo(json.dumps(summary, indent=2))
         return
     console.print("[bold]Backup create[/bold]")
     console.print(f"  Entries: {summary['entries']}")
-    console.print(f"  Output: {output_file}{' [dim](dry-run)[/dim]' if dry_run else ''}")
+    if summary["output_file"]:
+        console.print(
+            f"  Output: {summary['output_file']}{' [dim](dry-run)[/dim]' if dry_run else ''}"
+        )
+    else:
+        console.print("  Output: stdout")
     if generated_key_file:
         console.print(f"  [yellow]Generated age key:[/yellow] {generated_key_file}")
     for warning in summary["warnings"]:
@@ -4475,8 +4599,11 @@ def backup_create_cmd(
     default=None,
     help="Named environment profile from Secretfile.environments.profiles",
 )
+@click.option("--backup-file", type=click.Path(exists=True), required=True, help="Backup file path")
 @click.option(
-    "--backup-file", type=click.Path(exists=True), required=True, help="Encrypted backup file path"
+    "--encrypted",
+    is_flag=True,
+    help="Decrypt the backup file with SOPS/AGE before restoring",
 )
 @click.option(
     "--age-key-file",
@@ -4513,6 +4640,7 @@ def backup_restore_cmd(
     var_files: tuple[str, ...],
     environment: str | None,
     backup_file: str,
+    encrypted: bool,
     age_key_file: str | None,
     only_entries: tuple[str, ...],
     skip_entries: tuple[str, ...],
@@ -4521,39 +4649,22 @@ def backup_restore_cmd(
     dry_run: bool,
     output_format: str,
 ) -> None:
-    """Restore encrypted backup entries to captured targets and update lockfile."""
-    file_path = Path(file)
-    runtime_lockfile = _runtime_lockfile_override(file, lockfile)
-    runtime_var_file_paths = [Path(vf) for vf in var_files] if var_files else None
-    loader = ConfigLoader()
+    """Restore backup entries to captured targets and update lockfiles."""
     try:
-        base_config = loader.load_file(file_path)
-        env_ctx = resolve_environment_context(
-            secretfile=base_config,
-            secretfile_path=file_path,
-            environment=_effective_environment(environment),
-            runtime_var_files=runtime_var_file_paths,
-            runtime_lockfile=runtime_lockfile,
-        )
-        config = loader.load_file(file_path, var_files=env_ctx.resolved_var_files or None)
-        config = apply_target_profile(config, env_ctx.resolved_target_profile)
-    except Exception as exc:
-        if output_format == "json":
-            click.echo(json.dumps({"error": str(exc), "exit_code": EXIT_CONFIG_ERROR}))
-        else:
-            console.print(f"[red]Error loading Secretfile:[/red] {exc}")
-        sys.exit(EXIT_CONFIG_ERROR)
-
-    try:
-        payload = decrypt_backup_document(
-            backup_file=Path(backup_file),
-            age_key_file=Path(age_key_file) if age_key_file else None,
+        payload = (
+            decrypt_backup_document(
+                backup_file=Path(backup_file),
+                age_key_file=Path(age_key_file) if age_key_file else None,
+            )
+            if encrypted
+            else load_plain_backup_document(backup_file=Path(backup_file))
         )
     except Exception as exc:
         if output_format == "json":
             click.echo(json.dumps({"error": str(exc), "exit_code": EXIT_AUTH_FAILURE}))
         else:
-            console.print(f"[red]Backup decrypt failed:[/red] {exc}")
+            action = "decrypt" if encrypted else "load"
+            console.print(f"[red]Backup {action} failed:[/red] {exc}")
         sys.exit(EXIT_AUTH_FAILURE)
 
     raw_entries = payload.get("entries") or []
@@ -4569,41 +4680,65 @@ def backup_restore_cmd(
         sys.exit(EXIT_CONFIG_ERROR)
 
     entries: list[dict[str, Any]] = [e for e in raw_entries if isinstance(e, dict)]
+    entry_groups: dict[str | None, list[dict[str, Any]]] = {}
+    for entry in entries:
+        entry_groups.setdefault(_backup_entry_environment(entry, payload), []).append(entry)
+
+    requested_environment = _effective_environment(environment)
+    if requested_environment is not None:
+        target_environments = [requested_environment]
+    elif any(name is not None for name in entry_groups):
+        target_environments = sorted(name for name in entry_groups if name is not None)
+    else:
+        target_environments = [None]
+
     selected_ids = set(only_entries)
     skipped_ids = set(skip_entries)
-
-    candidates: list[dict[str, Any]] = []
-    for entry in entries:
-        entry_id = str(entry.get("entry_id") or "")
-        if selected_ids and entry_id not in selected_ids:
-            continue
-        if entry_id in skipped_ids:
-            continue
-        if not assume_yes:
-            selector = f"{entry.get('secret_ref')}@{entry.get('target_id')}"
-            if not click.confirm(f"Restore {entry_id or selector}?", default=True):
+    per_environment_candidates: dict[str | None, list[dict[str, Any]]] = {}
+    for env_name in target_environments:
+        env_entries = entry_groups.get(env_name, [])
+        candidates: list[dict[str, Any]] = []
+        for entry in env_entries:
+            entry_id = str(entry.get("entry_id") or "")
+            if selected_ids and entry_id not in selected_ids:
                 continue
-        candidates.append(entry)
+            if entry_id in skipped_ids:
+                continue
+            if not assume_yes:
+                selector = f"{entry.get('secret_ref')}@{entry.get('target_id')}"
+                if not click.confirm(f"Restore {entry_id or selector}?", default=True):
+                    continue
+            candidates.append(entry)
+        per_environment_candidates[env_name] = candidates
 
-    lockfile_path = env_ctx.resolved_lockfile
-    lock = Lockfile.load(lockfile_path)
-    secretfile_content = file_path.read_text()
-    engine = SyncEngine(
-        config,
-        lock,
-        secretfile_path=file_path,
-        secretfile_content=secretfile_content,
-        hide_input=True,
-        prompt_on_empty=False,
-        sync_client="cli",
-    )
+    if requested_environment is not None and not per_environment_candidates.get(
+        requested_environment
+    ):
+        if output_format == "json":
+            click.echo(
+                json.dumps(
+                    {
+                        "error": f"No backup entries found for environment '{requested_environment}'",
+                        "exit_code": EXIT_CONFIG_ERROR,
+                    }
+                )
+            )
+        else:
+            console.print(
+                f"[red]Error:[/red] No backup entries found for environment '{requested_environment}'"
+            )
+        sys.exit(EXIT_CONFIG_ERROR)
 
     if dry_run:
         summary = {
             "dry_run": True,
-            "selected": len(candidates),
+            "selected": sum(len(items) for items in per_environment_candidates.values()),
             "available_entries": len(entries),
             "import_only_selectors": list(import_only),
+            "environments": {
+                (name or "default"): len(items)
+                for name, items in per_environment_candidates.items()
+            },
         }
         if output_format == "json":
             click.echo(json.dumps(summary, indent=2))
@@ -4614,26 +4749,72 @@ def backup_restore_cmd(
             )
         return
 
-    result = restore_backup_entries(
-        engine=engine,
-        entries=candidates,
-        import_only_selectors=set(import_only),
-    )
-
-    lock.track_secretfile(file_path, secretfile_content)
-    lock.track_variable_context(env_ctx.resolved_var_files or [], dict(config.variables or {}))
-    lock.save(lockfile_path)
+    totals = {
+        "restored": 0,
+        "imported_only": 0,
+        "skipped": 0,
+        "errors": [],
+        "selected_entries": 0,
+        "environments": [],
+    }
+    try:
+        for env_name in target_environments:
+            candidates = per_environment_candidates.get(env_name, [])
+            if not candidates:
+                continue
+            (
+                file_path,
+                config,
+                env_ctx,
+                lock,
+                engine,
+                secretfile_content,
+            ) = _build_backup_engine(
+                file=file,
+                lockfile=lockfile,
+                var_files=var_files,
+                environment=env_name,
+            )
+            result = restore_backup_entries(
+                engine=engine,
+                entries=candidates,
+                import_only_selectors=set(import_only),
+            )
+            lock.track_secretfile(file_path, secretfile_content)
+            lock.track_variable_context(
+                env_ctx.resolved_var_files or [], dict(config.variables or {})
+            )
+            lock.save(env_ctx.resolved_lockfile)
+            totals["restored"] += result["restored"]
+            totals["imported_only"] += result["imported_only"]
+            totals["skipped"] += result["skipped"]
+            totals["errors"].extend(result["errors"])
+            totals["selected_entries"] += len(candidates)
+            totals["environments"].append(
+                {
+                    "name": env_ctx.selected_environment,
+                    "lockfile": str(env_ctx.resolved_lockfile),
+                    "selected_entries": len(candidates),
+                }
+            )
+    except Exception as exc:
+        if output_format == "json":
+            click.echo(json.dumps({"error": str(exc), "exit_code": EXIT_UNKNOWN_ERROR}))
+        else:
+            console.print(f"[red]Backup restore failed:[/red] {exc}")
+        sys.exit(EXIT_UNKNOWN_ERROR)
 
     summary = {
-        "restored": result["restored"],
-        "imported_only": result["imported_only"],
-        "skipped": result["skipped"],
-        "errors": result["errors"],
-        "selected_entries": len(candidates),
+        "restored": totals["restored"],
+        "imported_only": totals["imported_only"],
+        "skipped": totals["skipped"],
+        "errors": totals["errors"],
+        "selected_entries": totals["selected_entries"],
+        "environments": totals["environments"],
     }
     if output_format == "json":
         click.echo(json.dumps(summary, indent=2))
-        if result["errors"]:
+        if totals["errors"]:
             sys.exit(EXIT_VALIDATION_ERROR)
         return
     console.print("[bold]Backup restore[/bold]")
