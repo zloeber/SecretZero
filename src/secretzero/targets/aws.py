@@ -1,8 +1,49 @@
 """AWS target implementations for SecretZero."""
 
+import json
 from typing import Any
 
 from secretzero.targets.base import BaseTarget
+
+
+def _serialize_aws_target_value(secret_value: Any, format_name: str | None) -> str:
+    """Serialize AWS target payloads, optionally enforcing JSON validity."""
+    fmt = str(format_name or "raw").strip().lower()
+
+    if fmt == "json":
+        if isinstance(secret_value, str):
+            try:
+                json.loads(secret_value)
+            except json.JSONDecodeError as exc:
+                raise ValueError("Invalid JSON payload for AWS target format 'json'") from exc
+            return secret_value
+        try:
+            return json.dumps(secret_value)
+        except TypeError as exc:
+            raise ValueError("Secret value is not JSON serializable") from exc
+
+    if fmt in {"", "raw"}:
+        if isinstance(secret_value, dict):
+            return json.dumps(secret_value)
+        return str(secret_value)
+
+    raise ValueError(f"Unsupported AWS target format: {format_name}")
+
+
+def _deserialize_aws_target_value(secret_value: str, format_name: str | None) -> Any:
+    """Deserialize AWS target payloads when an explicit format requires it."""
+    fmt = str(format_name or "raw").strip().lower()
+
+    if fmt == "json":
+        try:
+            return json.loads(secret_value)
+        except json.JSONDecodeError as exc:
+            raise ValueError("Invalid JSON payload stored in AWS target") from exc
+
+    if fmt in {"", "raw"}:
+        return secret_value
+
+    raise ValueError(f"Unsupported AWS target format: {format_name}")
 
 
 class SSMParameterTarget(BaseTarget):
@@ -57,13 +98,7 @@ class SSMParameterTarget(BaseTarget):
         description = self.config.get("description", f"Managed by SecretZero: {secret_name}")
         tier = self.config.get("tier", "Standard")
 
-        # Convert value to string if it's a dict
-        if isinstance(secret_value, dict):
-            import json
-
-            value_str = json.dumps(secret_value)
-        else:
-            value_str = str(secret_value)
+        value_str = _serialize_aws_target_value(secret_value, self.config.get("format"))
 
         try:
             ssm.put_parameter(
@@ -105,7 +140,9 @@ class SSMParameterTarget(BaseTarget):
 
         try:
             response = ssm.get_parameter(Name=param_name, WithDecryption=True)
-            return response["Parameter"]["Value"]
+            return _deserialize_aws_target_value(
+                response["Parameter"]["Value"], self.config.get("format")
+            )
         except ClientError:
             return None
 
@@ -189,13 +226,7 @@ class SecretsManagerTarget(BaseTarget):
         description = self.config.get("description", f"Managed by SecretZero: {secret_name}")
         kms_key_id = self.config.get("kms_key_id")
 
-        # Convert value to string if it's a dict
-        if isinstance(secret_value, dict):
-            import json
-
-            value_str = json.dumps(secret_value)
-        else:
-            value_str = str(secret_value)
+        value_str = _serialize_aws_target_value(secret_value, self.config.get("format"))
 
         try:
             # Try to create the secret
@@ -246,7 +277,10 @@ class SecretsManagerTarget(BaseTarget):
 
         try:
             response = sm.get_secret_value(SecretId=secret_id)
-            return response.get("SecretString")
+            raw_value = response.get("SecretString")
+            if raw_value is None:
+                return None
+            return _deserialize_aws_target_value(raw_value, self.config.get("format"))
         except ClientError:
             return None
 

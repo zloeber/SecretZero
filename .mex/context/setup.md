@@ -45,7 +45,8 @@ last_updated: 2026-04-10
 - `secretzero sync --dry-run` — preview storage actions.
 - `secretzero sync` — perform generation/sync and update lockfile.
 - `task lint:fix && task format && task schema:update` — local quality + schema maintenance.
-- `task test && task security:scan && task test:validations` — full verification pipeline.
+- `task test && task security:scan && task test:validations` — full verification pipeline. `task security:scan` syncs the frozen `--all-extras` environment before auditing dependencies/code.
+- `task pre-commit` — install and run local pre-commit hooks; the repo hook now runs `task security:scan`.
 
 ## Common Issues
 **Unknown generator/target/provider kind:** ensure bundle registration path exists and provider extras are installed.  

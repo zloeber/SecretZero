@@ -1004,16 +1004,16 @@ class SyncEngine:
             )
             for target_config in candidates:
                 secret_value = self._retrieve_from_target(secret.name, target_config)
-                if secret_value:
+                if secret_value is not None:
                     result["retrieved_from_existing"] = True
                     break
 
-            if not secret_value and force_target_ids:
+            if secret_value is None and force_target_ids:
                 env_val = os.environ.get(secret.name.upper())
                 if env_val:
                     secret_value = env_val
 
-            if not secret_value:
+            if secret_value is None:
                 # For source-enabled secrets, fall through and attempt source/generator
                 # resolution before declaring partial-sync failure.
                 if secret.source is None:
@@ -1034,7 +1034,7 @@ class SyncEngine:
                     )
                     return result
 
-        if not secret_value:
+        if secret_value is None:
             source_used, source_value, source_error = self._resolve_secret_source(secret, cache)
             if source_error:
                 result["errors"].append(f"{secret.name}: source resolution failed: {source_error}")
@@ -1045,7 +1045,7 @@ class SyncEngine:
                 result["source"] = "resolved"
 
         # Generate new value if needed (full sync or force rotation)
-        if not secret_value:
+        if secret_value is None:
             env_var_name = secret.name.upper()
             secret_value = self._generate_secret_value(
                 secret.kind,
@@ -1192,17 +1192,17 @@ class SyncEngine:
                 )
                 for target_config in candidates:
                     field_value = self._retrieve_from_target(field_name, target_config)
-                    if field_value:
+                    if field_value is not None:
                         field_result["retrieved_from_existing"] = True
                         break
 
-                if not field_value and force_target_ids:
+                if field_value is None and force_target_ids:
                     env_key = f"{secret.name.upper()}_{field_name.upper()}"
                     env_val = os.environ.get(env_key)
                     if env_val:
                         field_value = env_val
 
-                if not field_value:
+                if field_value is None:
                     field_result["skipped"] = True
                     field_result["errors"].append(
                         f"{field_secret_name}: Unable to retrieve from existing targets for partial sync"
@@ -1211,7 +1211,7 @@ class SyncEngine:
                     continue
 
             # Generate new value if needed
-            if not field_value:
+            if field_value is None:
                 env_var_name = f"{secret.name.upper()}_{field_name.upper()}"
                 field_value = self._generate_secret_value(
                     field_def.generator.kind.value,

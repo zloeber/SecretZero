@@ -134,6 +134,14 @@ def decrypt_backup_document(*, backup_file: Path, age_key_file: Path | None) -> 
     return payload
 
 
+def load_plain_backup_document(*, backup_file: Path) -> dict[str, Any]:
+    """Load an unencrypted JSON backup document from disk."""
+    payload = json.loads(backup_file.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("Backup payload is not a JSON object")
+    return payload
+
+
 def _plain_secret_entries(
     engine: SyncEngine, secret: Secret
 ) -> tuple[list[dict[str, Any]], list[str]]:

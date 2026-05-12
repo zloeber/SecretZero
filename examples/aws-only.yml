@@ -44,6 +44,24 @@ secrets:
           name: "{{var.environment}}/stripe/api-key"
           description: Stripe API key for payment processing
 
+  # Structured application config stored as a JSON document
+  - name: app_runtime_config
+    kind: static
+    config:
+      value:
+        region: "{{var.aws_region}}"
+        environment: "{{var.environment}}"
+        features:
+          payments: true
+          analytics: true
+    targets:
+      - provider: aws
+        kind: secrets_manager
+        config:
+          name: "{{var.environment}}/app/runtime-config"
+          format: json
+          description: Application runtime configuration as JSON
+
 metadata:
   project: e-commerce-platform
   owner: backend-team
