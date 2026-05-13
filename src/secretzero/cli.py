@@ -4829,6 +4829,9 @@ def backup_restore_cmd(
     console.print("[green]Restore complete.[/green]")
 
 
+main.add_command(backup_group, name="export")
+
+
 @main.command()
 @click.option(
     "--file",
