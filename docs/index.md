@@ -62,7 +62,7 @@ Download both skill folders into a target directory:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/zloeber/SecretZero/main/scripts/download-secretzero-skills.zsh \
-  | zsh -s -- ./skills
+  | bash -s -- ./skills
 ```
 
 Use that downloader like this:
@@ -252,7 +252,7 @@ Or use the bundled downloader script from a remote agent session:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/zloeber/SecretZero/main/scripts/download-secretzero-skills.zsh \
-  | zsh -s -- ~/.agents/skills
+  | bash -s -- ~/.agents/skills
 ```
 
 ### Initialize a Project

@@ -1,13 +1,12 @@
-#!/usr/bin/env zsh
+#!/usr/bin/env bash
+# Portable installer (bash): works on GitHub Actions and other images without zsh.
+# Filename remains .zsh for stable raw-URL links in docs; run with bash or zsh.
 
 set -euo pipefail
 
 readonly DEFAULT_REPO="zloeber/SecretZero"
 readonly DEFAULT_REF="main"
-readonly SKILLS=(
-  "secretzero-agent"
-  "secretzero-author"
-)
+readonly SKILLS=("secretzero-agent" "secretzero-author")
 
 repo="${DEFAULT_REPO}"
 ref="${DEFAULT_REF}"
@@ -25,7 +24,7 @@ Examples:
   ./scripts/download-secretzero-skills.zsh ./skills --ref main
   curl -fsSL \
     https://raw.githubusercontent.com/zloeber/SecretZero/main/scripts/download-secretzero-skills.zsh \
-    | zsh -s -- ~/.agents/skills
+    | bash -s -- ~/.agents/skills
 EOF
 }
 
@@ -81,13 +80,22 @@ if [[ -z "${source_root}" ]]; then
   curl -fsSL "${archive_url}" -o "${archive_path}"
   tar -xzf "${archive_path}" -C "${tmp_dir}"
 
-  extracted_dirs=("${tmp_dir}"/*(/N))
-  if (( ${#extracted_dirs[@]} == 0 )); then
+  extracted_dir=""
+  shopt -s nullglob
+  for d in "${tmp_dir}"/*; do
+    if [[ -d "${d}" ]]; then
+      extracted_dir="${d}"
+      break
+    fi
+  done
+  shopt -u nullglob
+
+  if [[ -z "${extracted_dir}" ]]; then
     echo "Error: could not locate extracted GitHub archive contents."
     exit 1
   fi
 
-  source_root="${extracted_dirs[1]}/skills"
+  source_root="${extracted_dir}/skills"
 fi
 
 if [[ ! -d "${source_root}" ]]; then

@@ -1,9 +1,19 @@
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = REPO_ROOT / "scripts" / "download-secretzero-skills.zsh"
+
+
+def _script_runner() -> str:
+    """Use bash (CI-friendly); zsh is optional for local runs."""
+    for exe in ("bash", "zsh"):
+        path = shutil.which(exe)
+        if path:
+            return path
+    raise RuntimeError("Neither bash nor zsh found on PATH; cannot run downloader script tests.")
 
 
 def _write_skill(source_root: Path, skill_name: str, *, include_nested_file: bool = False) -> None:
@@ -32,7 +42,7 @@ def test_download_script_copies_skill_directories_recursively(tmp_path: Path) ->
     env["SECRETZERO_SKILLS_SOURCE_ROOT"] = str(source_root)
 
     result = subprocess.run(
-        ["zsh", str(SCRIPT_PATH), str(target_root)],
+        [_script_runner(), str(SCRIPT_PATH), str(target_root)],
         capture_output=True,
         text=True,
         env=env,
@@ -60,7 +70,7 @@ def test_download_script_replaces_existing_skill_directories(tmp_path: Path) -> 
     env["SECRETZERO_SKILLS_SOURCE_ROOT"] = str(source_root)
 
     result = subprocess.run(
-        ["zsh", str(SCRIPT_PATH), str(target_root)],
+        [_script_runner(), str(SCRIPT_PATH), str(target_root)],
         capture_output=True,
         text=True,
         env=env,
@@ -91,7 +101,7 @@ def test_download_script_fails_before_replacing_anything_when_a_skill_is_missing
     env["SECRETZERO_SKILLS_SOURCE_ROOT"] = str(source_root)
 
     result = subprocess.run(
-        ["zsh", str(SCRIPT_PATH), str(target_root)],
+        [_script_runner(), str(SCRIPT_PATH), str(target_root)],
         capture_output=True,
         text=True,
         env=env,

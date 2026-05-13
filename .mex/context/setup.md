@@ -35,7 +35,7 @@ last_updated: 2026-04-10
 
 ## Agent Skill Onboarding
 - Repo-provided skills live at `skills/secretzero-agent/SKILL.md` and `skills/secretzero-author/SKILL.md`.
-- **Remote-first install:** `scripts/download-secretzero-skills.zsh` can be run locally or via raw GitHub URL to copy both skill folders into a target directory.
+- **Remote-first install:** `scripts/download-secretzero-skills.zsh` is bash-portable (run with `bash` or `zsh`); use raw GitHub URL + `curl … | bash -s -- <dir>` to copy both skill folders into a target directory (CI-friendly; no zsh required).
 - **Hermes:** either install the raw `SKILL.md` URLs with `hermes skills install ...` or add a downloaded/shared skill directory to `~/.hermes/config.yaml` under `skills.external_dirs`.
 - **OpenClaw:** opening the repo as the agent workspace auto-loads `/skills`; use `./skills` for the current workspace or `~/.agents/skills` when you want the same skills available across workspaces.
 
