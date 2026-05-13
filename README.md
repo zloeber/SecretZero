@@ -24,13 +24,44 @@
 
 SecretZero is a secrets as code management tool that automates the creation, seeding, and lifecycle management of project secrets through self-documenting declarative manifests. The very first secrets you seed for a new project or environment (known in the industry as 'secret-zero') are often the most difficult to track, maintain, seed, audit, and rotate. SecretZero aims to be an answer to this madness.
 
+## Agent Quick Start
+
+If you are an agent reading this repository remotely through `gh`, `curl`, or a GitHub/MCP client,
+start here.
+
+Skill files:
+
+- `https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-agent/SKILL.md`
+- `https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-author/SKILL.md`
+
+Download both skill folders into a target directory:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/zloeber/SecretZero/main/scripts/download-secretzero-skills.zsh \
+  | zsh -s -- ./skills
+```
+
+Use that downloader like this:
+
+- **OpenClaw:** download to `./skills` for the current workspace or `~/.agents/skills` for a
+  shared install.
+- **Hermes:** either install the raw `SKILL.md` URLs with `hermes skills install ...`, or
+  download to `~/.agents/skills` (or another shared directory) and add that directory to
+  `~/.hermes/config.yaml` under `skills.external_dirs`.
+
+Direct Hermes install:
+
+```bash
+hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-agent/SKILL.md
+hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-author/SKILL.md
+```
+
 ## The Problem
 
 If you have ever asked any of these questions about a new or existing codebase then SecretZero is for you!
 
 - Where are all the secrets in my project?
-- How do I generate new secrets, api keys, or certificates to deploy a whole new environment?
-- How do I handle secret-zero?
+- How do I generate new secrets, api keys, or certificates to deploy a whole new environment or application deployment?
 - When were my critical project secrets last rotated?
 - If I needed to bootstrap this entire project from scratch would I be able to do so without manually handling any secrets?
 - How do I document my project's secrets surface area and requirements?
@@ -54,81 +85,12 @@ If you have ever asked any of these questions about a new or existing codebase t
 - **Rotation Tracking** - Track rotation history, count, and last rotation timestamp in lockfile
 - **One-time Secrets** - Support for secrets that should only be generated once
 - **Entra Agent ID Blueprint Orchestration** - Declaratively manage Entra agent identity blueprints and credential posture via Microsoft Graph
-
-### API Service
-- **REST API** - FastAPI-based HTTP API for programmatic secret management
-- **OpenAPI Documentation** - Interactive API docs with Swagger UI and ReDoc
-- **API Authentication** - Secure API key-based authentication
-- **Audit Logging** - Comprehensive audit trail for all API operations
-- **Remote Management** - Manage secrets from CI/CD pipelines, scripts, or applications
-
-### CLI Commands
-```bash
-# Initialize and validate
-secretzero create                    # Create new Secretfile from template
-secretzero init                      # Check and install provider dependencies
-secretzero validate                # Validate Secretfile configuration
-secretzero test                    # Test provider connectivity
-
-# Secret management
-secretzero sync                    # Generate and sync secrets to targets
-secretzero sync --dry-run         # Preview changes without applying
-secretzero sync -s db_password    # Sync only specific secret(s)
-secretzero show '<secret>'          # Show secret metadata
-secretzero get --provider aws --secret-id '/prod/api/token'  # Provider retrieval (metadata by default)
-
-# Visualization
-secretzero graph                   # Generate visual flow diagram
-secretzero graph --type detailed  # Show detailed configuration
-secretzero graph --type architecture  # Show system architecture
-secretzero graph --format terminal    # Text-based summary
-secretzero graph --output diagram.md  # Save to file
-
-# Rotation and policies
-secretzero rotate                  # Rotate secrets based on policies
-secretzero rotate --dry-run       # Preview rotation status
-secretzero rotate --force         # Force rotation even if not due
-secretzero policy                  # Check policy compliance
-secretzero drift                   # Detect drift in secrets
-
-# Provider management
-secretzero providers list          # List available providers
-secretzero providers capabilities  # Show provider capabilities
-secretzero providers token-info    # Show token permissions (defaults to github)
-secretzero providers token-info github --token ghp_xxx  # Explicit provider + token
-
-# API Server
-secretzero-api                     # Start REST API server
-```
+- **API** - Run as an API server if you need to for some reason I cannot fathom
 
 `secretzero get` safety controls:
 - `SZ_SANDBOX=true` blocks retrieval by default
 - `SZ_ALLOW_GET_IN_SANDBOX=true` explicitly overrides the block
 - `--reveal` is required to print plaintext values
-
-### API Endpoints
-```bash
-# Health and documentation
-GET  /                             # API info
-GET  /health                       # Health check
-GET  /docs                         # Interactive Swagger UI
-GET  /redoc                        # ReDoc documentation
-
-# Secret management
-GET  /secrets                      # List all secrets
-GET  /secrets/{name}/status        # Get secret status
-POST /sync                         # Sync/generate secrets
-POST /config/validate              # Validate configuration
-
-# Rotation and policies
-POST /rotation/check               # Check rotation status
-POST /rotation/execute             # Execute rotation
-POST /policy/check                 # Check policy compliance
-POST /drift/check                  # Check for drift
-
-# Audit and monitoring
-GET  /audit/logs                   # Get audit logs
-```
 
 ## How It Works
 
@@ -140,79 +102,21 @@ For end-to-end workflow diagrams and graph screenshots, see:
 - [Agent-guided secret sync](docs/user-guide/agent-sync.md)
 - [Sync command reference](docs/user-guide/cli/sync.md)
 
-### Checking Provider Permissions
-
-SecretZero can introspect provider authentication tokens to verify they have the necessary permissions:
-
-```bash
-# Check GitHub token permissions and scopes
-secretzero providers token-info
-
-# Output shows:
-# - User information
-# - OAuth scopes (repo, workflow, admin:org, etc.)
-# - Capabilities (can read repos, write secrets, etc.)
-# - Links to documentation on permission requirements
-```
-
-This is useful for:
-- **Troubleshooting** - Verify token has required scopes before attempting operations
-- **Security auditing** - Document what permissions are granted to tokens
-- **Compliance** - Ensure tokens follow principle of least privilege
-- **Onboarding** - Help new team members create tokens with correct permissions
-
-Currently supported providers: GitHub (more providers coming soon).
 
 ## Use Cases
 
-### GitOps-First Infrastructure
-
-Easy to read lockfiles are 100% git friendly. Perfect for teams deploying infrastructure via GitOps where secrets need automated provisioning across multiple environments without manual intervention.
-
-### Multi-Cloud Secret Synchronization
-
-Sync secrets across AWS Secrets Manager, Azure Key Vault, and HashiCorp Vault simultaneously from a single source of truth.
-
-### Database Credential Bootstrapping
-
-Generate and rotate database credentials (PostgreSQL, MySQL, MongoDB) during initial deployment or scheduled rotation cycles.
-
-### Certificate Management
-
-Automate creation and distribution of TLS certificates, SSH keypairs, and signing certificates across development, staging, and production environments.
-
-### CI/CD Secret Provisioning
-
-Bootstrap CI/CD pipeline secrets (GitHub Actions, GitLab CI, Jenkins) from centralized configuration without storing credentials in version control.
-
-### Kubernetes Secret Seeding
-
-Generate and deploy secrets to multiple Kubernetes clusters/namespaces during cluster initialization or application deployment.
-- Generate externals secrets operator manifests for target secrets.
-
-### Development Environment Setup
-
-New team members can bootstrap their local `.env` files with production-like secrets in seconds without manual credential sharing.
-
-### Compliance & Audit Requirements
-
-Maintain an auditable lockfile showing when secrets were created, last rotated, and where they're deployed for SOC2/ISO compliance.
-
-### Secret-Zero Problem
-
-Solve the "where do the first secrets come from" challenge when deploying greenfield infrastructure or disaster recovery scenarios.
-
-### API Key Lifecycle Management
-
-Track and rotate third-party API keys (Stripe, SendGrid, Twilio) across multiple services while maintaining synchronization.
-
-### Microservices Secret Coordination
-
-Ensure all microservices receive consistent shared secrets (JWT signing keys, encryption keys) across distributed deployments.
-
-### Environment Parity Testing
-
-Quickly spin up ephemeral test environments with production-like secrets for integration testing without exposing real credentials.
+- GitOps-first infrastructure with git-friendly lockfiles for multi-environment secret provisioning.
+- Multi-cloud secret synchronization across AWS Secrets Manager, Azure Key Vault, and HashiCorp Vault from a single source of truth.
+- Database credential bootstrapping and rotation for PostgreSQL, MySQL, MongoDB, and similar systems.
+- Certificate management for TLS certificates, SSH keypairs, and signing certificates across environments.
+- CI/CD secret provisioning for GitHub Actions, GitLab CI, Jenkins, and related pipelines.
+- Kubernetes secret seeding, including External Secrets Operator manifest generation for target secrets.
+- Development environment setup so new team members can bootstrap local `.env` files without manual credential sharing.
+- Compliance and audit workflows with lockfile history for SOC2 and ISO-style evidence.
+- Secret-zero bootstrap for greenfield deployments and disaster recovery scenarios.
+- API key lifecycle management for third-party services like Stripe, SendGrid, and Twilio.
+- Microservices secret coordination for shared signing keys, encryption keys, and other distributed credentials.
+- Environment parity testing with ephemeral environments that use production-like secrets without exposing real credentials.
 
 
 # Components
@@ -265,6 +169,54 @@ uv tool install "secretzero[api]"
 
 # Everything (easiest)
 uv tool install "secretzero[all]"
+```
+
+### Agent Skills
+
+SecretZero ships two focused skills for agentic workflows:
+
+- [`secretzero-agent`](./skills/secretzero-agent/SKILL.md) for runtime bootstrap, `agent sync`, and secure human-in-the-loop operations
+- [`secretzero-author`](./skills/secretzero-author/SKILL.md) for `Secretfile.yml` authoring, review, and safe discovery workflows
+
+For the fastest remote install path, see `Agent Quick Start` near the top of this README.
+
+If you are a human operator, install SecretZero itself and use the skills as operating guides:
+
+```bash
+uv tool install -U "secretzero[all]"
+secretzero --help
+secretzero agent sync --help
+```
+
+If you are running Hermes Agent, install the skills directly from this repository:
+
+```bash
+hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-agent/SKILL.md
+hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-author/SKILL.md
+hermes skills list
+```
+
+If you already have a local checkout, you can also point Hermes at the repo skill directory in `~/.hermes/config.yaml`:
+
+```yaml
+skills:
+  external_dirs:
+    - /absolute/path/to/SecretZero/skills
+```
+
+If you are running OpenClaw, opening this repository as the agent workspace is enough because OpenClaw auto-loads workspace `/skills`. To make the skills available across all workspaces, copy them into `~/.agents/skills`:
+
+```bash
+mkdir -p ~/.agents/skills
+cp -R skills/secretzero-agent ~/.agents/skills/
+cp -R skills/secretzero-author ~/.agents/skills/
+```
+
+Or use the bundled downloader script from a remote agent session:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/zloeber/SecretZero/main/scripts/download-secretzero-skills.zsh \
+  | zsh -s -- ~/.agents/skills
 ```
 
 ## Installation (Development)

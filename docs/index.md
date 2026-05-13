@@ -48,6 +48,38 @@ SecretZero is a secrets management tool that automates the creation, seeding, an
 !!! warning "Active Development"
     SecretZero is actively being developed. Features and APIs may change between releases. Please refer to the [CHANGELOG](./reference/changelog.md) for breaking changes and version your dependencies accordingly.
 
+## Agent Quick Start
+
+If you are an agent reading this project remotely through `gh`, `curl`, or a GitHub/MCP client,
+start here.
+
+Skill files:
+
+- `https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-agent/SKILL.md`
+- `https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-author/SKILL.md`
+
+Download both skill folders into a target directory:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/zloeber/SecretZero/main/scripts/download-secretzero-skills.zsh \
+  | zsh -s -- ./skills
+```
+
+Use that downloader like this:
+
+- **OpenClaw:** download to `./skills` for the current workspace or `~/.agents/skills` for a
+  shared install.
+- **Hermes:** either install the raw `SKILL.md` URLs with `hermes skills install ...`, or
+  download to `~/.agents/skills` (or another shared directory) and add that directory to
+  `~/.hermes/config.yaml` under `skills.external_dirs`.
+
+Direct Hermes install:
+
+```bash
+hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-agent/SKILL.md
+hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-author/SKILL.md
+```
+
 ## Why SecretZero?
 
 ### The Problem
@@ -173,6 +205,54 @@ uv tool install secretzero[api]
 
 # Everything
 uv tool install secretzero[all]
+```
+
+### Agent Skills
+
+SecretZero also ships two focused agent skills:
+
+- `secretzero-agent` for runtime bootstrap, `agent sync`, and secure operator handoff
+- `secretzero-author` for `Secretfile.yml` authoring, review, and safe discovery workflows
+
+For the fastest remote install path, see `Agent Quick Start` near the top of this page.
+
+If you are a human operator, install the CLI and use those skills as operating guides:
+
+```bash
+uv tool install -U "secretzero[all]"
+secretzero --help
+secretzero agent sync --help
+```
+
+If you are running Hermes Agent, install the skills directly from this repository:
+
+```bash
+hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-agent/SKILL.md
+hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-author/SKILL.md
+hermes skills list
+```
+
+If you already have a local checkout, you can also add the repo skill directory to `~/.hermes/config.yaml`:
+
+```yaml
+skills:
+  external_dirs:
+    - /absolute/path/to/SecretZero/skills
+```
+
+If you are running OpenClaw, opening this repository as the agent workspace is enough because OpenClaw auto-loads workspace `/skills`. To make the skills available across workspaces, copy them into `~/.agents/skills`:
+
+```bash
+mkdir -p ~/.agents/skills
+cp -R skills/secretzero-agent ~/.agents/skills/
+cp -R skills/secretzero-author ~/.agents/skills/
+```
+
+Or use the bundled downloader script from a remote agent session:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/zloeber/SecretZero/main/scripts/download-secretzero-skills.zsh \
+  | zsh -s -- ~/.agents/skills
 ```
 
 ### Initialize a Project

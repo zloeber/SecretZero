@@ -879,6 +879,30 @@ pip install --force-reinstall secretzero
 which secretzero
 ```
 
+### Checking Provider Permissions
+
+SecretZero can introspect provider authentication tokens to verify they have the necessary permissions:
+
+```bash
+# Check GitHub token permissions and scopes
+secretzero providers token-info
+
+# Output shows:
+# - User information
+# - OAuth scopes (repo, workflow, admin:org, etc.)
+# - Capabilities (can read repos, write secrets, etc.)
+# - Links to documentation on permission requirements
+```
+
+This is useful for:
+- **Troubleshooting** - Verify token has required scopes before attempting operations
+- **Security auditing** - Document what permissions are granted to tokens
+- **Compliance** - Ensure tokens follow principle of least privilege
+- **Onboarding** - Help new team members create tokens with correct permissions
+
+Currently supported providers: GitHub (more providers coming soon).
+
+
 ### Import errors for cloud providers
 
 **Error**: `ModuleNotFoundError: No module named 'boto3'`

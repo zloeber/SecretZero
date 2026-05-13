@@ -1340,6 +1340,33 @@ def test_backup_create_defaults_to_plain_json_for_all_environments(runner: CliRu
         assert {item["name"] for item in payload["meta"]["environments"]} == {"dev", "prod"}
 
 
+def test_export_group_aliases_backup_group(runner: CliRunner) -> None:
+    """`export` is the same command group as `backup` (create / restore)."""
+    r_backup = runner.invoke(main, ["backup", "--help"])
+    r_export = runner.invoke(main, ["export", "--help"])
+    assert r_backup.exit_code == 0, r_backup.output
+    assert r_export.exit_code == 0, r_export.output
+    for sub in ("create", "restore"):
+        assert sub in r_backup.output
+        assert sub in r_export.output
+
+
+def test_export_create_defaults_same_as_backup(runner: CliRunner) -> None:
+    """`export create` should behave identically to `backup create` for the same manifest."""
+    with TemporaryDirectory() as tmpdir:
+        sf, _dev_var, _prod_var, _dev_target, _prod_target = (
+            _write_multi_environment_backup_manifest(tmpdir)
+        )
+        _seed_backup_test_environments(runner, sf)
+
+        result = runner.invoke(main, ["export", "create", "--file", str(sf)])
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["meta"]["encrypted"] is False
+        assert {entry["environment"] for entry in payload["entries"]} == {"dev", "prod"}
+        assert {item["name"] for item in payload["meta"]["environments"]} == {"dev", "prod"}
+
+
 def test_backup_create_can_target_single_environment(runner: CliRunner) -> None:
     """`backup create --environment` should narrow the backup to one environment."""
     with TemporaryDirectory() as tmpdir:
