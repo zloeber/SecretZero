@@ -57,8 +57,9 @@ Skill files:
 
 - `https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-agent/SKILL.md`
 - `https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-author/SKILL.md`
+- `https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-handle/SKILL.md`
 
-Download both skill folders into a target directory:
+Download all skill folders into a target directory:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/zloeber/SecretZero/main/scripts/download-secretzero-skills.zsh \
@@ -78,6 +79,7 @@ Direct Hermes install:
 ```bash
 hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-agent/SKILL.md
 hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-author/SKILL.md
+hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-handle/SKILL.md
 ```
 
 ## Why SecretZero?
@@ -209,10 +211,11 @@ uv tool install secretzero[all]
 
 ### Agent Skills
 
-SecretZero also ships two focused agent skills:
+SecretZero also ships three focused agent skills:
 
 - `secretzero-agent` for runtime bootstrap, `agent sync`, and secure operator handoff
 - `secretzero-author` for `Secretfile.yml` authoring, review, and safe discovery workflows
+- `secretzero-handle` for `.env` / file-target workflows, `SZ_AGENT_MODE`, and spill-safe CLI usage
 
 For the fastest remote install path, see `Agent Quick Start` near the top of this page.
 
@@ -229,6 +232,7 @@ If you are running Hermes Agent, install the skills directly from this repositor
 ```bash
 hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-agent/SKILL.md
 hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-author/SKILL.md
+hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-handle/SKILL.md
 hermes skills list
 ```
 
@@ -246,6 +250,7 @@ If you are running OpenClaw, opening this repository as the agent workspace is e
 mkdir -p ~/.agents/skills
 cp -R skills/secretzero-agent ~/.agents/skills/
 cp -R skills/secretzero-author ~/.agents/skills/
+cp -R skills/secretzero-handle ~/.agents/skills/
 ```
 
 Or use the bundled downloader script from a remote agent session:

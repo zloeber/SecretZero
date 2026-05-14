@@ -315,6 +315,8 @@ def test_get_json_metadata_only_default(runner: CliRunner, monkeypatch: pytest.M
 
 def test_get_json_reveal_includes_value(runner: CliRunner, monkeypatch: pytest.MonkeyPatch) -> None:
     """`get --reveal` includes plaintext when revealable."""
+    monkeypatch.delenv("SZ_AGENT", raising=False)
+    monkeypatch.delenv("SZ_AGENT_MODE", raising=False)
     with TemporaryDirectory() as tmpdir:
         sf = Path(tmpdir) / "Secretfile.yml"
         sf.write_text(MINIMAL_SECRETFILE)
@@ -350,6 +352,46 @@ def test_get_json_reveal_includes_value(runner: CliRunner, monkeypatch: pytest.M
         payload = json.loads(result.output)
         assert payload["revealed"] is True
         assert payload["value"] == "revealed-secret"
+
+
+def test_get_reveal_blocked_under_sz_agent_mode(
+    runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SZ_AGENT_MODE", "true")
+    with TemporaryDirectory() as tmpdir:
+        sf = Path(tmpdir) / "Secretfile.yml"
+        sf.write_text(MINIMAL_SECRETFILE)
+
+        def _fake_get(self, provider_name, secret_id, method_name=None, method_args=None):
+            return {
+                "provider": provider_name,
+                "method": "retrieve_secret",
+                "retrieved": True,
+                "revealable": True,
+                "value": "nope",
+                "notes": None,
+            }
+
+        monkeypatch.setattr("secretzero.cli.SyncEngine.get_provider_secret", _fake_get)
+
+        result = runner.invoke(
+            main,
+            [
+                "get",
+                "--file",
+                str(sf),
+                "--provider",
+                "local",
+                "--secret-id",
+                "app/secret",
+                "--reveal",
+                "--format",
+                "json",
+            ],
+        )
+        assert result.exit_code == EXIT_CONFIG_ERROR
+        payload = json.loads(result.output)
+        assert "error" in payload
 
 
 def test_get_blocked_in_sandbox_without_override(
@@ -1589,3 +1631,271 @@ def test_backup_restore_plain_json_defaults_to_all_environments(runner: CliRunne
         assert prod_target.exists()
         assert "DEV" in dev_target.read_text(encoding="utf-8")
         assert "PROD" in prod_target.read_text(encoding="utf-8")
+
+
+def test_backup_restore_print_json_skips_engine_and_targets(
+    runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``--print`` emits backup values without touching Secretfile, lockfile, or targets."""
+
+    def _record_build_backup_engine(**_kwargs: object) -> None:
+        raise AssertionError("_build_backup_engine should not run for --print")
+
+    monkeypatch.setattr("secretzero.cli._build_backup_engine", _record_build_backup_engine)
+
+    with TemporaryDirectory() as tmpdir:
+        _sf, _dev_var, _prod_var, dev_target, prod_target = (
+            _write_multi_environment_backup_manifest(tmpdir)
+        )
+        backup_file = Path(tmpdir) / "plain-backup.json"
+        backup_file.write_text(
+            json.dumps(
+                {
+                    "version": "1",
+                    "created_at": "2026-05-12T00:00:00+00:00",
+                    "entries": [
+                        {
+                            "entry_id": "e1",
+                            "environment": "dev",
+                            "secret_ref": "api_key",
+                            "target_secret_key": "api_key",
+                            "target_id": f"local/file/{dev_target}",
+                            "provider": "local",
+                            "kind": "file",
+                            "target_config": {"path": str(dev_target), "format": "dotenv"},
+                            "value": "DEV",
+                        },
+                        {
+                            "entry_id": "e2",
+                            "environment": "prod",
+                            "secret_ref": "api_key",
+                            "target_secret_key": "api_key",
+                            "target_id": f"local/file/{prod_target}",
+                            "provider": "local",
+                            "kind": "file",
+                            "target_config": {"path": str(prod_target), "format": "dotenv"},
+                            "value": "PROD",
+                        },
+                    ],
+                    "meta": {"encrypted": False},
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            main,
+            [
+                "backup",
+                "restore",
+                "--backup-file",
+                str(backup_file),
+                "--environment",
+                "dev",
+                "--print",
+                "--format",
+                "json",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["printed"] == 1
+        assert payload["entries"][0]["value"] == "DEV"
+        assert not dev_target.exists()
+        assert not prod_target.exists()
+
+
+def test_export_restore_print_json_matches_backup_restore(
+    runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``export restore`` is an alias of ``backup restore`` and supports ``--print``."""
+
+    def _record_build_backup_engine(**_kwargs: object) -> None:
+        raise AssertionError("_build_backup_engine should not run for --print")
+
+    monkeypatch.setattr("secretzero.cli._build_backup_engine", _record_build_backup_engine)
+
+    with TemporaryDirectory() as tmpdir:
+        _sf, _dev_var, _prod_var, dev_target, prod_target = (
+            _write_multi_environment_backup_manifest(tmpdir)
+        )
+        backup_file = Path(tmpdir) / "plain-backup.json"
+        backup_file.write_text(
+            json.dumps(
+                {
+                    "version": "1",
+                    "entries": [
+                        {
+                            "entry_id": "e1",
+                            "environment": "dev",
+                            "secret_ref": "k",
+                            "target_secret_key": "k",
+                            "target_id": f"local/file/{dev_target}",
+                            "provider": "local",
+                            "kind": "file",
+                            "target_config": {"path": str(dev_target)},
+                            "value": "V",
+                        },
+                    ],
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        result = runner.invoke(
+            main,
+            [
+                "export",
+                "restore",
+                "--backup-file",
+                str(backup_file),
+                "--environment",
+                "dev",
+                "--print",
+                "--format",
+                "json",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert json.loads(result.output)["printed"] == 1
+
+
+def test_backup_restore_print_rejects_combined_dry_run(runner: CliRunner) -> None:
+    with TemporaryDirectory() as tmpdir:
+        bf = Path(tmpdir) / "b.json"
+        bf.write_text(json.dumps({"version": "1", "entries": []}), encoding="utf-8")
+        result = runner.invoke(
+            main,
+            [
+                "backup",
+                "restore",
+                "--backup-file",
+                str(bf),
+                "--print",
+                "--dry-run",
+                "--format",
+                "json",
+            ],
+        )
+    assert result.exit_code == EXIT_CONFIG_ERROR
+    payload = json.loads(result.output)
+    assert "dry-run" in payload["error"].lower()
+
+
+def test_backup_restore_print_rejects_combined_import_only(runner: CliRunner) -> None:
+    with TemporaryDirectory() as tmpdir:
+        bf = Path(tmpdir) / "b.json"
+        bf.write_text(json.dumps({"version": "1", "entries": []}), encoding="utf-8")
+        result = runner.invoke(
+            main,
+            [
+                "backup",
+                "restore",
+                "--backup-file",
+                str(bf),
+                "--print",
+                "--import-only",
+                "x",
+                "--format",
+                "json",
+            ],
+        )
+    assert result.exit_code == EXIT_CONFIG_ERROR
+    payload = json.loads(result.output)
+    assert "import-only" in payload["error"].lower()
+
+
+def test_backup_create_plain_mode_blocked_when_sz_agent_mode_enabled(runner: CliRunner) -> None:
+    """Plain backup output must be blocked when `SZ_AGENT_MODE` is set."""
+    with TemporaryDirectory() as tmpdir:
+        sf, _dev_var, _prod_var, _dev_target, _prod_target = (
+            _write_multi_environment_backup_manifest(tmpdir)
+        )
+        _seed_backup_test_environments(runner, sf)
+
+        result = runner.invoke(
+            main,
+            ["backup", "create", "--file", str(sf)],
+            env={"SZ_AGENT_MODE": "true"},
+        )
+        assert result.exit_code == EXIT_CONFIG_ERROR, result.output
+        assert "--encrypted" in result.output
+
+
+def test_render_blocked_when_sz_agent_mode(runner: CliRunner) -> None:
+    with TemporaryDirectory() as tmpdir:
+        sf = Path(tmpdir) / "Secretfile.yml"
+        sf.write_text(MINIMAL_SECRETFILE)
+        result = runner.invoke(
+            main,
+            ["render", "--file", str(sf)],
+            env={"SZ_AGENT_MODE": "true"},
+        )
+        assert result.exit_code != 0
+        assert "SZ_AGENT_MODE" in result.output or "blocked" in result.output.lower()
+
+
+def test_validate_sz_agent_mode_rejects_manifest_plaintext(runner: CliRunner) -> None:
+    with TemporaryDirectory() as tmpdir:
+        sf = Path(tmpdir) / "Secretfile.yml"
+        sf.write_text(SECRETFILE_WITH_SECRETS)
+        result = runner.invoke(
+            main,
+            ["validate", "--file", str(sf), "--format", "json"],
+            env={"SZ_AGENT_MODE": "true"},
+        )
+        assert result.exit_code == EXIT_VALIDATION_ERROR
+        payload = json.loads(result.output)
+        assert payload["valid"] is False
+        assert "plaintext_violations" in payload
+
+
+def test_validate_strict_manifest_plaintext_flag(runner: CliRunner) -> None:
+    with TemporaryDirectory() as tmpdir:
+        sf = Path(tmpdir) / "Secretfile.yml"
+        sf.write_text(SECRETFILE_WITH_SECRETS)
+        result = runner.invoke(
+            main,
+            ["validate", "--file", str(sf), "--strict-manifest-plaintext", "--format", "json"],
+        )
+        assert result.exit_code == EXIT_VALIDATION_ERROR
+        payload = json.loads(result.output)
+        assert payload["valid"] is False
+
+
+def test_list_variables_json_redacted_when_sz_agent_mode(runner: CliRunner) -> None:
+    with TemporaryDirectory() as tmpdir:
+        sf = Path(tmpdir) / "Secretfile.yml"
+        sf.write_text(SECRETFILE_WITH_SECRETS)
+        result = runner.invoke(
+            main,
+            ["list", "variables", "--file", str(sf), "--format", "json"],
+            env={"SZ_AGENT_MODE": "true"},
+        )
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload.get("values_redacted") is True
+        assert "us-east-1" not in result.output
+
+
+def test_detect_all_keys_json_lists_every_dotenv_name(runner: CliRunner) -> None:
+    with TemporaryDirectory() as tmpdir:
+        env_file = Path(tmpdir) / ".env"
+        env_file.write_text("FOO_BAR=1\nDATABASE_PASSWORD=2\n")
+        result = runner.invoke(
+            main,
+            ["detect", tmpdir, "--format", "json", "--all-keys"],
+        )
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload.get("all_keys") is True
+        names = {d["name"] for d in payload["detected"]}
+        assert "foo_bar" in names
+        assert "database_password" in names
+
+
+def test_ingest_preseed_help(runner: CliRunner) -> None:
+    r = runner.invoke(main, ["ingest", "preseed", "--help"])
+    assert r.exit_code == 0
+    assert "--source" in r.output

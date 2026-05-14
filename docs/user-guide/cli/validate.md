@@ -12,11 +12,17 @@ secretzero validate [OPTIONS]
 
 The `validate` command checks the syntax and structure of your `Secretfile.yml`, ensuring all required fields are present and properly formatted. It performs schema validation, type checking, and reference validation.
 
+When **`SZ_AGENT_MODE=true`** is set in the environment, validation also fails if **static-like** secrets embed literal `value` / `default` material in the manifest (same rules as `--strict-manifest-plaintext`), so agents cannot treat a structurally valid file as safe to echo.
+
 ## Options
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `--file`, `-f` | path | `Secretfile.yml` | Path to Secretfile |
+| `--strict-manifest-plaintext` | flag | off | Fail when static-like secrets contain non-placeholder literals in `value` / `default` |
+| `--format` | choice | `text` | `text` or `json` output |
+| `--var-file`, `-v` | path (repeatable) | - | Merge `.szvar` lane files before validating |
+| `--environment`, `-e` | string | - | Select `environments.profiles` lane |
 | `--help` | flag | - | Show help message |
 
 ## Examples

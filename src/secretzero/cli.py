@@ -16,6 +16,7 @@ from rich.console import Console
 from rich.table import Table
 
 from secretzero import __version__
+from secretzero.agent_context import env_sz_agent_mode, spill_guard_active
 from secretzero.api.audit import AuditLogger
 from secretzero.backup import (
     BACKUP_FORMAT_VERSION,
@@ -45,9 +46,11 @@ from secretzero.gitnexus_intel import (
     run_gitnexus_blast_radius,
 )
 from secretzero.graph import generate_graph
+from secretzero.ingest_preseed import describe_ingest_source_match, secret_names_for_ingest_source
 from secretzero.lockfile import Lockfile
 from secretzero.lockfile_import import run_lockfile_import
 from secretzero.lockfile_state import sync_state_for_secret_target
+from secretzero.manifest_plaintext import list_manifest_plaintext_violations
 from secretzero.models import SECRETFILE_MANIFEST_SPEC_VERSION, AgentMode, Secretfile
 from secretzero.policy import PolicyEngine
 from secretzero.provider_identity import collect_provider_identity_rows
@@ -236,6 +239,18 @@ def _is_non_interactive() -> bool:
 def _env_flag(name: str) -> bool:
     """Return True when environment variable is a truthy flag."""
     return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _redact_target_config_for_spill_guard(cfg: dict[str, Any]) -> dict[str, Any]:
+    """Strip target config down to non-sensitive structural fields for agent-safe JSON."""
+    if not cfg:
+        return {}
+    allow = {"path", "format", "merge", "key", "environment", "output_path", "namespace"}
+    out: dict[str, Any] = {k: cfg[k] for k in allow if k in cfg}
+    extra = sorted(set(cfg) - set(out))
+    if extra:
+        out["_redacted_config_keys"] = extra
+    return out
 
 
 def _root_environment() -> str | None:
@@ -665,11 +680,20 @@ def init(file: str, install: bool, dry_run: bool, environment: str | None) -> No
     default="text",
     help="Output format (text or json)",
 )
+@click.option(
+    "--strict-manifest-plaintext",
+    is_flag=True,
+    help=(
+        "Fail if static-like secrets embed literal value/default material in the manifest "
+        "(agent-safe authoring)."
+    ),
+)
 @_environment_option
 def validate(
     file: str,
     var_files: tuple[str, ...],
     output_format: str,
+    strict_manifest_plaintext: bool,
     environment: str | None,
 ) -> None:
     """Validate Secretfile configuration.
@@ -683,6 +707,7 @@ def validate(
     file_path = Path(file)
     config: Secretfile | None = None
     env_ctx: ResolvedEnvironmentContext | None = None
+    plaintext_violations: list[str] = []
     try:
         file_path, config, env_ctx = _load_secretfile_for_cli(
             file,
@@ -691,12 +716,19 @@ def validate(
         )
         is_valid = True
         message = "Secretfile is valid"
+        if config is not None and (strict_manifest_plaintext or env_sz_agent_mode()):
+            plaintext_violations = list_manifest_plaintext_violations(config)
+            if plaintext_violations:
+                is_valid = False
+                message = "Manifest contains plaintext static-like payloads"
     except Exception as exc:
         is_valid = False
         message = str(exc)
 
     if output_format == "json":
         result: dict = {"valid": is_valid, "message": message, "file": str(file_path)}
+        if plaintext_violations:
+            result["plaintext_violations"] = plaintext_violations
         if is_valid and config is not None:
             result["config"] = {
                 "manifest_spec_version": SECRETFILE_MANIFEST_SPEC_VERSION,
@@ -715,6 +747,12 @@ def validate(
         console.print(
             "With variable file(s): " + ", ".join(str(vf) for vf in env_ctx.resolved_var_files)
         )
+
+    if plaintext_violations:
+        console.print(f"[red]✗[/red] {message}")
+        for row in plaintext_violations:
+            console.print(f"  • {row}")
+        sys.exit(EXIT_VALIDATION_ERROR)
 
     if is_valid and config is not None:
         console.print(f"[green]✓[/green] {message}")
@@ -789,6 +827,15 @@ def render(
         # Render to file in JSON format
         secretzero render --var-file dev.szvar --format json --output rendered.json
     """
+    if spill_guard_active():
+        msg = (
+            "secretzero render is blocked while SZ_AGENT_MODE or SZ_AGENT is enabled "
+            "(full interpolated manifest may contain secret material). "
+            "Unset those variables, or use metadata-only commands such as "
+            "'secretzero validate' and 'secretzero list secrets'."
+        )
+        console.print(f"[red]Error:[/red] {msg}")
+        raise click.Abort()
     try:
         file_path, config, _ = _load_secretfile_for_cli(
             file,
@@ -3445,7 +3492,19 @@ def get(
 
     By default, output is metadata-only. Pass ``--reveal`` to include plaintext
     when the provider API returns a revealable value.
+
+    ``--reveal`` is blocked when ``SZ_AGENT`` or ``SZ_AGENT_MODE`` is enabled.
     """
+    if reveal and spill_guard_active():
+        msg = (
+            "secretzero get --reveal is blocked while SZ_AGENT or SZ_AGENT_MODE is enabled "
+            "(prevents plaintext from entering agent logs)."
+        )
+        if output_format == "json":
+            click.echo(json.dumps({"error": msg, "exit_code": EXIT_CONFIG_ERROR}))
+        else:
+            console.print(f"[red]Error:[/red] {msg}")
+        sys.exit(EXIT_CONFIG_ERROR)
     try:
         _enforce_get_sandbox_policy()
         file_path, config, env_ctx = _load_secretfile_for_cli(
@@ -4342,6 +4401,188 @@ def lockfile_import_cmd(
     console.print("\n[green]Import complete.[/green]")
 
 
+@main.group("ingest")
+def ingest_group() -> None:
+    """Pre-seed lockfile hashes from on-disk secrets files (dotenv / json / yaml) without emitting values."""
+
+
+@ingest_group.command("preseed")
+@click.option(
+    "--source",
+    "-s",
+    "source",
+    required=True,
+    type=click.Path(exists=True),
+    help="Path to the secrets file on disk (must match a local file target path in the manifest)",
+)
+@click.option(
+    "--file",
+    "-f",
+    type=click.Path(exists=True),
+    default="Secretfile.yml",
+    help="Path to Secretfile",
+)
+@click.option(
+    "--lockfile",
+    "-l",
+    type=click.Path(),
+    default=".gitsecrets.lock",
+    help="Path to lockfile",
+)
+@click.option(
+    "--var-file",
+    "-v",
+    "var_files",
+    type=click.Path(exists=True),
+    multiple=True,
+    help="Path to .szvar variable file(s) to merge (repeatable)",
+)
+@click.option(
+    "--environment",
+    "-e",
+    type=str,
+    default=None,
+    help="Named environment profile from Secretfile.environments.profiles",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Show what would be imported without updating the lockfile",
+)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    help="Output format (text or json)",
+)
+def ingest_preseed_cmd(
+    source: str,
+    file: str,
+    lockfile: str,
+    var_files: tuple[str, ...],
+    environment: str | None,
+    dry_run: bool,
+    output_format: str,
+) -> None:
+    """Import hashes for secrets whose local ``file`` target points at ``--source``.
+
+    This is a focused alias for operators and agents: it resolves the manifest,
+    finds every secret whose ``local/file`` target path matches the given file,
+    then runs the same lockfile import engine used by ``secretzero import``.
+    Secret values never appear on stdout (only status metadata / counts).
+    """
+    file_path = Path(file)
+    source_path = Path(source).resolve()
+    runtime_lockfile = _runtime_lockfile_override(file, lockfile)
+    runtime_var_file_paths = [Path(vf) for vf in var_files] if var_files else None
+    loader = ConfigLoader()
+
+    try:
+        base_config = loader.load_file(file_path)
+        env_ctx = resolve_environment_context(
+            secretfile=base_config,
+            secretfile_path=file_path,
+            environment=_effective_environment(environment),
+            runtime_var_files=runtime_var_file_paths,
+            runtime_lockfile=runtime_lockfile,
+        )
+        config = loader.load_file(file_path, var_files=env_ctx.resolved_var_files or None)
+        config = apply_target_profile(config, env_ctx.resolved_target_profile)
+    except Exception as e:
+        if output_format == "json":
+            click.echo(json.dumps({"error": str(e), "exit_code": EXIT_CONFIG_ERROR}))
+        else:
+            console.print(f"[red]Error loading Secretfile:[/red] {e}")
+        sys.exit(EXIT_CONFIG_ERROR)
+
+    lockfile_path = env_ctx.resolved_lockfile
+    secretfile_content = file_path.read_text()
+    lock = Lockfile.load(lockfile_path)
+    active_var_files = env_ctx.resolved_var_files or []
+
+    matched = secret_names_for_ingest_source(
+        config, source=source_path, secretfile_dir=file_path.parent
+    )
+    match_meta = describe_ingest_source_match(
+        config, source=source_path, secretfile_dir=file_path.parent
+    )
+
+    if not matched:
+        msg = (
+            f"No secrets reference local file target path {source_path} "
+            f"(resolved from {source!r}). Add a local/file target whose config.path matches this file."
+        )
+        if output_format == "json":
+            click.echo(
+                json.dumps(
+                    {"error": msg, "exit_code": EXIT_VALIDATION_ERROR, "ingest": match_meta},
+                    indent=2,
+                )
+            )
+        else:
+            console.print(f"[red]Error:[/red] {msg}")
+        sys.exit(EXIT_VALIDATION_ERROR)
+
+    engine = SyncEngine(
+        config,
+        lock,
+        secretfile_path=file_path,
+        secretfile_content=secretfile_content,
+        hide_input=True,
+        prompt_on_empty=False,
+        sync_client="cli",
+    )
+
+    try:
+        summary = run_lockfile_import(
+            engine,
+            secretfile=config,
+            secretfile_path=file_path,
+            secretfile_content=secretfile_content,
+            secret_names=matched,
+            active_var_files=active_var_files,
+            dry_run=dry_run,
+        )
+    except Exception as e:
+        if output_format == "json":
+            click.echo(json.dumps({"error": str(e), "exit_code": EXIT_UNKNOWN_ERROR}))
+        else:
+            console.print(f"[red]Ingest failed:[/red] {e}")
+        sys.exit(EXIT_UNKNOWN_ERROR)
+
+    if not dry_run and lockfile_path:
+        lock.save(lockfile_path)
+
+    err_count = int(summary.get("errors") or 0)
+    if output_format == "json":
+        out = dict(summary)
+        out["ingest"] = match_meta
+        click.echo(json.dumps(out, indent=2))
+        if err_count:
+            sys.exit(EXIT_VALIDATION_ERROR)
+        return
+
+    console.print("[bold]Ingest preseed[/bold]")
+    console.print(f"  Source: [cyan]{source_path}[/cyan]")
+    console.print(f"  Matched secrets: {', '.join(matched)}")
+    ref = summary.get("refresh") or {}
+    console.print(
+        f"  Refresh: checked_secrets={ref.get('checked_secrets', 0)}, "
+        f"stale_secrets={ref.get('mismatch_secrets', 0)}, "
+        f"stale_targets={ref.get('mismatch_targets', 0)}"
+    )
+    console.print(
+        f"  Imported: {summary.get('imported', 0)}, updated: {summary.get('updated', 0)}, "
+        f"unchanged: {summary.get('unchanged', 0)}, skipped: {summary.get('skipped', 0)}, "
+        f"errors: {err_count}"
+    )
+    if err_count:
+        console.print(f"\n[red]Ingest finished with {err_count} error(s).[/red]")
+        sys.exit(EXIT_VALIDATION_ERROR)
+    console.print("\n[green]Ingest complete.[/green]")
+
+
 @main.group("backup")
 def backup_group() -> None:
     """Encrypted backup and restore for synced target values."""
@@ -4424,8 +4665,8 @@ def backup_create_cmd(
         else:
             console.print(f"[red]Error:[/red] {msg}")
         sys.exit(EXIT_CONFIG_ERROR)
-    if not encrypted and _env_flag("SZ_AGENT"):
-        msg = "Plain backup output is blocked while SZ_AGENT is enabled; rerun with --encrypted."
+    if not encrypted and spill_guard_active():
+        msg = "Plain backup output is blocked while SZ_AGENT or SZ_AGENT_MODE is enabled; rerun with --encrypted."
         if output_format == "json":
             click.echo(json.dumps({"error": msg, "exit_code": EXIT_CONFIG_ERROR}))
         else:
@@ -4577,12 +4818,16 @@ def backup_create_cmd(
 @click.option(
     "--file",
     "-f",
-    type=click.Path(exists=True),
+    type=click.Path(),
     default="Secretfile.yml",
-    help="Path to Secretfile",
+    help="Path to Secretfile (ignored when using --print)",
 )
 @click.option(
-    "--lockfile", "-l", type=click.Path(), default=".gitsecrets.lock", help="Path to lockfile"
+    "--lockfile",
+    "-l",
+    type=click.Path(),
+    default=".gitsecrets.lock",
+    help="Path to lockfile (ignored when using --print)",
 )
 @click.option(
     "--var-file",
@@ -4630,6 +4875,12 @@ def backup_create_cmd(
     help="Do not write target; only update lockfile for selector secret or secret@target_id",
 )
 @click.option(
+    "--print",
+    "print_values",
+    is_flag=True,
+    help="Print selected backup entries to stdout; skip targets, Secretfile, and lockfile updates",
+)
+@click.option(
     "--yes", "assume_yes", is_flag=True, help="Non-interactive: accept per-target restore prompts"
 )
 @click.option("--dry-run", is_flag=True, help="Show what would be restored")
@@ -4645,11 +4896,43 @@ def backup_restore_cmd(
     only_entries: tuple[str, ...],
     skip_entries: tuple[str, ...],
     import_only: tuple[str, ...],
+    print_values: bool,
     assume_yes: bool,
     dry_run: bool,
     output_format: str,
 ) -> None:
-    """Restore backup entries to captured targets and update lockfiles."""
+    """Restore backup entries to captured targets and update lockfiles (or --print values only)."""
+    if print_values and dry_run:
+        msg = "--print and --dry-run cannot be used together"
+        if output_format == "json":
+            click.echo(json.dumps({"error": msg, "exit_code": EXIT_CONFIG_ERROR}))
+        else:
+            console.print(f"[red]Error:[/red] {msg}")
+        sys.exit(EXIT_CONFIG_ERROR)
+    if print_values and import_only:
+        msg = "--print cannot be combined with --import-only"
+        if output_format == "json":
+            click.echo(json.dumps({"error": msg, "exit_code": EXIT_CONFIG_ERROR}))
+        else:
+            console.print(f"[red]Error:[/red] {msg}")
+        sys.exit(EXIT_CONFIG_ERROR)
+    if print_values and spill_guard_active():
+        msg = "Printing backup values to stdout is blocked while SZ_AGENT or SZ_AGENT_MODE is enabled."
+        if output_format == "json":
+            click.echo(json.dumps({"error": msg, "exit_code": EXIT_CONFIG_ERROR}))
+        else:
+            console.print(f"[red]Error:[/red] {msg}")
+        sys.exit(EXIT_CONFIG_ERROR)
+    if not print_values and not Path(file).is_file():
+        if output_format == "json":
+            click.echo(
+                json.dumps(
+                    {"error": f"Secretfile not found: {file}", "exit_code": EXIT_CONFIG_ERROR}
+                )
+            )
+        else:
+            console.print(f"[red]Error:[/red] Secretfile not found: {file}")
+        sys.exit(EXIT_CONFIG_ERROR)
     try:
         payload = (
             decrypt_backup_document(
@@ -4704,7 +4987,7 @@ def backup_restore_cmd(
                 continue
             if entry_id in skipped_ids:
                 continue
-            if not assume_yes:
+            if not assume_yes and not print_values:
                 selector = f"{entry.get('secret_ref')}@{entry.get('target_id')}"
                 if not click.confirm(f"Restore {entry_id or selector}?", default=True):
                     continue
@@ -4728,6 +5011,56 @@ def backup_restore_cmd(
                 f"[red]Error:[/red] No backup entries found for environment '{requested_environment}'"
             )
         sys.exit(EXIT_CONFIG_ERROR)
+
+    if print_values:
+        printed_rows: list[dict[str, Any]] = []
+        for env_name in target_environments:
+            for entry in per_environment_candidates.get(env_name, []):
+                row = dict(entry)
+                resolved_env: str | None = env_name if env_name is not None else None
+                if resolved_env is None and row.get("environment") is not None:
+                    resolved_env = str(row["environment"])
+                row["environment"] = resolved_env
+                printed_rows.append(row)
+        if output_format == "json":
+            click.echo(
+                json.dumps(
+                    {"printed": len(printed_rows), "entries": printed_rows},
+                    indent=2,
+                    default=str,
+                )
+            )
+            return
+        click.echo(
+            click.style("Printing secret values from the backup to this terminal.", fg="yellow"),
+            err=True,
+        )
+        table = Table(
+            title="Backup entries",
+            show_header=True,
+            header_style="bold cyan",
+            box=box.ROUNDED,
+        )
+        table.add_column("Entry")
+        table.add_column("Environment")
+        table.add_column("Secret")
+        table.add_column("Target ID")
+        table.add_column("Value")
+        for row in printed_rows:
+            raw_val = row.get("value")
+            if isinstance(raw_val, (dict, list)):
+                val_str = json.dumps(raw_val, default=str)
+            else:
+                val_str = "" if raw_val is None else str(raw_val)
+            table.add_row(
+                str(row.get("entry_id") or ""),
+                str(row.get("environment") or ""),
+                str(row.get("secret_ref") or ""),
+                str(row.get("target_id") or ""),
+                val_str,
+            )
+        console.print(table)
+        return
 
     if dry_run:
         summary = {
@@ -5191,12 +5524,15 @@ def list_targets(file: str, output_format: str, environment: str | None) -> None
     all_targets = []
     for secret in config.secrets:
         for t in secret.targets:
+            cfg = t.config
+            if spill_guard_active():
+                cfg = _redact_target_config_for_spill_guard(dict(cfg))
             all_targets.append(
                 {
                     "secret": secret.name,
                     "provider": t.provider,
                     "kind": t.kind,
-                    "config": t.config,
+                    "config": cfg,
                 }
             )
 
@@ -5215,10 +5551,14 @@ def list_targets(file: str, output_format: str, environment: str | None) -> None
     table.add_column("Config")
 
     for t in all_targets:
-        config_str = (
-            ", ".join(f"{k}={v}" for k, v in t["config"].items()) if t["config"] else "[dim]—[/dim]"
-        )
-        table.add_row(t["secret"], t["provider"], t["kind"], config_str)
+        cfg = t["config"]
+        if spill_guard_active():
+            cfg_str = ", ".join(f"{k}={v}" for k, v in cfg.items() if not str(k).startswith("_"))
+        else:
+            cfg_str = ", ".join(f"{k}={v}" for k, v in cfg.items()) if cfg else "[dim]—[/dim]"
+        if not cfg_str:
+            cfg_str = "[dim]—[/dim]"
+        table.add_row(t["secret"], t["provider"], t["kind"], cfg_str)
 
     console.print(table)
     console.print(f"\n[dim]Total: {len(all_targets)} target(s)[/dim]")
@@ -5267,12 +5607,25 @@ def list_variables(
         variables = {k: v for k, v in variables.items() if name_filter.lower() in k.lower()}
 
     if output_format == "json":
-        click.echo(
-            json.dumps(
-                {"variables": variables, "total": len(variables)},
-                indent=2,
+        if spill_guard_active():
+            click.echo(
+                json.dumps(
+                    {
+                        "variable_names": sorted(variables.keys()),
+                        "total": len(variables),
+                        "values_redacted": True,
+                        "note": "Values omitted under SZ_AGENT or SZ_AGENT_MODE",
+                    },
+                    indent=2,
+                )
             )
-        )
+        else:
+            click.echo(
+                json.dumps(
+                    {"variables": variables, "total": len(variables)},
+                    indent=2,
+                )
+            )
         return
 
     if not variables:
@@ -5284,7 +5637,10 @@ def list_variables(
     table.add_column("Value")
 
     for name, value in variables.items():
-        table.add_row(name, str(value))
+        if spill_guard_active():
+            table.add_row(name, "[dim]omitted (SZ_AGENT or SZ_AGENT_MODE)[/dim]")
+        else:
+            table.add_row(name, str(value))
 
     console.print(table)
     console.print(f"\n[dim]Total: {len(variables)} variable(s)[/dim]")
@@ -5306,7 +5662,15 @@ def list_variables(
     default=None,
     help="Write suggested Secretfile fragment to file instead of stdout",
 )
-def detect(directory: str, output_format: str, output: str | None) -> None:
+@click.option(
+    "--all-keys",
+    is_flag=True,
+    help=(
+        "For .env-style files, list every exported variable name (KEY=…), not only "
+        "names matching secret-related keyword heuristics."
+    ),
+)
+def detect(directory: str, output_format: str, output: str | None, all_keys: bool) -> None:
     """Scan a directory for potential secrets and suggest Secretfile definitions.
 
     Looks for common secret patterns in files: .env files, config files,
@@ -5341,6 +5705,10 @@ def detect(directory: str, output_format: str, output: str | None) -> None:
         # VAR_NAME ending with a short secret keyword, e.g. DB_PASS= or MY_API=
         (re.compile(rf"^([A-Z_][A-Z0-9_]*_{secret_prefixes})\s*=", re.M), "dotenv"),
     ]
+    if all_keys:
+        secret_patterns = [
+            (re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)=", re.M), "dotenv"),
+        ]
 
     # Directories that should be ignored when recursively scanning for env-style files.
     ignored_dir_parts = {
@@ -5415,7 +5783,12 @@ def detect(directory: str, output_format: str, output: str | None) -> None:
         )
 
     if output_format == "json":
-        click.echo(json.dumps({"detected": suggestions, "total": len(suggestions)}, indent=2))
+        payload: dict[str, Any] = {
+            "detected": suggestions,
+            "total": len(suggestions),
+            "all_keys": all_keys,
+        }
+        click.echo(json.dumps(payload, indent=2))
         return
 
     if not suggestions:
@@ -6112,6 +6485,16 @@ def agent_sync(
 
     if use_web and result.pending_secrets and not dry_run:
         try:
+
+            def _agent_web_on_ready(url: str) -> None:
+                console.print(f"[cyan]Open the local web form to continue:[/cyan] {url}")
+                console.print(
+                    "[dim]Copy this exact URL to the operator (including scheme, host, port, and "
+                    "path). Do not paste secret values into chat. After they submit the form once, "
+                    "this helper stops the localhost server; if they abandon the flow, interrupt "
+                    "this command or wait for it to time out.[/dim]"
+                )
+
             result = run_blocking_web_agent_form(
                 pending_secret_names=list(result.pending_secrets.keys()),
                 secretfile=secretfile,
@@ -6124,9 +6507,7 @@ def agent_sync(
                 port_max=agent_cfg.web_port_max,
                 host="127.0.0.1",
                 open_browser=not _is_non_interactive(),
-                on_ready=lambda url: console.print(
-                    f"[cyan]Open the local web form to continue:[/cyan] {url}"
-                ),
+                on_ready=_agent_web_on_ready,
             )
         except Exception as exc:
             console.print(f"[yellow]Web UI failed ({exc}); showing instructions instead.[/yellow]")
@@ -7072,6 +7453,13 @@ def terraform(
         )
     except Exception as e:
         console.print(f"[red]Error loading Secretfile:[/red] {e}")
+        sys.exit(EXIT_CONFIG_ERROR)
+
+    if include_static_secrets and spill_guard_active():
+        console.print(
+            "[red]Error:[/red] --include-static-secrets is blocked while SZ_AGENT or "
+            "SZ_AGENT_MODE is enabled (generated Terraform may embed secret defaults)."
+        )
         sys.exit(EXIT_CONFIG_ERROR)
 
     registry = get_bundle_registry()
