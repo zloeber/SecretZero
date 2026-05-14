@@ -310,6 +310,15 @@ agent_instructions:
   automation_hint: "Manual only – requires browser interaction"
 ```
 
+### Vector 2 — localhost web form (operator handoff)
+
+When `secretzero agent sync --web` (or the API with `web: true`) needs manual values:
+
+1. **Run on the operator’s machine** so `127.0.0.1` is theirs. Prefer a **background terminal** (or shell job) if your agent runtime would otherwise block and prevent you from surfacing the URL line from stdout.
+2. **Hand off the exact URL** the tool prints — full string including `http://`, host, port, and path. Do not summarize or truncate; the operator must paste what SecretZero emitted.
+3. **Bootstrap tokens:** Vector 2’s inline form URL is normally `http://127.0.0.1:<port>/` on localhost only. The separate **`secretzero web`** dashboard uses its own **bootstrap token**; if you use that flow, pass the **complete login URL including the token** from that command’s output (different product surface).
+4. **Shutdown / lifecycle:** After the operator submits the form, the CLI Vector 2 helper stops the temporary server. Tell them to finish in the browser and close the tab; if they abandon the flow, cancel the waiting CLI or let it time out. For the REST API, poll `GET /agent/sync/web/{web_session_id}` until `done`; the localhost listener may remain until the API process restarts — do not share `web_url` outside the trusted operator.
+
 ### Keeping Secrets Safe
 
 Never include actual credentials in `agent_instructions`. Reference environment

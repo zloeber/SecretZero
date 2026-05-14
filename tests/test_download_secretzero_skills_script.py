@@ -37,6 +37,7 @@ def test_download_script_copies_skill_directories_recursively(tmp_path: Path) ->
     target_root = tmp_path / "target-skills"
     _write_skill(source_root, "secretzero-agent", include_nested_file=True)
     _write_skill(source_root, "secretzero-author", include_nested_file=True)
+    _write_skill(source_root, "secretzero-handle", include_nested_file=True)
 
     env = os.environ.copy()
     env["SECRETZERO_SKILLS_SOURCE_ROOT"] = str(source_root)
@@ -54,6 +55,8 @@ def test_download_script_copies_skill_directories_recursively(tmp_path: Path) ->
     assert (target_root / "secretzero-agent" / "references" / "guide.md").exists()
     assert (target_root / "secretzero-author" / "SKILL.md").exists()
     assert (target_root / "secretzero-author" / "references" / "guide.md").exists()
+    assert (target_root / "secretzero-handle" / "SKILL.md").exists()
+    assert (target_root / "secretzero-handle" / "references" / "guide.md").exists()
 
 
 def test_download_script_replaces_existing_skill_directories(tmp_path: Path) -> None:
@@ -61,6 +64,7 @@ def test_download_script_replaces_existing_skill_directories(tmp_path: Path) -> 
     target_root = tmp_path / "target-skills"
     _write_skill(source_root, "secretzero-agent")
     _write_skill(source_root, "secretzero-author")
+    _write_skill(source_root, "secretzero-handle")
 
     stale_file = target_root / "secretzero-agent" / "stale.txt"
     stale_file.parent.mkdir(parents=True, exist_ok=True)
@@ -81,6 +85,7 @@ def test_download_script_replaces_existing_skill_directories(tmp_path: Path) -> 
     assert not stale_file.exists()
     assert (target_root / "secretzero-agent" / "SKILL.md").exists()
     assert (target_root / "secretzero-author" / "SKILL.md").exists()
+    assert (target_root / "secretzero-handle" / "SKILL.md").exists()
 
 
 def test_download_script_fails_before_replacing_anything_when_a_skill_is_missing(
@@ -92,10 +97,13 @@ def test_download_script_fails_before_replacing_anything_when_a_skill_is_missing
 
     preserved_agent = target_root / "secretzero-agent" / "preserved.txt"
     preserved_author = target_root / "secretzero-author" / "preserved.txt"
+    preserved_handle = target_root / "secretzero-handle" / "preserved.txt"
     preserved_agent.parent.mkdir(parents=True, exist_ok=True)
     preserved_author.parent.mkdir(parents=True, exist_ok=True)
+    preserved_handle.parent.mkdir(parents=True, exist_ok=True)
     preserved_agent.write_text("keep\n", encoding="utf-8")
     preserved_author.write_text("keep\n", encoding="utf-8")
+    preserved_handle.write_text("keep\n", encoding="utf-8")
 
     env = os.environ.copy()
     env["SECRETZERO_SKILLS_SOURCE_ROOT"] = str(source_root)
@@ -112,3 +120,4 @@ def test_download_script_fails_before_replacing_anything_when_a_skill_is_missing
     assert "missing skill directory" in result.stderr or "missing skill directory" in result.stdout
     assert preserved_agent.exists()
     assert preserved_author.exists()
+    assert preserved_handle.exists()

@@ -17,6 +17,13 @@ description: Unified `secretzero agent sync` (CLI) and `POST /agent/sync` (API) 
 - Web UI / sessions: `src/secretzero/agent_webui.py`
 - E2E: `tests/e2e/test_agent_vector*.tavern.yaml`, `task test:e2e`
 
+## Vector 2 operator handoff (agents)
+
+- Prefer **`secretzero agent sync --web`** on the human’s machine; start in a **background terminal** when the agent runtime would block on the blocking wait for form submit.
+- Echo the **verbatim** localhost URL from CLI stdout (full scheme/host/port/path). Do not paste secret values into chat.
+- **`secretzero web`** is separate: it uses a **bootstrap token** in the login handoff — include the full URL + token from that command when applicable.
+- After submit, the CLI helper stops the temporary localhost server; remind operators to close the tab and to **Ctrl+C** if they abandon the flow. API Vector 2: poll `GET /agent/sync/web/{session_id}`; localhost server may linger until API restart.
+
 ## Verify
 
 - `task test` (excludes e2e) and `task test:e2e`

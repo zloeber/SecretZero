@@ -43,6 +43,7 @@ secretzero agent sync --help
 
 - Never request, receive, or print plaintext secret values.
 - Prefer JSON output for machine handling.
+- When running in automation or spill-sensitive hosts, set **`SZ_AGENT_MODE=true`** so the CLI blocks or redacts commands that would dump secret-bearing config (see `skills/secretzero-handle/SKILL.md`).
 - Use the unified entrypoint:
 
 ```bash
@@ -57,10 +58,13 @@ secretzero agent sync --json [--web] [--dry-run] [--verbose]
    - Re-run until clean.
 
 2. **Secure local web capture (Vector 2)**
-   - Run `secretzero agent sync --web`.
-   - Direct user to localhost form.
-   - Instruct user not to paste secrets into chat.
-   - Poll/re-run until `pending_secrets` clears.
+   - Run `secretzero agent sync --web` (add `--json` only when you also need structured stdout after the run finishes).
+   - **Do not block the whole agent session on the foreground TTY if your environment allows it:** start the command in a **background terminal** (or equivalent job control) on the operator’s machine so the process can stay alive until the form is submitted, and **capture stdout** if you need to quote the URL line back reliably.
+   - When the CLI prints the localhost URL, **relay the complete URL verbatim** to the user (scheme, host, port, and path — no truncation). Vector 2 binds to `127.0.0.1`; the printed URL is the handoff surface (this is **not** the same as `secretzero web`, which uses a separate **bootstrap token** for the network dashboard — if you use that command, pass through its **full login URL including the token** per that command’s output).
+   - Remind the operator **not to paste secret values into chat**; only the URL and UI instructions belong in the agent thread.
+   - Remind the operator to **submit the form once** and close the browser tab when done: the CLI helper **stops the temporary localhost server** after a successful submit; if they walk away, **Ctrl+C** (or waiting for timeout) ends the wait.
+   - **API Vector 2:** `POST /agent/sync` with `web: true` returns `web_url` and `web_session_id` — give the operator the **exact `web_url`**, poll `GET /agent/sync/web/{web_session_id}` until `done`, and treat the session id as sensitive correlation data. The API process may keep that localhost port open until restart; do not forward `web_url` beyond the trusted operator.
+   - Poll/re-run `agent sync --json` until `pending_secrets` clears.
 
 3. **Fully automated (Vector 3)**
    - Ensure provider auth is available (and optionally `SZ_AGENT=true`).
@@ -69,7 +73,7 @@ secretzero agent sync --json [--web] [--dry-run] [--verbose]
 
 ## Standard Agent Loop
 
-1. Run `secretzero agent sync --json` (or `--web`).
+1. Run `secretzero agent sync --json` first; escalate to `--web` when you need the localhost form (see Vector 2 handoff above).
 2. Parse status and `pending_secrets`/`failed_secrets`.
 3. Execute the appropriate vector behavior.
 4. Re-run command until both arrays are empty.

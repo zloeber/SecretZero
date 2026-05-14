@@ -11,7 +11,7 @@ edges:
     condition: "When changing flags, help text, or CLI output shapes"
   - target: "patterns/secretfile-authoring.md"
     condition: "When backup behavior depends on environment lane config or var-file interpolation"
-last_updated: 2026-05-12
+last_updated: 2026-05-13
 ---
 
 # Backup CLI Workflow
@@ -29,7 +29,8 @@ last_updated: 2026-05-12
 
 ## Gotchas
 - A backup file that contains multiple environments cannot be restored through one shared `SyncEngine`; each environment needs its own resolved manifest and lockfile.
-- Printing plain backup payloads to stdout is unsafe in automation contexts. Guard `SZ_AGENT` before emitting unencrypted payloads.
+- `backup restore --print` / `export restore --print` skips the engine entirely: it does not read `Secretfile.yml`, write targets, or update lockfiles. It still loads/decrypts the backup file and applies `--environment`, `--entry`, and `--skip-entry` the same way as a normal restore. Do not combine `--print` with `--dry-run` or `--import-only`.
+- Printing plain backup payloads to stdout is unsafe in automation contexts. Guard `spill_guard_active()` (`SZ_AGENT` **or** `SZ_AGENT_MODE`) before emitting unencrypted payloads.
 - `--age-recipient` and `--age-key-file` only make sense in encrypted mode; leaving them active in plain mode creates confusing partial behavior.
 - Backup entry IDs are assigned after entries are aggregated, so multi-environment fan-out must happen before numbering.
 

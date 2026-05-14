@@ -33,8 +33,9 @@ Skill files:
 
 - `https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-agent/SKILL.md`
 - `https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-author/SKILL.md`
+- `https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-handle/SKILL.md`
 
-Download both skill folders into a target directory:
+Download all skill folders into a target directory:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/zloeber/SecretZero/main/scripts/download-secretzero-skills.zsh \
@@ -54,6 +55,7 @@ Direct Hermes install:
 ```bash
 hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-agent/SKILL.md
 hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-author/SKILL.md
+hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-handle/SKILL.md
 ```
 
 ## The Problem
@@ -91,6 +93,7 @@ If you have ever asked any of these questions about a new or existing codebase t
 - `SZ_SANDBOX=true` blocks retrieval by default
 - `SZ_ALLOW_GET_IN_SANDBOX=true` explicitly overrides the block
 - `--reveal` is required to print plaintext values
+- `SZ_AGENT_MODE=true` (or `SZ_AGENT=true`) blocks `--reveal` and other commands that would dump secret-bearing config to stdout; use `secretzero ingest preseed` for `.env` lockfile hashing
 
 ## How It Works
 
@@ -173,10 +176,11 @@ uv tool install "secretzero[all]"
 
 ### Agent Skills
 
-SecretZero ships two focused skills for agentic workflows:
+SecretZero ships three focused skills for agentic workflows:
 
 - [`secretzero-agent`](./skills/secretzero-agent/SKILL.md) for runtime bootstrap, `agent sync`, and secure human-in-the-loop operations
 - [`secretzero-author`](./skills/secretzero-author/SKILL.md) for `Secretfile.yml` authoring, review, and safe discovery workflows
+- [`secretzero-handle`](./skills/secretzero-handle/SKILL.md) for `.env` / file-target workflows, `SZ_AGENT_MODE`, and spill-safe CLI usage
 
 For the fastest remote install path, see `Agent Quick Start` near the top of this README.
 
@@ -193,6 +197,7 @@ If you are running Hermes Agent, install the skills directly from this repositor
 ```bash
 hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-agent/SKILL.md
 hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-author/SKILL.md
+hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-handle/SKILL.md
 hermes skills list
 ```
 
@@ -210,6 +215,7 @@ If you are running OpenClaw, opening this repository as the agent workspace is e
 mkdir -p ~/.agents/skills
 cp -R skills/secretzero-agent ~/.agents/skills/
 cp -R skills/secretzero-author ~/.agents/skills/
+cp -R skills/secretzero-handle ~/.agents/skills/
 ```
 
 Or use the bundled downloader script from a remote agent session:

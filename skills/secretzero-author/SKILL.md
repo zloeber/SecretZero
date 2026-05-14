@@ -4,6 +4,8 @@ description: |
   Use when authoring, reviewing, or discovering `Secretfile.yml` manifests.
   Focuses on schema-compliant manifest quality, safe contextless discovery,
   environment-aware `.szvar` separation, and policy-bound provider targets.
+  When work touches `.env`, local `file` targets, or spill-safe agent CLI,
+  also load `skills/secretzero-handle/SKILL.md`.
 ---
 
 # SecretZero Author Skill
