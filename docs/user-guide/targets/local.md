@@ -10,6 +10,7 @@ The file target supports multiple formats commonly used for configuration:
 - **JSON** - JavaScript Object Notation
 - **YAML** - YAML Ain't Markup Language
 - **TOML** - Tom's Obvious Minimal Language
+- **Terraform `.tfvars`** - Flat HCL `name = "value"` assignments (`format: tfvars`)
 
 ## Use Cases
 
@@ -43,7 +44,7 @@ secrets:
 | Option | Type | Required | Default | Description |
 |--------|------|----------|---------|-------------|
 | `path` | string | Yes | `.env` | File path to store secrets (relative or absolute) |
-| `format` | string | Yes | `dotenv` | File format: `dotenv`, `json`, `yaml`, `toml` |
+| `format` | string | Yes | `dotenv` | File format: `dotenv`, `json`, `yaml`, `toml`, `tfvars` |
 | `merge` | boolean | No | `true` | Whether to merge with existing content or overwrite |
 
 ## Format Specifications
@@ -663,7 +664,7 @@ secretzero sync -f Secretfile.yml --log-level debug
    pip install tomli tomli-w
    ```
 2. Check format spelling: `dotenv`, `json`, `yaml`, `toml` (lowercase)
-3. Verify file extension matches format
+3. Verify file extension matches format (`*.tfvars` infers `tfvars` when `format` is omitted)
 
 ### Special Characters in Dotenv
 

@@ -261,6 +261,7 @@ class FileFormat(str, Enum):
     JSON = "json"
     YAML = "yaml"
     TOML = "toml"
+    TFVARS = "tfvars"
 
 
 class AuthProfile(BaseModel):
@@ -342,7 +343,7 @@ class SecretSource(BaseModel):
         default_factory=dict,
         description=(
             "Source-specific configuration. "
-            "file: {path, format?, key?, encoding?}; "
+            "file: {path, format? (dotenv|json|yaml|toml|tfvars), key?, encoding?}; "
             "env: {name, trim?}; "
             "secret_ref: {secret, field?}; "
             "provider_read: {provider, kind, read, field?, profile?, method?}."

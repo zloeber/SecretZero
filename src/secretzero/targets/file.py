@@ -6,6 +6,7 @@ from typing import Any
 
 import yaml
 
+from secretzero.hcl_tfvars import format_tfvars, parse_tfvars
 from secretzero.targets.base import BaseTarget
 
 
@@ -18,7 +19,7 @@ class FileTarget(BaseTarget):
         Args:
             config: Configuration with options:
                 - path: File path to store secrets
-                - format: File format (dotenv, json, yaml, toml)
+                - format: File format (dotenv, json, yaml, toml, tfvars)
                 - merge: Whether to merge with existing content (default: True)
                 - key: Optional key/name used in the file (dotenv variable name, JSON key, etc.).
                   If set, overrides the manifest secret name for storage and retrieval so casing
@@ -26,8 +27,21 @@ class FileTarget(BaseTarget):
         """
         super().__init__(config)
         self.path = Path(config.get("path", ".env"))
-        self.format = config.get("format", "dotenv")
+        self.format = self._resolve_format(config)
         self.merge = config.get("merge", True)
+
+    @staticmethod
+    def _resolve_format(config: dict[str, Any]) -> str:
+        """Resolve file format, inferring tfvars from ``.tfvars`` paths when omitted."""
+        explicit = config.get("format")
+        if explicit is not None and str(explicit).strip() != "":
+            return str(explicit).strip().lower()
+
+        path_raw = str(config.get("path", ".env"))
+        path_lower = path_raw.lower()
+        if path_lower.endswith(".tfvars") and not path_lower.endswith(".tfvars.json"):
+            return "tfvars"
+        return "dotenv"
 
     def _entry_key(self, secret_name: str) -> str:
         """Key used in the file: ``config.key`` when set, else the manifest secret name."""
@@ -150,6 +164,9 @@ class FileTarget(BaseTarget):
                 return tomli.loads(content)
             except ImportError:
                 raise ValueError("tomli package required for TOML support")
+        elif self.format == "tfvars":
+            parsed = parse_tfvars(content)
+            return {k: str(v) for k, v in parsed.items()}
         else:
             raise ValueError(f"Unsupported format: {self.format}")
 
@@ -175,6 +192,9 @@ class FileTarget(BaseTarget):
                 content = tomli_w.dumps(data)
             except ImportError:
                 raise ValueError("tomli-w package required for TOML support")
+        elif self.format == "tfvars":
+            include_header = not self.path.exists()
+            content = format_tfvars(data, include_header=include_header)
         else:
             raise ValueError(f"Unsupported format: {self.format}")
 

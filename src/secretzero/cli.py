@@ -2275,7 +2275,7 @@ def _show_provider_details(provider_name: str, target_name: str | None, verbose:
                 "description": "Local File",
                 "config": {
                     "path": "File path to store secret",
-                    "format": "File format: dotenv, json, yaml, or toml (default: dotenv)",
+                    "format": "File format: dotenv, json, yaml, toml, or tfvars (default: dotenv; .tfvars paths infer tfvars)",
                     "merge": "Whether to merge with existing file content (default: true)",
                     "mode": "File permissions as octal (default: 0600)",
                 },

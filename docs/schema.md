@@ -324,7 +324,7 @@ targets:
     kind: file
     config:
       path: .env              # File path
-      format: dotenv          # Format: dotenv, json, yaml, toml
+      format: dotenv          # Format: dotenv, json, yaml, toml, tfvars
       merge: true             # Merge with existing content
 ```
 
