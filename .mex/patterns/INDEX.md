@@ -5,6 +5,7 @@ Lookup table for all pattern files in this directory. Check here before starting
 | Pattern | Use when |
 |---------|----------|
 | [agent-sync.md](agent-sync.md) | Changing unified `agent sync` / `POST /agent/sync` (three vectors, CLI+API parity) |
+| [agent-instructions-report.md](agent-instructions-report.md) | `secretzero agent instructions` pending/all report output |
 | [add-bundle.md](add-bundle.md) | Adding a provider/generator/target through bundle manifest registration |
 | [add-cli-command.md](add-cli-command.md) | Adding or changing `secretzero` CLI commands/options |
 | [add-secret.md#task-add-a-simple-secret](add-secret.md#task-add-a-simple-secret) | Adding a standard secret definition to `Secretfile.yml` |

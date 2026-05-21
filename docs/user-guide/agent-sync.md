@@ -182,6 +182,42 @@ Technically automatable but blocked by policy:
 
 - `automation_hint` contains `"approval"`
 
+## View Instructions Without Syncing
+
+Use `secretzero agent instructions` when you only need the guided checklist — no sync, lockfile writes, or secret values.
+
+```bash
+# Pending manual secrets (default)
+secretzero agent instructions
+
+# Every secret that defines agent_instructions
+secretzero agent instructions --all
+
+# Include prerequisites, tools, timing, docs, fallback
+secretzero agent instructions --detailed
+
+# Machine-readable (concise JSON by default; --detailed adds optional fields)
+secretzero agent instructions --format json
+secretzero agent instructions -s stripe_api_key --format json
+```
+
+Default scope matches `agent sync` pending semantics: secrets with `agent_instructions` that are not already in the lockfile and cannot be auto-generated. Filter with `-s` / `--secret` (repeatable).
+
+Example concise output:
+
+```
+Agent instructions (1 pending manual secret)
+
+──────────────── stripe_api_key ────────────────
+  Summary: Sign up for Stripe and generate API key
+
+  Steps:
+    1. Visit https://dashboard.stripe.com/register
+       Create a Stripe account
+    2. Navigate to Developers > API Keys
+       Access API key management
+```
+
 ## Output Formats
 
 ### Human-Readable (default)
@@ -203,9 +239,10 @@ Technically automatable but blocked by policy:
        Access API key management
     ...
 
-  💡 Automation: Manual only – requires email verification
-  ⏱️  Estimated time: 5-10 minutes
-  📚 Docs: https://stripe.com/docs/keys
+Pending instruction blocks use the same concise Rich layout as
+``secretzero agent instructions`` (summary + numbered steps). Optional metadata
+appears only via ``secretzero agent instructions --detailed`` or during
+interactive sync prompts (detailed manual-retrieval layout).
 
 📊 Summary:
   Synced:   2
