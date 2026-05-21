@@ -5,9 +5,11 @@
 # AI agents to autonomously sync secrets or receive guided instructions when
 # manual intervention is required.
 #
-# Run: secretzero agent sync            (human-readable output)
-#      secretzero agent sync --json     (machine-readable JSON)
-#      secretzero agent sync --dry-run  (preview only)
+# Run: secretzero agent sync                 (human-readable output)
+#      secretzero agent sync --json          (machine-readable JSON)
+#      secretzero agent sync --dry-run       (preview only)
+#      secretzero agent instructions         (pending manual steps only)
+#      secretzero agent instructions --all   (every secret with agent_instructions)
 
 variables:
   environment: local

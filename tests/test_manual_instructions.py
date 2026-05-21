@@ -359,7 +359,7 @@ class TestSyncEngineManualInstructionsOnFailure:
             )
 
         out = capsys.readouterr().out
-        assert "MANUAL RETRIEVAL INSTRUCTIONS" in out
+        assert "Manual retrieval instructions" in out
         # GitHub-specific content
         assert "github" in out.lower()
 
@@ -426,5 +426,5 @@ class TestSyncEngineManualInstructionsOnFailure:
             )
 
         out = capsys.readouterr().out
-        assert "MANUAL RETRIEVAL INSTRUCTIONS" in out
+        assert "Manual retrieval instructions" in out
         assert "nonexistent-command-xyz" in out

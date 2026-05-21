@@ -60,53 +60,26 @@ class BaseGenerator(ABC):
     def _display_manual_instructions(instructions: "AgentInstructions") -> None:
         """Print manual retrieval instructions to the console.
 
-        Formats and prints the instructions so the user understands exactly
-        how to obtain the secret value manually.
+        Uses the shared Rich renderer (detailed mode) so sync-time prompts match
+        ``secretzero agent instructions --detailed`` formatting.
 
         Args:
             instructions: Instructions to display.
         """
-        separator = "=" * 60
-        print()
-        print(separator)
-        print("MANUAL RETRIEVAL INSTRUCTIONS")
-        print(separator)
-        print(instructions.summary)
+        from rich.console import Console
 
-        if instructions.prerequisites:
-            print()
-            print("Prerequisites:")
-            for prereq in instructions.prerequisites:
-                print(f"  • {prereq}")
+        from secretzero.agent_instructions_report import (
+            InstructionEntry,
+            render_instruction_entries,
+        )
 
-        if instructions.required_tools:
-            print()
-            print("Required tools:")
-            for tool in instructions.required_tools:
-                print(f"  • {tool}")
-
-        if instructions.steps:
-            print()
-            print("Steps:")
-            for i, step in enumerate(instructions.steps, 1):
-                print(f"  {i}. {step.description}")
-                if step.action:
-                    print(f"     → {step.action}")
-
-        if instructions.estimated_time:
-            print()
-            print(f"Estimated time: {instructions.estimated_time}")
-
-        if instructions.documentation_url:
-            print()
-            print(f"Documentation: {instructions.documentation_url}")
-
-        if instructions.fallback:
-            print()
-            print(f"Fallback: {instructions.fallback}")
-
-        print(separator)
-        print()
+        entry = InstructionEntry(secret_name="Manual retrieval", instructions=instructions)
+        render_instruction_entries(
+            [entry],
+            Console(),
+            detailed=True,
+            header="\n[bold]Manual retrieval instructions[/bold]",
+        )
 
     def generate_with_fallback(
         self, env_var_name: str | None = None, field_description: str | None = None

@@ -14,7 +14,7 @@ edges:
     condition: when setting up the dev environment or running the project for the first time
   - target: patterns/INDEX.md
     condition: when starting a task — check the pattern index for a matching pattern file
-last_updated: 2026-05-13
+last_updated: 2026-05-21
 ---
 
 # Session Bootstrap
@@ -54,6 +54,7 @@ Then read this file fully before doing anything else in this session.
 - **GitNexus / MetaGit relational intel:** `secretzero sync` and `secretzero get` write `.gitnexus/secrets_overlay.json` (Ladybug-oriented JSON linking manifest secret names to symbol IDs / FQNs from `.gitnexus/discovery_bindings.json`). Optional `SZ_METAGIT_REGISTRY=1` merges inventory into `~/.metagit.yml`. `secretzero discover` persists bindings and extends LLM output with parent symbol / FQN fields. `secretzero gitnexus blast-radius --symbol <FQN>` wraps GitNexus impact; `secretzero rotate --trigger-reindex` runs `gitnexus analyze --skills` after success. Per-secret `process_tags` labels execution-flow sensitivity (schema + docs updated).
 - **Terraform static-variable behavior:** Terraform export now always emits sensitive input variables for static-like secrets (`static` and bundle kinds with `PROMPTS_LIKE_STATIC`, such as `azure_app_reg`). `--include-static-secrets` now controls whether static defaults are embedded as Terraform variable defaults.
 - **Agent skill guidance split:** SecretZero guidance is now split into focused skills — `skills/secretzero-author/SKILL.md` (schema-compliant Secretfile authoring, safe contextless discovery, `.szvar` lane breakout, and policy-bound targets), `skills/secretzero-agent/SKILL.md` (agentic vectors, runtime/API workflows, and installation/onboarding), and `skills/secretzero-handle/SKILL.md` (`SZ_AGENT_MODE`, `.env`/ingest preseed, spill-safe CLI).
+- **`secretzero agent instructions`:** Read-only Rich/JSON report of `agent_instructions` (summary + numbered steps). Default scope is pending manual secrets (same semantics as `agent sync`); `--all` lists every secret with instructions; `--detailed` adds optional metadata. See `.mex/patterns/agent-instructions-report.md`.
 - **Environment-map lanes + target profiles:** Secretfile now supports top-level `environments` and `target_profiles`; CLI (`sync`, `agent sync`, `web`) and API (`/sync`, `/agent/sync`) resolve lane-specific var files/lockfiles/profile defaults with runtime flags taking precedence. `secretzero web` now renders an environment dropdown and recomputes lane context on selection.
 - **CLI-wide environment propagation:** Secretfile-backed CLI commands now share root-aware `--environment` resolution. `secretzero -e <env> ...` flows into manifest/list/status/render/drift/terraform-style commands, while subcommand-local `--environment` overrides the root selection when both are present.
 - **Lockfile write guard:** sync/agent/API flows no longer persist empty skeleton lockfiles; `Lockfile.save()` now skips (and removes) files when state is semantically empty.

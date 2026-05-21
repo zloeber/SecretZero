@@ -6553,7 +6553,10 @@ def _display_agent_sync_results(
         interactive: If True, prompt the user for pending secret values
         dry_run: If True, indicate preview mode
     """
-    from rich.rule import Rule
+    from secretzero.agent_instructions_report import (
+        instruction_entries_from_mapping,
+        render_instruction_entries,
+    )
 
     # Synced secrets
     if result.synced_secrets:
@@ -6571,47 +6574,22 @@ def _display_agent_sync_results(
         for secret in result.already_synced:
             console.print(f"  • {secret}", style="blue")
 
-    # Pending secrets with instructions
+    # Pending secrets with instructions (shared renderer with `agent instructions`)
     if result.pending_secrets:
-        console.print(
-            f"\n[bold yellow]\u23f3 {len(result.pending_secrets)} secret(s) require manual intervention:[/bold yellow]"
+        pending_entries = instruction_entries_from_mapping(result.pending_secrets)
+        render_instruction_entries(
+            pending_entries,
+            console,
+            detailed=False,
+            header=(
+                f"\n[bold yellow]\u23f3 {len(pending_entries)} secret(s) require manual "
+                "intervention:[/bold yellow]"
+            ),
         )
 
-        for secret_name, instructions in result.pending_secrets.items():
-            console.print()
-            console.print(Rule(f"[bold cyan]{secret_name}[/bold cyan]", style="cyan"))
-            console.print(f"  [bold]Summary:[/bold] {instructions.summary}")
-
-            if instructions.prerequisites:
-                console.print("\n  [bold yellow]Prerequisites:[/bold yellow]")
-                for prereq in instructions.prerequisites:
-                    console.print(f"    • {prereq}")
-
-            console.print("\n  [bold blue]Steps:[/bold blue]")
-            for i, step in enumerate(instructions.steps, 1):
-                console.print(f"    {i}. [bold]{step.action}[/bold]")
-                console.print(f"       [dim]{step.description}[/dim]")
-                if step.params:
-                    console.print(f"       [italic]Params: {step.params}[/italic]")
-
-            if instructions.automation_hint:
-                console.print(
-                    f"\n  \U0001f4a1 [italic]Automation: {instructions.automation_hint}[/italic]"
-                )
-            if instructions.estimated_time:
-                console.print(
-                    f"  \u23f1\ufe0f  [italic]Estimated time: {instructions.estimated_time}[/italic]"
-                )
-            if instructions.required_tools:
-                console.print(
-                    f"  \U0001f527 [italic]Required tools: {', '.join(instructions.required_tools)}[/italic]"
-                )
-            if instructions.fallback:
-                console.print(f"  \U0001f504 [italic]Fallback: {instructions.fallback}[/italic]")
-            if instructions.documentation_url:
-                console.print(f"  \U0001f4da [blue]Docs: {instructions.documentation_url}[/blue]")
-
-            if interactive:
+        if interactive:
+            for entry in pending_entries:
+                secret_name = entry.secret_name
                 if click.confirm(f"\nHave you obtained the value for '{secret_name}'?"):
                     click.prompt(
                         f"Enter the secret value for {secret_name}",
@@ -6702,6 +6680,131 @@ def _display_agent_sync_results(
             1 for name in result.synced_secrets if lock.get_secret_info(name) is not None
         )
         console.print(f"  Validated in lockfile: {validated_count}/{len(result.synced_secrets)}")
+
+
+@agent.command("instructions")
+@click.option(
+    "--file",
+    "-f",
+    type=click.Path(exists=True),
+    default="Secretfile.yml",
+    help="Path to Secretfile",
+)
+@click.option(
+    "--lockfile",
+    "-l",
+    type=click.Path(),
+    default=".gitsecrets.lock",
+    help="Path to lockfile",
+)
+@click.option(
+    "--var-file",
+    "-v",
+    "var_files",
+    type=click.Path(exists=True),
+    multiple=True,
+    help="Path to .szvar variable file(s) to merge (can be specified multiple times)",
+)
+@click.option(
+    "--environment",
+    "-e",
+    type=str,
+    default=None,
+    help="Named environment profile from Secretfile.environments.profiles",
+)
+@click.option(
+    "--secret",
+    "-s",
+    "secret_names",
+    multiple=True,
+    help="Limit output to specific secret name(s)",
+)
+@click.option(
+    "--all",
+    "show_all",
+    is_flag=True,
+    help="Show all secrets with agent_instructions (default: pending manual only)",
+)
+@click.option(
+    "--detailed",
+    is_flag=True,
+    help="Include optional instruction metadata (prerequisites, tools, timing, docs)",
+)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    help="Output format",
+)
+def agent_instructions(
+    file: str,
+    lockfile: str,
+    var_files: tuple[str, ...],
+    environment: str | None,
+    secret_names: tuple[str, ...],
+    show_all: bool,
+    detailed: bool,
+    output_format: str,
+) -> None:
+    """Print concise agent instructions for manual secret acquisition.
+
+    By default shows only secrets that still require manual input (not in the
+    lockfile and not auto-syncable). Use ``--all`` to list every secret that
+    defines ``agent_instructions`` in the manifest.
+
+    Examples:
+
+        secretzero agent instructions
+
+        secretzero agent instructions --all --detailed
+
+        secretzero agent instructions -s stripe_key --format json
+    """
+    import json as _json
+
+    from secretzero.agent_instructions_report import (
+        InstructionScope,
+        build_instructions_json_payload,
+        collect_instruction_entries,
+        render_instructions_console,
+    )
+
+    try:
+        _file_path, secretfile, env_ctx = _load_secretfile_for_cli(
+            file,
+            var_files=var_files,
+            environment=environment,
+            lockfile=lockfile,
+        )
+    except Exception as exc:
+        if output_format == "json":
+            click.echo(_json.dumps({"error": str(exc)}))
+        else:
+            console.print(f"[red]Error loading Secretfile:[/red] {exc}")
+        sys.exit(EXIT_CONFIG_ERROR)
+
+    lock = Lockfile.load(env_ctx.resolved_lockfile)
+    scope = InstructionScope.ALL if show_all else InstructionScope.PENDING
+    name_filter = frozenset(secret_names) if secret_names else None
+    entries = collect_instruction_entries(
+        secretfile,
+        lock,
+        scope=scope,
+        secret_names=name_filter,
+    )
+
+    if output_format == "json":
+        payload = build_instructions_json_payload(entries, scope=scope, detailed=detailed)
+        click.echo(_json.dumps(payload, indent=2))
+        return
+
+    render_instructions_console(
+        entries,
+        console,
+        detailed=detailed,
+        scope=scope,
+    )
 
 
 @main.command()
