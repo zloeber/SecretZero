@@ -44,3 +44,4 @@ node_modules
 secret_reports_*
 .secretzero_audit.log
 .gitnexus
+docs/superpowers
