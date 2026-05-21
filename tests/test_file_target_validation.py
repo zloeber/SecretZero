@@ -148,3 +148,11 @@ class TestFileTargetValidation:
 
         assert is_valid is True
         assert error is None
+
+    def test_validate_tfvars_format(self):
+        """Test validation works for tfvars format."""
+        target = FileTarget({"path": "/tmp/terraform.tfvars", "format": "tfvars"})
+        is_valid, error = target.validate()
+
+        assert is_valid is True
+        assert error is None

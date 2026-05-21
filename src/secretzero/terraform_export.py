@@ -26,6 +26,7 @@ from pydantic import BaseModel, Field
 from secretzero.bundles import get_bundle_registry
 from secretzero.bundles.registry import BundleRegistry, TerraformProviderConfig
 from secretzero.generators.traits import secret_prompts_like_static
+from secretzero.hcl_values import format_hcl_string
 from secretzero.models import Secret, Secretfile, TargetConfig
 
 
@@ -124,7 +125,7 @@ class TerraformProject(BaseModel):
         if isinstance(value, (int, float)):
             return str(value)
         if isinstance(value, str):
-            return json.dumps(value)
+            return format_hcl_string(value)
         if isinstance(value, list):
             inner = ", ".join(self._hcl_value(v, indent=0) for v in value)
             return f"[{inner}]"

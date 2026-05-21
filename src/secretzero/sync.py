@@ -799,14 +799,20 @@ class SyncEngine:
         encoding = str(source_cfg.get("encoding", "utf-8"))
         format_hint = str(source_cfg.get("format", "")).strip().lower()
         if not format_hint:
-            suffix = source_path.suffix.lower()
-            format_hint = {
-                ".json": "json",
-                ".yml": "yaml",
-                ".yaml": "yaml",
-                ".env": "dotenv",
-                ".txt": "text",
-            }.get(suffix, "text")
+            name_lower = source_path.name.lower()
+            if name_lower.endswith(".tfvars.json"):
+                format_hint = "json"
+            elif name_lower.endswith(".tfvars"):
+                format_hint = "tfvars"
+            else:
+                suffix = source_path.suffix.lower()
+                format_hint = {
+                    ".json": "json",
+                    ".yml": "yaml",
+                    ".yaml": "yaml",
+                    ".env": "dotenv",
+                    ".txt": "text",
+                }.get(suffix, "text")
 
         text = source_path.read_text(encoding=encoding)
         if format_hint == "json":
@@ -817,6 +823,10 @@ class SyncEngine:
                 parsed = {}
         elif format_hint == "dotenv":
             parsed = self._parse_dotenv_text(text)
+        elif format_hint == "tfvars":
+            from secretzero.hcl_tfvars import parse_tfvars
+
+            parsed = parse_tfvars(text)
         elif format_hint == "text":
             parsed = text
         else:

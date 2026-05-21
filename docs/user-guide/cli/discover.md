@@ -245,6 +245,8 @@ secrets:
       - kind: file
         config:
           path: terraform/terraform.tfvars
+          format: tfvars
+          merge: true
   
   api_key:
     description: "API key for external service"

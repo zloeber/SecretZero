@@ -266,6 +266,14 @@ secrets:
         config:
           path: .env
           format: dotenv
+
+      # Or push to Terraform var file (HCL assignments)
+      - provider: local
+        kind: file
+        config:
+          path: terraform/terraform.tfvars
+          format: tfvars
+          merge: true
       
       # And in Kubernetes
       - provider: kubernetes

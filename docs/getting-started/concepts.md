@@ -421,7 +421,7 @@ Store secrets in local files:
 targets:
   - type: local-file
     path: .env
-    format: dotenv  # dotenv, json, yaml, toml
+    format: dotenv  # dotenv, json, yaml, toml, tfvars
     merge: true
     key: API_KEY  # Optional: custom key name
 ```
