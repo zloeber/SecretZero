@@ -111,6 +111,9 @@ infisical = [
 vercel = [
     "requests>=2.32.0",
 ]
+keeper = [
+    "keepercommander>=18.0.0",
+]
 cicd = [
     "PyGithub>=2.1.0",
     "PyNaCl>=1.5.0",
@@ -164,6 +167,7 @@ all = [
     "fastapi>=0.104.0",
     "uvicorn[standard]>=0.24.0",
     "python-multipart>=0.0.27",
+    "keepercommander>=18.0.0",
 ]
 
 [project.scripts]

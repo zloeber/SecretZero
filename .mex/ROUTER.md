@@ -14,7 +14,7 @@ edges:
     condition: when setting up the dev environment or running the project for the first time
   - target: patterns/INDEX.md
     condition: when starting a task — check the pattern index for a matching pattern file
-last_updated: 2026-05-21
+last_updated: 2026-05-22
 ---
 
 # Session Bootstrap
@@ -73,6 +73,7 @@ Then read this file fully before doing anything else in this session.
 - **Entra Agent ID preview integration:** Added built-in `entra-agent-id` provider and `entra-agent-blueprint` generator kind for Microsoft Graph-driven blueprint lifecycle (create/update blueprint, credential reconciliation, optional child `agentIdentity` creation), plus docs and example manifest (`docs/ENTRA-AGENT-ID.md`, `examples/entra-agent-id-blueprint.yml`).
 - **Optional `ent-site/` app:** Standalone Next.js app (separate from MkDocs) used for project web experiments; not required for the open-source CLI and docs.
 - **Vercel provider + target:** Added built-in `vercel` provider and `vercel_env` target for project environment variable management across `development`/`preview`/`production`, including docs (`docs/user-guide/providers/vercel.md`), example manifest (`examples/vercel-env.yml`), and unit coverage (`tests/test_vercel_provider.py`).
+- **Keeper Password Manager provider + target:** Added built-in `keeper` provider and `keeper_record` target for vault record read/write via Commander SDK (`keepercommander` optional extra). Phase 1: scalar read/write; Phase 2: `create_if_missing`, dynamic lockfile target IDs (`keeper/keeper_record/<uid>`), import refresh; Phase 3: structured multi-field login records; Phase 4: `generate_password` + `rotate_secret`. Docs: `docs/user-guide/providers/keeper.md`, example: `examples/keeper-vault.yml`, tests: `tests/test_keeper_provider.py`.
 - **Self-contained multi-env policy example:** `examples/multi-env-aws-policies/` now includes a standalone `Secretfile.yml`, lane-specific `.szvar` files (`dev`, `staging`, `prod`), and workflow docs showing local `.env.local` generation plus AWS `provider_identity` guardrails (account + role + region).
 - **Static dict prompting:** `StaticGenerator` now fills dict/object static secrets by prompting for each scalar leaf that is `null`, blank, or a lone `${VAR}` placeholder (nested leaves only; top-level empty string remains a deliberate value). `static_payload_needs_prompt()` drives agent auto-sync classification for structured static secrets.
 - **Variable context / lockfile:** `variables_hash` was never persisted, so `variable_context_changed` was always true for manifests with `variables:` (vs `null` in the lock), forcing `ignore_foreign_context_targets` and spurious re-prompts. Missing baseline now means “not changed”; `secretzero sync` calls `track_variable_context` before saving the lockfile so real variable / `.szvar` changes are detected on subsequent runs.
