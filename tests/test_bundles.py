@@ -323,6 +323,7 @@ class TestGetBundleRegistry:
         assert reg.get_provider_class("aws") is not None
         assert reg.get_provider_class("entra-agent-id") is not None
         assert reg.get_provider_class("vercel") is not None
+        assert reg.get_provider_class("keeper") is not None
 
     def test_reset_clears_singleton(self) -> None:
         r1 = get_bundle_registry()

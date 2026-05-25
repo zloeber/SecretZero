@@ -63,3 +63,18 @@ class BaseTarget(ABC):
         # Default implementation assumes target is valid
         # Subclasses should override to provide specific validation
         return True, None
+
+    def resolve_target_id(self, secret_name: str) -> str | None:
+        """Return a dynamic lockfile target ID after a successful store.
+
+        Targets that resolve remote resource identifiers at write time (for
+        example a newly created Keeper record UID) may override this method.
+
+        Args:
+            secret_name: Manifest secret name being stored.
+
+        Returns:
+            Fully-qualified target identifier, or None to use config defaults.
+        """
+        _ = secret_name
+        return None

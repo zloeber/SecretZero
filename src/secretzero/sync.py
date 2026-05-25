@@ -134,9 +134,15 @@ class SyncEngine:
         # For file targets, use path as the identifier
         if kind == "file":
             identifier = target_config.config.get("path", "")
-        # For most other targets, use name
         else:
-            identifier = target_config.config.get("name", "")
+            identifier = (
+                target_config.config.get("target_id")
+                or target_config.config.get("record_uid")
+                or target_config.config.get("name")
+                or target_config.config.get("path")
+                or target_config.config.get("title")
+                or ""
+            )
 
         return f"{provider}/{kind}/{identifier}"
 
@@ -1087,7 +1093,9 @@ class SyncEngine:
                 else:
                     # Track successful target stores
                     any_target_stored = True
-                    target_id = self._build_target_id(target_config)
+                    target_id = target_result.get("target_id") or self._build_target_id(
+                        target_config
+                    )
                     self.lockfile.add_secret(
                         secret.name, secret_value, target_id=target_id, is_rotation=force_rotation
                     )
@@ -1247,7 +1255,9 @@ class SyncEngine:
                         )
                     else:
                         # Track successful target stores
-                        target_id = self._build_target_id(target_config)
+                        target_id = target_result.get("target_id") or self._build_target_id(
+                            target_config
+                        )
                         self.lockfile.add_secret(
                             field_secret_name, field_value, target_id=target_id
                         )
@@ -1580,8 +1590,19 @@ class SyncEngine:
             success = target.store(secret_name, secret_value)
             result["status"] = "stored" if success else "failed"
 
+            resolve_target_id = getattr(target, "resolve_target_id", None)
+            if success and callable(resolve_target_id):
+                resolved_target_id = resolve_target_id(secret_name)
+                if resolved_target_id:
+                    result["target_id"] = resolved_target_id
+
             if actor_info is not None:
                 result["actor"] = actor_info
+            last_uid = getattr(provider, "last_record_uid", None) if provider else None
+            if last_uid and isinstance(result.get("actor"), dict):
+                result["actor"]["record_uid"] = last_uid
+            elif last_uid:
+                result["actor"] = {"record_uid": last_uid}
 
         except ImportError as exc:
             result["status"] = "error"

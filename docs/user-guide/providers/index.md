@@ -26,6 +26,7 @@ SecretZero supports the following providers:
 | [Jenkins](jenkins.md) | Jenkins | `jenkins_credential` | Build automation, deployment pipelines |
 | [Kubernetes](kubernetes.md) | Kubernetes | `kubernetes_secret`, `external_secret` | Container orchestration, microservices |
 | [Vercel](vercel.md) | Vercel | `vercel_env` | Project environment variable delivery |
+| [Keeper](keeper.md) | Keeper Password Manager | `keeper_record` | Vault record source/target via Commander SDK |
 | [Entra Agent ID](entra-agent-id.md) | Microsoft Entra Agent ID | _provider-backed workflow_ | Agent blueprint identity governance |
 | [Ansible Vault](ansible_vault.md) | Encrypted repo files | `ansible_vault_file` | Ansible-native encrypted file workflows |
 | [SOPS](sops.md) | Encrypted repo files | `sops_file` | age/KMS/PGP-backed encrypted structured files |
@@ -409,6 +410,7 @@ secretzero sync
 - [Jenkins Provider Documentation](jenkins.md)
 - [Kubernetes Provider Documentation](kubernetes.md)
 - [Vercel Provider Documentation](vercel.md)
+- [Keeper Provider Documentation](keeper.md)
 - [Entra Agent ID Provider Documentation](entra-agent-id.md)
 - [Encrypted-in-git Workflows](encrypted-repo-workflows.md)
 - [Ansible Vault Provider Documentation](ansible_vault.md)

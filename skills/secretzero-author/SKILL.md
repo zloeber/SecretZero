@@ -116,6 +116,7 @@ No `providers:` entry required. Use for dev, CI artifacts, Terraform var files, 
 | Ansible Vault file | `ansible_vault` | `ansible_vault_file` | `random_*`, `static` | `secretzero[ansible_vault]` |
 | **Entra Agent ID blueprint** | `entra-agent-id` | *(none — provider-only)* | **`entra-agent-blueprint`** | Graph lifecycle; often **also** `local`/`file`/`json` for metadata export |
 | Infisical | `infisical` | *(none today)* | use **`source`** `provider_read` or import flows | Read/reference; not a write target |
+| Keeper Password Manager | `keeper` | `keeper_record` | `random_*`, `static` | Read via `provider_read`; write/create/update vault records; rotate via sync |
 
 ### Core generators (any provider)
 

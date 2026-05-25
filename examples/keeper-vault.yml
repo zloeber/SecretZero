@@ -1,0 +1,76 @@
+# Example: Keeper Password Manager provider with SecretZero
+#
+# Prerequisites:
+#   - Keeper Commander config with authenticated device token
+#   - export KEEPER_CONFIG_FILE="$HOME/.keeper/config.json"
+#
+# Usage:
+#   secretzero sync -f examples/keeper-vault.yml --dry-run
+
+providers:
+  keeper:
+    kind: keeper
+    auth:
+      kind: token
+      config:
+        config_file: ${KEEPER_CONFIG_FILE}
+    config:
+      sync_ttl_seconds: 300
+      default_folder: "Shared Folders/SecretZero"
+
+secrets:
+  # Read an existing Keeper record and write to a local dotenv file
+  - name: stripe_api_key
+    kind: static
+    config:
+      value: null
+    source:
+      kind: provider_read
+      required: true
+      config:
+        provider: keeper
+        kind: keeper
+        read:
+          path: "Shared Folders/Vendors/Stripe"
+          field: password
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: .env.local
+          format: dotenv
+          key: STRIPE_API_KEY
+
+  # Create (if missing) and sync a structured login record
+  - name: service_account
+    kind: static
+    config:
+      value:
+        login: service-bot
+        password: null
+        url: https://app.example.com
+    targets:
+      - provider: keeper
+        kind: keeper_record
+        config:
+          title: "SecretZero Service Account"
+          create_if_missing: true
+          record_type: login
+          folder: "Shared Folders/SecretZero"
+          structured: true
+          fields: [login, password, url]
+
+  # Generate a password and rotate an existing record by UID
+  - name: service_account_password
+    kind: random_password
+    config:
+      length: 32
+      include_symbols: true
+    targets:
+      - provider: keeper
+        kind: keeper_record
+        config:
+          record_uid: REPLACE_WITH_RECORD_UID
+          field: password
+
+templates: {}
