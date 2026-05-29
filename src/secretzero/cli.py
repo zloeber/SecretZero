@@ -16,6 +16,11 @@ from rich.console import Console
 from rich.table import Table
 
 from secretzero import __version__
+from secretzero.agent_adopt_cli import (
+    render_agent_list_json,
+    render_agent_list_text,
+    run_agent_adopt_command,
+)
 from secretzero.agent_context import env_sz_agent_mode, spill_guard_active
 from secretzero.api.audit import AuditLogger
 from secretzero.backup import (
@@ -6804,6 +6809,152 @@ def agent_instructions(
         console,
         detailed=detailed,
         scope=scope,
+    )
+
+
+def _agent_adopt_options(func: Any) -> Any:
+    """Shared Click options for ``agent adopt`` and ``agent backup``."""
+    func = click.option(
+        "--target",
+        type=click.Choice(["hermes", "openclaw"], case_sensitive=False),
+        default=None,
+        help="Agent runtime target (default: autodetect Hermes, then OpenClaw)",
+    )(func)
+    func = click.option(
+        "--source-dir",
+        type=click.Path(exists=True, file_okay=False, dir_okay=True),
+        default=None,
+        help="Agent install root to scan (default: autodetect for target)",
+    )(func)
+    func = click.option(
+        "--output-dir",
+        type=click.Path(file_okay=False, dir_okay=True),
+        default=None,
+        help="Write SecretZero env here (default: resolved source-dir)",
+    )(func)
+    func = click.option(
+        "--template",
+        is_flag=True,
+        help="Write agent.env.template with discovered key names only",
+    )(func)
+    func = click.option(
+        "--preseed-lockfile",
+        is_flag=True,
+        help="Hash present credentials into .gitsecrets.lock (no values emitted)",
+    )(func)
+    func = click.option("--dry-run", is_flag=True, help="Plan without writing files")(func)
+    func = click.option(
+        "--force",
+        is_flag=True,
+        help="Replace existing Secretfile instead of merging new secrets",
+    )(func)
+    func = click.option(
+        "--format",
+        "output_format",
+        type=click.Choice(["text", "json"]),
+        default="text",
+        help="Output format",
+    )(func)
+    return func
+
+
+@agent.command("list")
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    help="Output format",
+)
+def agent_list_cmd(output_format: str) -> None:
+    """List detected agent installs and existing SecretZero environments.
+
+    Read-only discovery for Hermes, OpenClaw, and future agent targets.
+    Never reads or prints secret values.
+
+    Examples:
+
+        secretzero agent list
+
+        secretzero agent list --format json
+    """
+    if output_format == "json":
+        render_agent_list_json()
+    else:
+        render_agent_list_text(console)
+
+
+@agent.command("adopt")
+@_agent_adopt_options
+def agent_adopt_cmd(
+    target: str | None,
+    source_dir: str | None,
+    output_dir: str | None,
+    template: bool,
+    preseed_lockfile: bool,
+    dry_run: bool,
+    force: bool,
+    output_format: str,
+) -> None:
+    """Bootstrap a SecretZero environment from a local agent install.
+
+    Scans the agent home for **present** credentials (catalog-driven, metadata-only
+    output), writes ``Secretfile.yml`` into ``--output-dir`` (default: agent home),
+    and optionally preseeds the lockfile or emits safe templates.
+
+    This is **not** ``secretzero backup create`` (encrypted value export). Use
+    ``secretzero backup create --encrypted`` after adopt/sync for DR payloads.
+
+    Examples:
+
+        secretzero agent adopt
+
+        secretzero agent adopt --target hermes --source-dir ~/.hermes
+
+        secretzero agent adopt --output-dir ./agents/hermes --template --preseed-lockfile
+
+        secretzero agent adopt --dry-run --format json
+    """
+    run_agent_adopt_command(
+        target=target,
+        source_dir=source_dir,
+        output_dir=output_dir,
+        template=template,
+        preseed_lockfile=preseed_lockfile,
+        dry_run=dry_run,
+        force=force,
+        output_format=output_format,
+        console=console,
+    )
+
+
+@agent.command("backup")
+@_agent_adopt_options
+def agent_backup_cmd(
+    target: str | None,
+    source_dir: str | None,
+    output_dir: str | None,
+    template: bool,
+    preseed_lockfile: bool,
+    dry_run: bool,
+    force: bool,
+    output_format: str,
+) -> None:
+    """Alias for ``agent adopt`` (bootstrap SecretZero env from agent install).
+
+    Prefer ``secretzero agent adopt`` in new automation. This alias exists for
+    operator wording ("back up agent config into SecretZero").
+    """
+    run_agent_adopt_command(
+        target=target,
+        source_dir=source_dir,
+        output_dir=output_dir,
+        template=template,
+        preseed_lockfile=preseed_lockfile,
+        dry_run=dry_run,
+        force=force,
+        output_format=output_format,
+        console=console,
     )
 
 

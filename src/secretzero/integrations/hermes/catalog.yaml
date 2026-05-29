@@ -1,0 +1,194 @@
+# Hermes Agent credential catalog (dotenv surfaces under install root).
+# Aligned with Hermes .env.example and cli-config.yaml.example commentary.
+# SecretZero only models entries that scan as non-empty at adopt time.
+
+entries:
+  - secret_name: anthropic_api_key
+    env_key: ANTHROPIC_API_KEY
+    group: llm
+    description: Direct Anthropic API key
+
+  - secret_name: openai_api_key
+    env_key: OPENAI_API_KEY
+    group: llm
+    description: OpenAI API key (direct or Codex-adjacent tooling)
+
+  - secret_name: openrouter_api_key
+    env_key: OPENROUTER_API_KEY
+    group: llm
+    description: OpenRouter unified model gateway key
+
+  - secret_name: google_api_key
+    env_key: GOOGLE_API_KEY
+    group: llm
+    description: Google AI Studio / Gemini API key
+
+  - secret_name: gemini_api_key
+    env_key: GEMINI_API_KEY
+    group: llm
+    description: Gemini API key alias
+
+  - secret_name: mistral_api_key
+    env_key: MISTRAL_API_KEY
+    group: llm
+    description: Mistral API key
+
+  - secret_name: groq_api_key
+    env_key: GROQ_API_KEY
+    group: llm
+    description: Groq API key (STT and inference)
+
+  - secret_name: hf_token
+    env_key: HF_TOKEN
+    group: llm
+    description: Hugging Face token for inference providers
+
+  - secret_name: github_token
+    env_key: GITHUB_TOKEN
+    group: llm
+    description: GitHub token for Copilot/models and Skills Hub
+
+  - secret_name: nous_api_key
+    env_key: NOUS_API_KEY
+    group: llm
+    description: Nous Portal API key
+
+  - secret_name: deepseek_api_key
+    env_key: DEEPSEEK_API_KEY
+    group: llm
+    description: DeepSeek API key
+
+  - secret_name: honcho_api_key
+    env_key: HONCHO_API_KEY
+    group: llm
+    description: Honcho cross-session user modeling API key
+
+  - secret_name: novita_api_key
+    env_key: NOVITA_API_KEY
+    group: llm
+    description: NovitaAI API key
+
+  - secret_name: ollama_api_key
+    env_key: OLLAMA_API_KEY
+    group: llm
+    description: Ollama Cloud API key
+
+  - secret_name: glm_api_key
+    env_key: GLM_API_KEY
+    group: llm
+    description: z.ai / GLM API key
+
+  - secret_name: kimi_api_key
+    env_key: KIMI_API_KEY
+    group: llm
+    description: Kimi / Moonshot API key
+
+  - secret_name: minimax_api_key
+    env_key: MINIMAX_API_KEY
+    group: llm
+    description: MiniMax global API key
+
+  - secret_name: xiaomi_api_key
+    env_key: XIAOMI_API_KEY
+    group: llm
+    description: Xiaomi MiMo API key
+
+  - secret_name: arceeai_api_key
+    env_key: ARCEEAI_API_KEY
+    group: llm
+    description: Arcee AI API key
+
+  - secret_name: nvidia_api_key
+    env_key: NVIDIA_API_KEY
+    group: llm
+    description: NVIDIA NIM / build.nvidia.com API key
+
+  - secret_name: discord_bot_token
+    env_key: DISCORD_BOT_TOKEN
+    group: messaging
+    description: Discord bot token
+
+  - secret_name: slack_bot_token
+    env_key: SLACK_BOT_TOKEN
+    group: messaging
+    description: Slack bot token (xoxb)
+
+  - secret_name: slack_app_token
+    env_key: SLACK_APP_TOKEN
+    group: messaging
+    description: Slack app-level token for socket mode
+
+  - secret_name: slack_client_id
+    env_key: SLACK_CLIENT_ID
+    group: messaging
+    description: Slack OAuth client ID
+
+  - secret_name: slack_client_secret
+    env_key: SLACK_CLIENT_SECRET
+    group: messaging
+    description: Slack OAuth client secret
+
+  - secret_name: telegram_bot_token
+    env_key: TELEGRAM_BOT_TOKEN
+    group: messaging
+    description: Telegram bot token (when stored in .env)
+
+  - secret_name: twilio_account_sid
+    env_key: TWILIO_ACCOUNT_SID
+    group: messaging
+    description: Twilio account SID
+
+  - secret_name: twilio_auth_token
+    env_key: TWILIO_AUTH_TOKEN
+    group: messaging
+    description: Twilio auth token
+
+  - secret_name: exa_api_key
+    env_key: EXA_API_KEY
+    group: tools
+    description: Exa web search API key
+
+  - secret_name: tenor_api_key
+    env_key: TENOR_API_KEY
+    group: tools
+    description: Tenor GIF API key
+
+  - secret_name: wandb_api_key
+    env_key: WANDB_API_KEY
+    group: tools
+    description: Weights & Biases API key
+
+  - secret_name: bws_access_token
+    env_key: BWS_ACCESS_TOKEN
+    group: tools
+    description: Bitwarden Secrets Manager access token
+
+  - secret_name: vercel_token
+    env_key: VERCEL_TOKEN
+    group: tools
+    description: Vercel personal/team token
+
+  - secret_name: browserbase_api_key
+    env_key: BROWSERBASE_API_KEY
+    group: tools
+    description: Browserbase cloud browser API key
+
+  - secret_name: fal_key
+    env_key: FAL_KEY
+    group: tools
+    description: FAL.ai image generation key
+
+  - secret_name: parallel_api_key
+    env_key: PARALLEL_API_KEY
+    group: tools
+    description: Parallel.ai search API key
+
+  - secret_name: firecrawl_api_key
+    env_key: FIRECRAWL_API_KEY
+    group: tools
+    description: Firecrawl web extract API key
+
+  - secret_name: daytona_api_key
+    env_key: DAYTONA_API_KEY
+    group: tools
+    description: Daytona sandbox API key

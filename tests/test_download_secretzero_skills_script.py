@@ -32,12 +32,20 @@ def _write_skill(source_root: Path, skill_name: str, *, include_nested_file: boo
         )
 
 
+def _write_all_skills(source_root: Path, *, include_nested_file: bool = False) -> None:
+    for name in (
+        "secretzero-agent-adopt",
+        "secretzero-agent",
+        "secretzero-author",
+        "secretzero-handle",
+    ):
+        _write_skill(source_root, name, include_nested_file=include_nested_file)
+
+
 def test_download_script_copies_skill_directories_recursively(tmp_path: Path) -> None:
     source_root = tmp_path / "source-skills"
     target_root = tmp_path / "target-skills"
-    _write_skill(source_root, "secretzero-agent", include_nested_file=True)
-    _write_skill(source_root, "secretzero-author", include_nested_file=True)
-    _write_skill(source_root, "secretzero-handle", include_nested_file=True)
+    _write_all_skills(source_root, include_nested_file=True)
 
     env = os.environ.copy()
     env["SECRETZERO_SKILLS_SOURCE_ROOT"] = str(source_root)
@@ -51,20 +59,20 @@ def test_download_script_copies_skill_directories_recursively(tmp_path: Path) ->
     )
 
     assert result.returncode == 0, result.stderr
-    assert (target_root / "secretzero-agent" / "SKILL.md").exists()
-    assert (target_root / "secretzero-agent" / "references" / "guide.md").exists()
-    assert (target_root / "secretzero-author" / "SKILL.md").exists()
-    assert (target_root / "secretzero-author" / "references" / "guide.md").exists()
-    assert (target_root / "secretzero-handle" / "SKILL.md").exists()
-    assert (target_root / "secretzero-handle" / "references" / "guide.md").exists()
+    for skill in (
+        "secretzero-agent-adopt",
+        "secretzero-agent",
+        "secretzero-author",
+        "secretzero-handle",
+    ):
+        assert (target_root / skill / "SKILL.md").exists()
+        assert (target_root / skill / "references" / "guide.md").exists()
 
 
 def test_download_script_replaces_existing_skill_directories(tmp_path: Path) -> None:
     source_root = tmp_path / "source-skills"
     target_root = tmp_path / "target-skills"
-    _write_skill(source_root, "secretzero-agent")
-    _write_skill(source_root, "secretzero-author")
-    _write_skill(source_root, "secretzero-handle")
+    _write_all_skills(source_root)
 
     stale_file = target_root / "secretzero-agent" / "stale.txt"
     stale_file.parent.mkdir(parents=True, exist_ok=True)
@@ -83,9 +91,13 @@ def test_download_script_replaces_existing_skill_directories(tmp_path: Path) -> 
 
     assert result.returncode == 0, result.stderr
     assert not stale_file.exists()
-    assert (target_root / "secretzero-agent" / "SKILL.md").exists()
-    assert (target_root / "secretzero-author" / "SKILL.md").exists()
-    assert (target_root / "secretzero-handle" / "SKILL.md").exists()
+    for skill in (
+        "secretzero-agent-adopt",
+        "secretzero-agent",
+        "secretzero-author",
+        "secretzero-handle",
+    ):
+        assert (target_root / skill / "SKILL.md").exists()
 
 
 def test_download_script_fails_before_replacing_anything_when_a_skill_is_missing(

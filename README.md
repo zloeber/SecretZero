@@ -1,4 +1,32 @@
 # SecretZero™
+<!-- agent-entrypoint:
+intent: executable-tool
+primary_workflow: usage-first
+install: uv tool install -U "secretzero[all]"
+
+bootstrap:
+  - export SZ_AGENT_MODE=true
+  - secretzero agent list --format json
+  - secretzero agent adopt --dry-run --format json
+
+authoritative:
+  - ./AGENTS.md
+
+usage:
+  - ./README.md#agent-quick-start
+  - ./skills/secretzero-agent-adopt/SKILL.md
+
+agent_targets:
+  discover: secretzero agent list --format json
+  adopt: secretzero agent adopt --format json
+  adopt_gitops: secretzero agent adopt --output-dir ./agents/hermes --template --format json
+  sync: secretzero agent sync --json
+  skills:
+    - skills/secretzero-agent-adopt/SKILL.md
+    - skills/secretzero-agent/SKILL.md
+    - skills/secretzero-handle/SKILL.md
+-->
+[test](./AGENTS.md)
 <div align="center">
 <a href="https://secret0.com/">
 <img src="docs/inc/secret0_angel_small.png" width="520" alt="Secret0 logo">
@@ -29,8 +57,22 @@ SecretZero is a secrets as code management tool that automates the creation, see
 If you are an agent reading this repository remotely through `gh`, `curl`, or a GitHub/MCP client,
 start here.
 
+**Agent runtime integration (Hermes / OpenClaw):**
+
+```bash
+export SZ_AGENT_MODE=true
+secretzero agent list --format json
+secretzero agent adopt --dry-run --format json
+secretzero agent adopt --preseed-lockfile --format json
+secretzero agent sync --json -f ~/.hermes/Secretfile.yml
+```
+
+See `skills/secretzero-agent-adopt/SKILL.md` for the full adopt/restore loop. `secretzero agent backup`
+is an alias of `agent adopt` (not `secretzero backup create`).
+
 Skill files:
 
+- `https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-agent-adopt/SKILL.md`
 - `https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-agent/SKILL.md`
 - `https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-author/SKILL.md`
 - `https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-handle/SKILL.md`
@@ -53,6 +95,7 @@ Use that downloader like this:
 Direct Hermes install:
 
 ```bash
+hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-agent-adopt/SKILL.md
 hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-agent/SKILL.md
 hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-author/SKILL.md
 hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-handle/SKILL.md
@@ -176,8 +219,9 @@ uv tool install "secretzero[all]"
 
 ### Agent Skills
 
-SecretZero ships three focused skills for agentic workflows:
+SecretZero ships four focused skills for agentic workflows:
 
+- [`secretzero-agent-adopt`](./skills/secretzero-agent-adopt/SKILL.md) for Hermes/OpenClaw adopt/list, restore, and GitOps capture
 - [`secretzero-agent`](./skills/secretzero-agent/SKILL.md) for runtime bootstrap, `agent sync`, and secure human-in-the-loop operations
 - [`secretzero-author`](./skills/secretzero-author/SKILL.md) for `Secretfile.yml` authoring, review, and safe discovery workflows
 - [`secretzero-handle`](./skills/secretzero-handle/SKILL.md) for `.env` / file-target workflows, `SZ_AGENT_MODE`, and spill-safe CLI usage
@@ -195,6 +239,7 @@ secretzero agent sync --help
 If you are running Hermes Agent, install the skills directly from this repository:
 
 ```bash
+hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-agent-adopt/SKILL.md
 hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-agent/SKILL.md
 hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-author/SKILL.md
 hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-handle/SKILL.md
@@ -213,6 +258,7 @@ If you are running OpenClaw, opening this repository as the agent workspace is e
 
 ```bash
 mkdir -p ~/.agents/skills
+cp -R skills/secretzero-agent-adopt ~/.agents/skills/
 cp -R skills/secretzero-agent ~/.agents/skills/
 cp -R skills/secretzero-author ~/.agents/skills/
 cp -R skills/secretzero-handle ~/.agents/skills/
