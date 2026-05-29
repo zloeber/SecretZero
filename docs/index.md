@@ -53,8 +53,21 @@ SecretZero is a secrets management tool that automates the creation, seeding, an
 If you are an agent reading this project remotely through `gh`, `curl`, or a GitHub/MCP client,
 start here.
 
+**Agent runtime integration (Hermes / OpenClaw):**
+
+```bash
+export SZ_AGENT_MODE=true
+secretzero agent list --format json
+secretzero agent adopt --dry-run --format json
+secretzero agent adopt --preseed-lockfile --format json
+```
+
+See `skills/secretzero-agent-adopt/SKILL.md`. `secretzero agent backup` is an alias of `agent adopt`
+(not `secretzero backup create`).
+
 Skill files:
 
+- `https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-agent-adopt/SKILL.md`
 - `https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-agent/SKILL.md`
 - `https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-author/SKILL.md`
 - `https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-handle/SKILL.md`
@@ -77,6 +90,7 @@ Use that downloader like this:
 Direct Hermes install:
 
 ```bash
+hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-agent-adopt/SKILL.md
 hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-agent/SKILL.md
 hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-author/SKILL.md
 hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-handle/SKILL.md
@@ -230,6 +244,7 @@ secretzero agent sync --help
 If you are running Hermes Agent, install the skills directly from this repository:
 
 ```bash
+hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-agent-adopt/SKILL.md
 hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-agent/SKILL.md
 hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-author/SKILL.md
 hermes skills install https://raw.githubusercontent.com/zloeber/SecretZero/main/skills/secretzero-handle/SKILL.md

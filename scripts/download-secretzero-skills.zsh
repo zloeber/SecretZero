@@ -6,7 +6,7 @@ set -euo pipefail
 
 readonly DEFAULT_REPO="zloeber/SecretZero"
 readonly DEFAULT_REF="main"
-readonly SKILLS=("secretzero-agent" "secretzero-author" "secretzero-handle")
+readonly SKILLS=("secretzero-agent-adopt" "secretzero-agent" "secretzero-author" "secretzero-handle")
 
 repo="${DEFAULT_REPO}"
 ref="${DEFAULT_REF}"

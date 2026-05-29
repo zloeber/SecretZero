@@ -29,6 +29,7 @@ With this set:
 - **`secretzero list targets`** redacts non-structural target `config` fields in JSON and text summaries.
 - **`secretzero get --reveal`** is **blocked**.
 - **`secretzero backup create`** without **`--encrypted`** is **blocked**; **`backup restore --print`** is **blocked**.
+- **`secretzero agent adopt`** / **`agent list`** are safe under spill mode (metadata-only JSON). Use **`--preseed-lockfile`** to hash present credentials without printing values. **`agent backup`** is an alias of **`agent adopt`** (not value-export backup).
 - **`secretzero terraform`** with **`--include-static-secrets`** is **blocked**.
 
 Unset `SZ_AGENT_MODE` only on trusted local shells when you intentionally need full dumps.

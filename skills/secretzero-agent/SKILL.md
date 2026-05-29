@@ -71,6 +71,18 @@ secretzero agent sync --json [--web] [--dry-run] [--verbose]
    - Run `secretzero agent sync --json`.
    - Handle `failed_secrets` with manifest fixes and retry.
 
+## Agent runtime integration
+
+When bootstrapping or restoring Hermes/OpenClaw installs:
+
+```bash
+secretzero agent list --format json
+secretzero agent adopt --dry-run --format json
+secretzero agent adopt --preseed-lockfile --format json
+```
+
+Load `skills/secretzero-agent-adopt/SKILL.md` for the full adopt/restore playbook. `agent backup` is an alias of `agent adopt` (not `secretzero backup create`).
+
 ## Standard Agent Loop
 
 1. Run `secretzero agent sync --json` first; escalate to `--web` when you need the localhost form (see Vector 2 handoff above).
@@ -90,6 +102,7 @@ Treat API payload semantics the same as CLI semantics.
 
 ## Operational Playbooks
 
+- **Agent adopt (Hermes/OpenClaw):** see `skills/secretzero-agent-adopt/SKILL.md` — `agent list` → `agent adopt` → `agent sync`
 - **Bootstrap:** `validate` -> `init --install` -> `test` -> `agent sync --json`
 - **Preflight:** `secretzero sync --dry-run` before mutating runs
 - **Maintenance:** pair with `secretzero rotate`, `secretzero drift`, `secretzero status --format json`

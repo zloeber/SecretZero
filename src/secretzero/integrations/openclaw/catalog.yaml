@@ -1,0 +1,61 @@
+# OpenClaw credential catalog (v1: dotenv subset overlapping Hermes/OpenClaw migrations).
+entries:
+  - secret_name: anthropic_api_key
+    env_key: ANTHROPIC_API_KEY
+    group: llm
+    description: Anthropic API key
+
+  - secret_name: openai_api_key
+    env_key: OPENAI_API_KEY
+    group: llm
+    description: OpenAI API key
+
+  - secret_name: openrouter_api_key
+    env_key: OPENROUTER_API_KEY
+    group: llm
+    description: OpenRouter API key
+
+  - secret_name: google_api_key
+    env_key: GOOGLE_API_KEY
+    group: llm
+    description: Google / Gemini API key
+
+  - secret_name: gemini_api_key
+    env_key: GEMINI_API_KEY
+    group: llm
+    description: Gemini API key alias
+
+  - secret_name: github_token
+    env_key: GITHUB_TOKEN
+    group: llm
+    description: GitHub personal access token
+
+  - secret_name: telegram_bot_token
+    env_key: TELEGRAM_BOT_TOKEN
+    group: messaging
+    description: Telegram bot token
+
+  - secret_name: discord_bot_token
+    env_key: DISCORD_BOT_TOKEN
+    group: messaging
+    description: Discord bot token
+
+  - secret_name: slack_bot_token
+    env_key: SLACK_BOT_TOKEN
+    group: messaging
+    description: Slack bot token
+
+  - secret_name: slack_app_token
+    env_key: SLACK_APP_TOKEN
+    group: messaging
+    description: Slack app token
+
+  - secret_name: exa_api_key
+    env_key: EXA_API_KEY
+    group: tools
+    description: Exa search API key
+
+  - secret_name: elevenlabs_api_key
+    env_key: ELEVENLABS_API_KEY
+    group: tools
+    description: ElevenLabs TTS API key
