@@ -30,6 +30,7 @@ Scans `README.md` and `docs/` using `lychee.toml` (loopback excluded, example UR
 1. Prefer fixing the URL (404/410) or pointing to `https://secret0.com` / `https://github.com/zloeber/SecretZero/issues` instead of disabled GitHub Discussions.
 2. For intentional non-checkable URLs (localhost docs, placeholders), add a regex to `lychee.toml` `exclude` — do not disable the task.
 3. Install tool: `mise install` (see `mise.toml` `lychee` tool).
+4. CI pins GitHub release tag `lychee-vX.Y.Z` (not bare `vX.Y.Z`) in `.github/workflows/test.yaml` and `docs.yaml`.
 
 ## Example manifest links
 

@@ -22,10 +22,11 @@ jobs:
 
       - name: Install lychee
         env:
-          LYCHEE_VERSION: v0.24.2
+          # Release tags use the lychee-vX.Y.Z prefix (not bare vX.Y.Z).
+          LYCHEE_TAG: lychee-v0.24.2
         run: |
           curl -fsSL \
-            "https://github.com/lycheeverse/lychee/releases/download/${LYCHEE_VERSION}/lychee-x86_64-unknown-linux-gnu.tar.gz" \
+            "https://github.com/lycheeverse/lychee/releases/download/${LYCHEE_TAG}/lychee-x86_64-unknown-linux-gnu.tar.gz" \
             | tar xz
           install -m 755 lychee /usr/local/bin/lychee
           lychee --version
