@@ -37,7 +37,7 @@ Access the complete collection of example Secretfiles in the GitHub repository w
 | **Multi-Cloud** | Hybrid / multi-provider cloud | multi-cloud.yml |
 | **Kubernetes** | Container orchestration | kubernetes-*.yml |
 | **CI/CD Pipelines** | Automated workflows | github-actions.yml, gitlab-cicd.yml |
-| **Jenkins** | Legacy CI/CD | jenkins-credentials.yml |
+| **Jenkins** | Legacy CI/CD | multi-cicd.yml |
 
 ### By Complexity
 

@@ -13,7 +13,7 @@ edges:
     condition: when command usage or environment setup is needed
   - target: patterns/add-secret.md
     condition: when authoring includes adding/changing secret entries
-last_updated: 2026-04-14
+last_updated: 2026-06-04
 ---
 
 # Secretfile Authoring
@@ -49,6 +49,8 @@ policies:
       - field: region
         glob: us-east-1
 ```
+
+**Guided manifests (new or existing):** follow `skills/secretzero-author/SKILL.md` → **Guided authoring session** (manifest root → optional `detect`/`discover` → inventory table → add/edit loop with `secret-types` menus → validate → optional `secretzero web` on localhost). Hermes + MCP: use CLI/MCP tools for discovery, not sampling.
 
 **Discovery-assisted authoring loop (agent-safe):**
 1. Inspect current provider identity metadata with `secretzero status --format json`.

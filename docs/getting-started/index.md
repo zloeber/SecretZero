@@ -181,7 +181,7 @@ If you run into issues:
 - Check the [FAQ](../reference/faq.md) for common questions
 - Review the [Troubleshooting Guide](../reference/troubleshooting.md)
 - Search [existing issues](https://github.com/zloeber/SecretZero/issues)
-- Ask in [GitHub Discussions](https://github.com/zloeber/SecretZero/discussions)
+- Ask in [GitHub Discussions](https://github.com/zloeber/SecretZero/issues)
 - Open a [new issue](https://github.com/zloeber/SecretZero/issues/new)
 
 Let's get started! 🚀

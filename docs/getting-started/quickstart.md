@@ -453,4 +453,4 @@ Need assistance?
 - [FAQ](../reference/faq.md) - Common questions
 - [Troubleshooting](../reference/troubleshooting.md) - Solutions to common issues
 - [GitHub Issues](https://github.com/zloeber/SecretZero/issues) - Report bugs
-- [Discussions](https://github.com/zloeber/SecretZero/discussions) - Ask questions
+- [Discussions](https://github.com/zloeber/SecretZero/issues) - Ask questions

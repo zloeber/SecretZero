@@ -166,7 +166,7 @@ Azure Key Vault provides secure storage for secrets, keys, and certificates with
 
 | Option | Type | Required | Default | Description |
 |--------|------|----------|---------|-------------|
-| `vault_url` | string | Yes | - | Key Vault URL (e.g., https://myvault.vault.azure.net) |
+| `vault_url` | string | Yes | - | Key Vault URL (e.g., `https://{vault-name}.vault.azure.net`) |
 | `secret_name` | string | Yes | - | Name of the secret in Key Vault |
 | `content_type` | string | No | - | Content type metadata (e.g., "application/json") |
 | `tags` | object | No | - | Key-value tags for the secret |

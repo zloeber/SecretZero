@@ -435,4 +435,4 @@ If you encounter installation issues:
 
 - Check the [Troubleshooting Guide](../reference/troubleshooting.md)
 - Search [GitHub Issues](https://github.com/zloeber/SecretZero/issues)
-- Ask in [GitHub Discussions](https://github.com/zloeber/SecretZero/discussions)
+- Ask in [GitHub Discussions](https://github.com/zloeber/SecretZero/issues)

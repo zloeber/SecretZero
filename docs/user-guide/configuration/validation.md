@@ -823,7 +823,7 @@ If validation fails and you can't determine why:
 1. Check [Troubleshooting Guide](../../reference/troubleshooting.md)
 2. Review [Examples](../../examples/index.md) for reference
 3. Search [GitHub Issues](https://github.com/zloeber/SecretZero/issues)
-4. Ask in [Discussions](https://github.com/zloeber/SecretZero/discussions)
+4. Ask in [Discussions](https://github.com/zloeber/SecretZero/issues)
 
 ## Next Steps
 

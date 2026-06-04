@@ -980,9 +980,9 @@ secretzero sync
 
 ### Where can I get support?
 
-- **Documentation**: [secretzero.readthedocs.io](https://secretzero.readthedocs.io)
+- **Documentation**: [secret0.com](https://secret0.com)
 - **GitHub Issues**: [Report bugs](https://github.com/zloeber/SecretZero/issues)
-- **Discussions**: [Ask questions](https://github.com/zloeber/SecretZero/discussions)
+- **Discussions**: [Ask questions](https://github.com/zloeber/SecretZero/issues)
 - **Examples**: [View examples](../examples/index.md)
 
 ### How do I report a bug?

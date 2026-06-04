@@ -9,6 +9,8 @@ description: |
 
 # SecretZero Handle (spill-safe context)
 
+Enforces **`skills/secretzero/SKILL.md` absolute rule**: SecretZero only for secrets; never load values into agent context.
+
 Use this skill **together with** `skills/secretzero-agent/SKILL.md` and `skills/secretzero-author/SKILL.md` whenever:
 
 - The manifest references **`.env`**, `*.env`, or **`local` / `file`** targets that read or write environment files.

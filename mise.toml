@@ -11,6 +11,7 @@ yq = "latest"
 npm = "latest"
 node = "22.22"
 gh = "latest"
+lychee = "latest"
 
 [tools."github:asciinema/agg"]
 version = "latest"

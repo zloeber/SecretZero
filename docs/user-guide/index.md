@@ -274,7 +274,7 @@ secrets:
 
 - **GitHub**: [zloeber/SecretZero](https://github.com/zloeber/SecretZero)
 - **Issues**: [Report bugs or request features](https://github.com/zloeber/SecretZero/issues)
-- **Discussions**: [Ask questions and share ideas](https://github.com/zloeber/SecretZero/discussions)
+- **Discussions**: [Ask questions and share ideas](https://github.com/zloeber/SecretZero/issues)
 
 ## Next Steps
 
