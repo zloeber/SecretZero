@@ -31,15 +31,14 @@ jobs:
         run: |
           uv sync --frozen --all-extras
 
+      - name: Prepare generated doc artifacts for link check
+        run: bash ./scripts/ci-prepare-docs-links.sh
+
       - name: Install lychee
         run: bash ./scripts/ci-install-lychee.sh
 
       - name: Check README.md and docs/ hyperlinks
         run: lychee --config lychee.toml README.md docs/
-
-      - name: Export Secretfile schema for docs
-        run: |
-          uv run secretzero schema export --output docs/Secretfile.schema.json
 
       - name: Build docs
         run: |

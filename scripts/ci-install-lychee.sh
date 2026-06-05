@@ -35,3 +35,4 @@ if [[ -n "${GITHUB_PATH:-}" ]]; then
   echo "${HOME}/.local/bin" >> "${GITHUB_PATH}"
 fi
 lychee --version
+

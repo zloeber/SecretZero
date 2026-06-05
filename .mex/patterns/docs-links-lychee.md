@@ -16,7 +16,7 @@ last_updated: 2026-06-04
 task docs:links
 ```
 
-Scans `README.md` and `docs/` using `lychee.toml` (loopback excluded, example URLs excluded).
+Runs `scripts/ci-prepare-docs-links.sh` first (exports `docs/Secretfile.schema.json`, which is gitignored but linked from `docs/schema.md`). Then scans `README.md` and `docs/` using `lychee.toml` (loopback excluded, example URLs excluded).
 
 ## When it runs
 

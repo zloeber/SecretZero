@@ -175,6 +175,7 @@ tasks:
           echo "lychee not found. Install with: mise install  (see mise.toml) or https://github.com/lycheeverse/lychee"
           exit 1
         fi
+        bash ./scripts/ci-prepare-docs-links.sh
         lychee --config lychee.toml README.md docs/
 
   docker:build:
