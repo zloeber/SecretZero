@@ -4,15 +4,20 @@
 verbose = "warn"
 no_progress = true
 max_redirects = 10
-timeout = 25
+max_retries = 4
+retry_wait_time = 2
+timeout = 30
 exclude_loopback = true
 include_mail = false
+user_agent = "Mozilla/5.0 (compatible; SecretZeroDocsLinkCheck/1.0; +https://secret0.com)"
 
-# Bot-blocked or example-only URLs (not doc defects)
+# Bot-blocked, example-only, or CI-unreachable URLs (not doc defects)
 exclude = [
   '^https://myvault\.vault\.azure\.net',
   '^https://jenkins\.example\.com',
   '^https://github\.com/yourusername/',
   '^https://gitlab\.com/-/profile/personal_access_tokens',
   '^https://www\.hhs\.gov/hipaa',
+  # kubernetes.io often returns "connection failed" from GitHub Actions egress; URLs work from normal clients.
+  '^https://kubernetes\.io/',
 ]
