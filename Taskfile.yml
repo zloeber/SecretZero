@@ -167,6 +167,16 @@ tasks:
     cmds:
       - uv run python scripts/generate_provider_bundle_docs.py --output docs/reference/provider-bundles-auto.md
 
+  docs:links:
+    desc: Check hyperlinks in README.md and docs/ (lychee)
+    cmds:
+      - |
+        if ! command -v lychee >/dev/null 2>&1; then
+          echo "lychee not found. Install with: mise install  (see mise.toml) or https://github.com/lycheeverse/lychee"
+          exit 1
+        fi
+        lychee --config lychee.toml README.md docs/
+
   docker:build:
     desc: Build a Docker image from a Dockerfile
     vars:

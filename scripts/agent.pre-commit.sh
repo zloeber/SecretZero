@@ -128,6 +128,9 @@ fi
 wait "${pid_security}"
 wait "${pid_valid}"
 
+log "==> Checking README and docs hyperlinks (lychee)"
+task docs:links
+
 git status --porcelain | awk '{print substr($0,4)}' | sort -u > "${tmp_after}"
 comm -13 "${tmp_before}" "${tmp_after}" > "${tmp_new}"
 
@@ -141,6 +144,7 @@ if [[ -s "${tmp_new}" ]]; then
   echo "  2) Re-run at least:"
   echo "       task test"
   echo "       task security:scan"
+  echo "       task docs:links"
   exit 2
 fi
 

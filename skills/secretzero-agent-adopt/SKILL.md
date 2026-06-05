@@ -3,7 +3,8 @@ name: secretzero-agent-adopt
 description: |
   Use for agent runtime integration: discover Hermes/OpenClaw installs,
   bootstrap SecretZero environments with `secretzero agent list` / `agent adopt`,
-  lockfile preseed, and restore loops. Never emit secret values into agent context.
+  lockfile preseed, and restore loops. Inherits absolute rule from
+  `skills/secretzero/SKILL.md` (SecretZero only; never secrets in context).
 ---
 
 # SecretZero Agent Adopt Skill

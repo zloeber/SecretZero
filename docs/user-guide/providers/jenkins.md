@@ -1298,6 +1298,6 @@ Jenkins API tokens have the same permissions as the user who created them:
 
 ### Related Tools
 
-- [python-jenkins](https://github.com/pycontribs/python-jenkins) - Python library for Jenkins API
+- [python-jenkins](https://opendev.org/jjb/python-jenkins) - Python library for Jenkins API
 - [jenkins-job-builder](https://docs.openstack.org/infra/jenkins-job-builder/) - Jenkins job configuration
 - [jenkins-cli](https://www.jenkins.io/doc/book/managing/cli/) - Jenkins command-line interface

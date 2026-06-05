@@ -8,7 +8,8 @@ SecretZero is a **schema-driven** secrets-as-code tool with multiple integrated 
 ## Core Principles (Apply Across All Sub-Projects)
 
 - **Schema-driven development is mandatory**: All changes to configuration, validation, or behavior must flow through the Pydantic models in `src/secretzero/models.py` (or equivalent). Run `task schema:update` after any model changes to regenerate `Secretfile.schema.json` and keep CLI, API, skills, and examples in parity.
-- **Zero-leakage rule**: Never request, receive, log, store, or allow plaintext secret values into any agent/LLM context, history, logs, or responses.
+- **Absolute rule — SecretZero only, never secrets in context**: Agents must not consume secret values in LLM/tool context (no paste in chat, no reading `.env`/credential files into context, no `get --reveal` / `render` / value dumps). Use SecretZero end-to-end for discovery (metadata-only), authoring (placeholders), seeding (`agent sync --web`, `secretzero web`), sync, and audit. Canonical wording: `skills/secretzero/SKILL.md`.
+- **Zero-leakage rule** (same mandate): Never request, receive, log, store, or allow plaintext secret values into any agent/LLM context, history, logs, or responses.
 - **Feature parity**: Ensure new features (especially agentic capabilities) are implemented consistently in the CLI (`secretzero` command), the FastAPI REST API, the skills system, and any related sub-projects (Terraform, docs, .mex patterns).
 - Prefer JSON output (`--json` for CLI, appropriate API endpoints) for machine-readable results.
 - After model/schema changes, always update:
@@ -98,6 +99,8 @@ At the end of any coding work, run a fast local gate:
 ```bash
 ./scripts/agent.pre-commit.sh --mode fast --quiet
 ```
+
+The gate runs `task docs:links` (lychee hyperlink check on `README.md` and `docs/`). For doc-only edits: `task docs:links`.
 
 Before any push/merge, run the full gate:
 

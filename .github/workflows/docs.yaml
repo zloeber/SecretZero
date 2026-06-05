@@ -31,9 +31,14 @@ jobs:
         run: |
           uv sync --frozen --all-extras
 
-      - name: Export Secretfile schema for docs
-        run: |
-          uv run secretzero schema export --output docs/Secretfile.schema.json
+      - name: Install lychee
+        run: bash ./scripts/ci-install-lychee.sh
+
+      - name: Check README.md and docs/ hyperlinks
+        run: lychee --config lychee.toml README.md docs/
+
+      - name: Export Secretfile schema for MkDocs
+        run: uv run secretzero schema export --output docs/Secretfile.schema.json
 
       - name: Build docs
         run: |

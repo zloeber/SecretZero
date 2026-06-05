@@ -26,7 +26,6 @@ agent_targets:
     - skills/secretzero-agent/SKILL.md
     - skills/secretzero-handle/SKILL.md
 -->
-[test](./AGENTS.md)
 <div align="center">
 <a href="https://secret0.com/">
 <img src="docs/inc/secret0_angel_small.png" width="520" alt="Secret0 logo">

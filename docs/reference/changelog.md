@@ -194,7 +194,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Examples & Documentation
 - `github-actions.yml` - GitHub Actions integration guide
 - `gitlab-cicd.yml` - GitLab CI/CD integration guide
-- `jenkins-credentials.yml` - Jenkins integration guide
+- `multi-cicd.yml` - Multi-provider CI/CD example (includes Jenkins)
 - `multi-cicd.yml` - Multi-platform integration
 
 ### Testing

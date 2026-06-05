@@ -41,7 +41,7 @@ secretzero agent sync --help
 
 ## Core Agent Contract
 
-- Never request, receive, or print plaintext secret values.
+**Absolute rule:** `skills/secretzero/SKILL.md` — never consume secrets in context; use SecretZero for all handling (`agent sync`, `--web`, validate, status). Never request, receive, or print plaintext secret values.
 - Prefer JSON output for machine handling.
 - When running in automation or spill-sensitive hosts, set **`SZ_AGENT_MODE=true`** so the CLI blocks or redacts commands that would dump secret-bearing config (see `skills/secretzero-handle/SKILL.md`).
 - Use the unified entrypoint:

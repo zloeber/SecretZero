@@ -14,6 +14,7 @@ Lookup table for all pattern files in this directory. Check here before starting
 | [aws-json-target-format.md](aws-json-target-format.md) | Changing AWS `ssm_parameter` / `secrets_manager` structured JSON target behavior or docs |
 | [backup-cli-workflow.md](backup-cli-workflow.md) | Changing `secretzero backup create` / `backup restore` defaults, encryption mode, or environment fan-out |
 | [docs-entrypoint-parity.md](docs-entrypoint-parity.md) | Updating `README.md` and `docs/index.md` together for install/onboarding/agent-skill guidance |
+| [docs-links-lychee.md](docs-links-lychee.md) | `task docs:links` / lychee config for README and `docs/` hyperlink checks |
 | [gitnexus-metagit-integration.md](gitnexus-metagit-integration.md) | GitNexus `secrets_overlay`, MetaGit registry, discovery bindings, blast-radius CLI |
 | [debug-sync.md](debug-sync.md) | Diagnosing sync failures across config/provider/generator/target boundaries |
 | [file-target-tfvars.md](file-target-tfvars.md) | Local `file` target `format: tfvars` for Terraform `.tfvars` assignment files |

@@ -1209,7 +1209,7 @@ If none of these solutions work, please [open an issue](https://github.com/zloeb
 
 - [FAQ](faq.md) - Common questions
 - [Architecture](architecture.md) - Technical details
-- [GitHub Discussions](https://github.com/zloeber/SecretZero/discussions) - Community support
+- [GitHub Discussions](https://github.com/zloeber/SecretZero/issues) - Community support
 - [Examples](../examples/index.md) - Working configurations
 
 ## See Also

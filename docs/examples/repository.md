@@ -346,20 +346,19 @@ git push
 
 ---
 
-#### jenkins-credentials.yml
+#### multi-cicd.yml
 
-**Purpose**: Jenkins integration
+**Purpose**: Multi-provider CI/CD integration (GitHub, GitLab, Jenkins)
 
 **Features**:
-- Jenkins credential store
-- Pipeline integration
-- Jenkinsfile examples
-- Credential rotation
+- Jenkins credential store targets
+- GitHub and GitLab secret targets
+- Shared secrets across CI systems
 
 **Usage**:
 ```bash
-curl -O https://raw.githubusercontent.com/zloeber/SecretZero/main/examples/jenkins-credentials.yml
-mv jenkins-credentials.yml Secretfile.yml
+curl -O https://raw.githubusercontent.com/zloeber/SecretZero/main/examples/multi-cicd.yml
+cp multi-cicd.yml Secretfile.yml
 secretzero sync
 ```
 
@@ -683,7 +682,7 @@ metadata:
 ### Community
 
 - **GitHub Issues**: [Report issues or ask questions](https://github.com/zloeber/SecretZero/issues)
-- **Discussions**: [Community discussions](https://github.com/zloeber/SecretZero/discussions)
+- **Discussions**: [Community discussions](https://github.com/zloeber/SecretZero/issues)
 - **README**: [Main README](https://github.com/zloeber/SecretZero/blob/main/README.md)
 
 ### Example-Specific Help

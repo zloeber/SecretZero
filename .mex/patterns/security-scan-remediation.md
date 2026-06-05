@@ -11,7 +11,7 @@ edges:
     condition: "When scan failures may be caused by environment/bootstrap drift"
   - target: "patterns/add-cli-command.md"
     condition: "When security findings come from CLI behavior changes"
-last_updated: 2026-05-12
+last_updated: 2026-06-05
 ---
 
 # Security Scan Remediation
