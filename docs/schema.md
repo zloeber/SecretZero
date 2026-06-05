@@ -6,10 +6,9 @@ This document describes the complete schema for `Secretfile.yml`, the configurat
 
 Download or reference the published JSON Schema directly:
 
-- [`Secretfile.schema.json`](Secretfile.schema.json) in this repo’s `docs/` tree after `task docs:build` or `secretzero schema export --output docs/Secretfile.schema.json`
-- Published copy: [secret0.com/Secretfile.schema.json](https://secret0.com/Secretfile.schema.json)
-
-The `docs/` copy is generated (gitignored) from `secretzero schema export` before MkDocs builds and before `task docs:links`.
+- [`Secretfile.schema.json`](../Secretfile.schema.json) at the repository root (committed; refresh with `task schema:update`)
+- MkDocs deploy copy under `docs/` (gitignored; generated via `secretzero schema export --output docs/Secretfile.schema.json` during `task docs:build`)
+- Published site: [secret0.com/Secretfile.schema.json](https://secret0.com/Secretfile.schema.json)
 
 Runtime validator and typing cleanups may not change schema field shape, but the generated
 schema remains the source-of-truth contract for machine consumers.

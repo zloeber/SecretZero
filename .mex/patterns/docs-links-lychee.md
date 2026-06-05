@@ -16,7 +16,7 @@ last_updated: 2026-06-04
 task docs:links
 ```
 
-Runs `scripts/ci-prepare-docs-links.sh` first (exports `docs/Secretfile.schema.json`, which is gitignored but linked from `docs/schema.md`). Then scans `README.md` and `docs/` using `lychee.toml` (loopback excluded, example URLs excluded).
+`docs/schema.md` links to committed `../Secretfile.schema.json` (not gitignored `docs/Secretfile.schema.json`). CI may still run `scripts/ci-prepare-docs-links.sh` to materialize the MkDocs copy. Then scans `README.md` and `docs/` using `lychee.toml`.
 
 ## When it runs
 
