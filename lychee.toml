@@ -20,4 +20,6 @@ exclude = [
   '^https://www\.hhs\.gov/hipaa',
   # kubernetes.io often returns "connection failed" from GitHub Actions egress; URLs work from normal clients.
   '^https://kubernetes\.io/',
+  '^https://docs\.microsoft\.com',
+  '^https://docs\.aws\.amazon\.com',
 ]
