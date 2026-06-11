@@ -476,21 +476,28 @@ class TestGitLabTarget:
             config = {"project": "group/project"}
             target = GitLabVariableTarget(provider, config)
 
-            assert target.project == "group/project"
+            assert target._project_config == "group/project"
             assert target.masked is True  # Default
         except ImportError:
             pytest.skip("python-gitlab not installed")
 
     def test_gitlab_target_missing_config(self):
-        """Test GitLab target with missing required config."""
+        """Test GitLab target validation fails when project cannot be resolved."""
         try:
             from secretzero.targets.gitlab import GitLabVariableTarget
 
             provider = Mock()
-            config = {}  # Missing project
+            provider.config = {}
+            config = {"project": "auto"}
 
-            with pytest.raises(ValueError):
-                GitLabVariableTarget(provider, config)
+            target = GitLabVariableTarget(provider, config)
+            with patch(
+                "secretzero.targets.gitlab.resolve_gitlab_project",
+                side_effect=ValueError("Could not resolve GitLab project"),
+            ):
+                valid, error = target.validate()
+            assert valid is False
+            assert "Could not resolve GitLab project" in (error or "")
         except ImportError:
             pytest.skip("python-gitlab not installed")
 

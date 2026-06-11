@@ -162,8 +162,9 @@ def test_secret_types_detail(runner: CliRunner) -> None:
     """Test secret-types command with type detail."""
     result = runner.invoke(main, ["secret-types", "--type", "random_password", "--verbose"])
     assert result.exit_code == 0
-    assert "length" in result.output
-    assert "special" in result.output
+    assert "random_password" in result.output
+    assert "Bundle" in result.output or "core" in result.output
+    assert "Description" in result.output
 
 
 def test_secret_types_unknown(runner: CliRunner) -> None:

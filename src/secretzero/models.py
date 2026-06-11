@@ -186,6 +186,7 @@ class GeneratorKind(str, Enum):
     API = "api"
     PROVIDER_BACKED = "provider_backed"
     GITHUB_PAT = "github_pat"
+    GITLAB_PROJECT_TOKEN = "gitlab_project_token"
 
     @classmethod
     def _missing_(cls, value: object) -> GeneratorKind | None:
@@ -233,6 +234,7 @@ class TargetKind(str, Enum):
     KUBERNETES_SECRET = "kubernetes_secret"
     GITHUB_SECRET = "github_secret"
     GITLAB_VARIABLE = "gitlab_variable"
+    GITLAB_GROUP_VARIABLE = "gitlab_group_variable"
     JENKINS_CREDENTIAL = "jenkins_credential"
 
     @classmethod

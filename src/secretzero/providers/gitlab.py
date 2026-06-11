@@ -1,11 +1,32 @@
-"""GitLab provider for CI/CD variables."""
+"""GitLab provider for CI/CD variables and project access tokens."""
+
+from __future__ import annotations
 
 import os
 import secrets
 import string
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 from secretzero.providers.base import BaseProvider, ProviderAuth
+from secretzero.providers.gitlab_project_resolve import resolve_gitlab_project
+
+GITLAB_PROJECT_TOKEN_SCOPES = frozenset(
+    {
+        "api",
+        "read_api",
+        "read_registry",
+        "write_registry",
+        "read_repository",
+        "write_repository",
+        "create_runner",
+        "manage_runner",
+        "ai_features",
+        "k8s_proxy",
+        "self_rotate",
+    }
+)
 
 
 class GitLabAuth(ProviderAuth):
@@ -80,22 +101,29 @@ class GitLabAuth(ProviderAuth):
         return self._client
 
     def get_token_info(self) -> dict[str, Any]:
-        """Return the GitLab user for the configured personal access token."""
+        """Return identity metadata for the configured GitLab token."""
         if not self._client:
             if not self.authenticate():
                 raise RuntimeError("GitLab authentication failed")
         try:
             user = self._client.user
-        except Exception as e:
-            raise RuntimeError(f"GitLab user lookup failed: {e}") from e
-        return {
-            "user": getattr(user, "username", None),
-            "name": getattr(user, "name", None),
-            "email": getattr(user, "email", None),
-            "user_id": getattr(user, "id", None),
-            "scopes": [],
-            "token_type": "gitlab_pat",
-        }
+            return {
+                "user": getattr(user, "username", None),
+                "name": getattr(user, "name", None),
+                "email": getattr(user, "email", None),
+                "user_id": getattr(user, "id", None),
+                "scopes": [],
+                "token_type": "gitlab_pat",
+            }
+        except Exception:
+            return {
+                "user": None,
+                "name": None,
+                "email": None,
+                "user_id": None,
+                "scopes": [],
+                "token_type": "gitlab_project_access_token",
+            }
 
 
 class GitLabProvider(BaseProvider):
@@ -122,19 +150,33 @@ class GitLabProvider(BaseProvider):
         token: ${GITLAB_TOKEN}"""
     target_details = {
         "gitlab_variable": {
-            "description": "GitLab CI/CD Variable",
+            "description": "GitLab CI/CD project variable",
             "config": {
-                "project_id": "GitLab project ID or path",
-                "variable_name": "Variable name (optional, uses secret.name if not provided)",
+                "project": "GitLab project ID or path (or 'auto')",
                 "protected": "Whether the variable is protected (default: false)",
                 "masked": "Whether the variable is masked in logs (default: true)",
+                "environment_scope": "Environment scope (default: *)",
+                "variable_type": "env_var or file (default: env_var)",
             },
             "example": """targets:
   - provider: gitlab
     kind: gitlab_variable
     config:
-      project_id: mygroup/myproject
-      variable_name: DATABASE_PASSWORD
+      project: auto
+      masked: true""",
+        },
+        "gitlab_group_variable": {
+            "description": "GitLab CI/CD group variable",
+            "config": {
+                "group": "GitLab group ID or path",
+                "protected": "Whether the variable is protected (default: false)",
+                "masked": "Whether the variable is masked in logs (default: true)",
+            },
+            "example": """targets:
+  - provider: gitlab
+    kind: gitlab_group_variable
+    config:
+      group: mygroup
       masked: true""",
         },
     }
@@ -454,6 +496,128 @@ class GitLabProvider(BaseProvider):
         except Exception as e:
             raise ValueError(f"Failed to delete variable from GitLab: {e}")
 
+    # ===== PROJECT ACCESS TOKEN CAPABILITY =====
+
+    def revoke_project_access_tokens_by_name(
+        self,
+        token_name: str,
+        project: str | None = None,
+    ) -> int:
+        """Revoke active project access tokens that match ``token_name``.
+
+        Args:
+            token_name: GitLab project access token name.
+            project: Project path/ID (resolved when omitted or ``auto``).
+
+        Returns:
+            Number of tokens revoked.
+        """
+        resolved_project = resolve_gitlab_project(
+            project=project or "auto",
+            provider_config=self.config or {},
+            cwd=Path.cwd(),
+        )
+        client = self.auth.get_client()
+        if not client:
+            raise ValueError("GitLab authentication failed")
+
+        gl_project = client.projects.get(resolved_project, lazy=True)
+        revoked = 0
+        for token in gl_project.access_tokens.list():
+            if getattr(token, "name", None) == token_name:
+                token.delete()
+                revoked += 1
+        return revoked
+
+    def generate_project_access_token(
+        self,
+        *,
+        token_name: str,
+        scopes: list[str],
+        project: str | None = None,
+        access_level: int = 40,
+        expires_in_days: int = 90,
+        description: str | None = None,
+        revoke_existing: bool = False,
+    ) -> str:
+        """Create a GitLab project access token.
+
+        Requires a personal access token for authentication.
+
+        Args:
+            token_name: Token name in GitLab.
+            scopes: GitLab token scopes.
+            project: Project path/ID or ``auto``.
+            access_level: GitLab access level integer (default Maintainer).
+            expires_in_days: Days until expiration.
+            description: Optional token description.
+            revoke_existing: Revoke prior tokens with the same name first.
+
+        Returns:
+            One-time project access token string.
+
+        Raises:
+            ValueError: If configuration is invalid.
+            RuntimeError: If the GitLab API call fails.
+        """
+        if not token_name:
+            raise ValueError("token_name is required for gitlab_project_token")
+        if not scopes:
+            raise ValueError("scopes is required for gitlab_project_token")
+
+        unknown = [scope for scope in scopes if scope not in GITLAB_PROJECT_TOKEN_SCOPES]
+        if unknown:
+            raise ValueError(f"Unknown GitLab project token scopes: {', '.join(unknown)}")
+
+        resolved_project = resolve_gitlab_project(
+            project=project or "auto",
+            provider_config=self.config or {},
+            cwd=Path.cwd(),
+        )
+
+        client = self.auth.get_client()
+        if not client:
+            raise ValueError("GitLab authentication failed")
+
+        if revoke_existing:
+            self.revoke_project_access_tokens_by_name(token_name, project=resolved_project)
+
+        expires_at = (datetime.now(UTC) + timedelta(days=expires_in_days)).strftime("%Y-%m-%d")
+        payload: dict[str, Any] = {
+            "name": token_name,
+            "scopes": scopes,
+            "expires_at": expires_at,
+            "access_level": access_level,
+        }
+        if description:
+            payload["description"] = description
+
+        gl_project = client.projects.get(resolved_project, lazy=True)
+        try:
+            created = gl_project.access_tokens.create(payload)
+        except Exception as exc:
+            raise RuntimeError(f"GitLab project access token creation failed: {exc}") from exc
+
+        token_value = getattr(created, "token", None)
+        if not token_value:
+            raise RuntimeError("GitLab API response missing project access token value")
+        return token_value
+
+    def generate_project_access_token_with_manifest(
+        self,
+        manifest: dict[str, Any],
+    ) -> str:
+        """Create a project access token from a generator manifest."""
+        return self.generate_project_access_token(
+            token_name=manifest["token_name"],
+            scopes=manifest["scopes"],
+            project=manifest.get("project", "auto"),
+            access_level=manifest.get("access_level", 40),
+            expires_in_days=manifest.get("expires_in_days", 90),
+            description=manifest.get("description"),
+            revoke_existing=manifest.get("revoke_existing", False),
+        )
+
 
 # ---------------------------------------------------------------------------
 # Bundle manifest – makes this provider extractable as a standalone package.
@@ -463,7 +627,7 @@ class GitLabProvider(BaseProvider):
 # ---------------------------------------------------------------------------
 
 
-def _get_bundle_manifest() -> "BundleManifest":  # noqa: F821
+def _get_bundle_manifest() -> BundleManifest:  # noqa: F821
     """Lazily construct the GitLab bundle manifest."""
     from secretzero.bundles.registry import BundleManifest
 
@@ -471,12 +635,17 @@ def _get_bundle_manifest() -> "BundleManifest":  # noqa: F821
         name="gitlab",
         version="1.0.0",
         provider_class="secretzero.providers.gitlab:GitLabProvider",
-        generators={},
+        generators={
+            "gitlab_project_token": (
+                "secretzero.generators.gitlab_project_token:GitLabProjectTokenGenerator"
+            ),
+        },
         targets={
             "gitlab_variable": "secretzero.targets.gitlab:GitLabVariableTarget",
+            "gitlab_group_variable": "secretzero.targets.gitlab:GitLabGroupVariableTarget",
         },
-        generator_kinds=[],
-        target_kinds=["gitlab_variable"],
+        generator_kinds=["gitlab_project_token"],
+        target_kinds=["gitlab_variable", "gitlab_group_variable"],
         terraform_provider={
             "name": "gitlab",
             "source": "gitlabhq/gitlab",

@@ -115,7 +115,7 @@ Providers are the backends for storing and retrieving secrets. They handle:
 **Supported provider types**:
 
 - **Cloud**: `aws`, `azure`, `vault`
-- **CI/CD**: `github`, `gitlab`, `jenkins`
+- **CI/CD**: `github`, `gitlab`, `jenkins` (GitLab supports `gitlab_variable`, `gitlab_group_variable`, and `gitlab_project_token` generator with `project: auto`)
 - **Container**: `kubernetes`
 - **Local**: `local` (file-based)
 

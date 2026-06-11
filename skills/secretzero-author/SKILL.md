@@ -27,6 +27,44 @@ Produce high-quality, json-schema compliant SecretZero manifests that:
 - Intelligently break out environment variance into `.szvar` files.
 - Bind provider-backed targets to least-privilege identity policies for AWS/Azure/other authenticated environments.
 
+## Capability discovery (generators & targets)
+
+Use the **live catalog** before inventing `secrets[].kind` or `targets[].kind` values.
+
+**Primary (machine-complete — preferred for agents):**
+
+```bash
+secretzero catalog --format json
+secretzero catalog --provider gitlab --format json
+secretzero catalog --bundle core --format json
+secretzero catalog --kind gitlab_variable --kind-type target --verbose
+```
+
+The catalog is backed by `BundleRegistry` and includes every registered generator, target, and provider bundle with `typical_generators` hints per target.
+
+**Human-readable summary:**
+
+```bash
+secretzero catalog
+secretzero secret-types
+```
+
+**Manifest-scoped (already configured in this Secretfile — not the global catalog):**
+
+```bash
+secretzero list providers -f <manifest_root>/Secretfile.yml --format json
+secretzero list targets -f <manifest_root>/Secretfile.yml --format json
+```
+
+**Provider introspection:**
+
+```bash
+secretzero providers list
+secretzero providers capabilities <provider_kind>
+```
+
+The static **decision map** below is a curated shortcut; when it disagrees with `secretzero catalog --format json`, trust the catalog.
+
 ## Safety Rules (Non-Negotiable)
 
 Inherits the **SecretZero only — never secrets in context** rule from `skills/secretzero/SKILL.md`.
@@ -136,13 +174,15 @@ When the user chooses **add** or **edit**:
 2. **Refresh live capability lists** (once per iteration or when the user changes destination):
 
    ```bash
-   secretzero secret-types
-   secretzero secret-types --type <kind> --verbose
+   secretzero catalog --format json
+   secretzero catalog --provider <provider_kind> --format json
+   secretzero catalog --kind <kind> --kind-type generator --verbose
+   secretzero catalog --kind <kind> --kind-type target --verbose
    secretzero list providers -f <manifest_root>/Secretfile.yml --format json
    secretzero list targets -f <manifest_root>/Secretfile.yml --format json
    ```
 
-3. **Generator menu** (`secrets[].kind`) — present as lettered options:
+3. **Generator menu** (`secrets[].kind`) — present as lettered options (run `secretzero catalog --format json` for the full list):
 
    | Option | `kind` | Use when |
    |--------|--------|----------|
@@ -151,11 +191,12 @@ When the user chooses **add** or **edit**:
    | C | `static` | Human prompt, `${VAR}`, or structured dict leaves |
    | D | `script` | Generate via command (`ssh-keygen`, etc.) |
    | E | `azure_app_reg` | Entra app registration-shaped fields |
-   | F | `github_pat` | Create GitHub PAT via API |
+   | F | `github_pat` | Create GitHub App installation token via API |
    | G | `entra-agent-blueprint` | Agent Identity blueprint lifecycle |
-   | H | `provider_backed` | Advanced; only if no bundle-specific kind fits |
+   | H | `gitlab_project_token` | Create GitLab project access token via API |
+   | I | `provider_backed` | Advanced; only if no bundle-specific kind fits |
 
-4. **Target menu** — from `list targets` + **Decision map**; for local, offer dotenv / json / yaml / toml / tfvars / template options.
+4. **Target menu** — from `secretzero catalog --format json` (bundle `targets` + `typical_generators`) and the **Decision map**; for local, offer dotenv / json / yaml / toml / tfvars / template options.
 
 5. **Per-entry checklist:** `name`, generator, target(s) (paths relative to manifest root), `.szvar` lane variance, `identity_policies` on cloud targets.
 
@@ -256,12 +297,11 @@ Verify:
 ```bash
 secretzero --help
 secretzero validate --help
-secretzero secret-types
-secretzero list providers
-secretzero list targets
+secretzero catalog --format json
+secretzero providers list
 ```
 
-**Live bundle matrix:** `docs/reference/provider-bundles-auto.md` (regenerate with `task docs:generate:provider-bundles` after adding bundles).
+**Live bundle matrix (targets only):** `docs/reference/provider-bundles-auto.md` — supplement with `secretzero catalog --format json` for generators.
 
 ---
 
@@ -305,7 +345,8 @@ No `providers:` entry required. Use for dev, CI artifacts, Terraform var files, 
 | Azure Key Vault | `azure` | `azure_keyvault` or `key_vault` | same + `azure_app_reg` for app-reg-shaped static | Bind `provider_identity` on tenant/subscription |
 | HashiCorp Vault KV | `vault` | `vault_kv` or `kv` | same | Token/ambient auth |
 | GitHub Actions / repo secret | `github` | `github_secret` | `random_*`, `static`, **`github_pat`** | PAT uses dedicated generator |
-| GitLab CI variable | `gitlab` | `gitlab_variable` | `random_*`, `static` | Project/group scoped via config |
+| GitLab CI variable (project) | `gitlab` | `gitlab_variable` | `random_*`, `static`, **`gitlab_project_token`** | `project: auto` supported |
+| GitLab CI variable (group) | `gitlab` | `gitlab_group_variable` | `random_*`, `static` | Shared across group projects |
 | Jenkins credential | `jenkins` | `jenkins_credential` | `random_*`, `static` | |
 | Kubernetes Secret | `kubernetes` | `kubernetes_secret` | `random_*`, `static` | |
 | K8s ExternalSecret (ESO) | `kubernetes` | `external_secret` | `random_*`, `static` | ESO-shaped sync |
@@ -332,7 +373,8 @@ No `providers:` entry required. Use for dev, CI artifacts, Terraform var files, 
 | `kind` | Provider | Use when |
 |--------|----------|----------|
 | `azure_app_reg` | `azure` | Entra app registration fields (static-like prompting) |
-| `github_pat` | `github` | Create GitHub PAT via API |
+| `github_pat` | `github` | Create GitHub App installation token via API |
+| `gitlab_project_token` | `gitlab` | Create GitLab project access token via API (bootstrap PAT required) |
 | `entra-agent-blueprint` | `entra-agent-id` | Microsoft Agent Identity blueprint + creds + optional child agents |
 
 **Static-like kinds** (`static`, `azure_app_reg`, …): agent sync may prompt per null leaf; prefer `.szvar` to pre-fill lane values.
@@ -431,9 +473,9 @@ secretzero discover <manifest_root> --local-only --dry-run --format json
 # Provider / lockfile metadata (existing manifest)
 secretzero status --format json
 secretzero test --verbose --format json
-secretzero list providers
-secretzero list targets
-secretzero secret-types
+secretzero catalog --format json
+secretzero list providers -f Secretfile.yml --format json
+secretzero list targets -f Secretfile.yml --format json
 ```
 
 Derive policy candidates from actor/auth metadata (account, region, arn, tenant_id, subscription_id, namespace, etc.), never from secret contents.
@@ -470,6 +512,7 @@ policies:
 | `.env`, ingest, `SZ_AGENT_MODE` | `skills/secretzero-handle/SKILL.md` |
 | tfvars file target | `examples/terraform-tfvars/`, `.mex/patterns/file-target-tfvars.md` |
 | Multi-env + AWS policies | `examples/multi-env-aws-policies/` |
+| GitLab project token + variable | `examples/gitlab-project-token.yml` |
 | Entra Agent ID | `examples/entra-agent-id-blueprint.yml`, `docs/ENTRA-AGENT-ID.md` |
 
 ## Definition of Done

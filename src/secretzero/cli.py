@@ -33,6 +33,7 @@ from secretzero.backup import (
     restore_backup_entries,
 )
 from secretzero.bundles import get_bundle_registry
+from secretzero.cli_catalog import catalog_command
 from secretzero.cli_config_cmd import config_group
 from secretzero.cli_format import format_command
 from secretzero.cli_providers import providers_group
@@ -1439,6 +1440,7 @@ def _show_target_config_details(
             _show_all_config_raw(config, config_indent)
 
     elif target.kind == "gitlab_secret":
+        # Deferred: native GitLab Secrets Manager target (gitlab_ci_secret) not implemented.
         project = config.get("project_id", "")
         project_display = (
             f"[cyan]{project}[/cyan]" if project else "[yellow]Not configured[/yellow]"
@@ -1582,13 +1584,17 @@ def secret_types(type: str | None, verbose: bool) -> None:
 
     Shows all available secret generator types that can be used in your
     Secretfile configuration, along with their supported parameters.
+
+    Prefer ``secretzero catalog --format json`` for a machine-complete registry view.
     """
     if type:
-        # Show details for specific type
         _show_type_details(type)
     else:
-        # List all types
         _list_all_types(verbose)
+        console.print(
+            "\n[dim]For the full bundle registry catalog, run "
+            "[bold]secretzero catalog --format json[/bold][/dim]"
+        )
 
 
 def _class_name_to_snake_case(name: str, suffix: str) -> str:
@@ -1618,146 +1624,55 @@ def _class_name_to_snake_case(name: str, suffix: str) -> str:
 
 
 def _list_all_types(verbose: bool) -> None:
-    """List all available secret types."""
-    import inspect
+    """List all available secret types from the bundle registry catalog."""
+    from secretzero.bundle_catalog import build_bundle_catalog
 
-    from secretzero import generators, targets
+    catalog = build_bundle_catalog()
 
     console.print("[bold]Available Secret Generator Types:[/bold]\n")
-
-    table = Table(show_header=True, header_style="bold cyan")
-    table.add_column("Type", style="green")
-    table.add_column("Description")
-
-    # Dynamically discover generators
-    generator_types = {}
-    for name in dir(generators):
-        if name.endswith("Generator") and not name.startswith("_"):
-            obj = getattr(generators, name)
-            if inspect.isclass(obj) and obj != generators.BaseGenerator:
-                # Convert class name to snake_case type name
-                type_name = _class_name_to_snake_case(name, "Generator")
-
-                # Get description from class docstring
-                description = (obj.__doc__ or "").strip().split("\n")[0]
-                generator_types[type_name] = description
-
-    for gen_type, description in sorted(generator_types.items()):
-        table.add_row(gen_type, description)
-
-    console.print(table)
+    gen_table = Table(show_header=True, header_style="bold cyan")
+    gen_table.add_column("Type", style="green")
+    gen_table.add_column("Bundle")
+    gen_table.add_column("Description")
+    for entry in catalog.get("generators", []):
+        gen_table.add_row(
+            entry.get("kind", ""),
+            entry.get("bundle") or "—",
+            entry.get("description") or "—",
+        )
+    console.print(gen_table)
 
     console.print("\n[bold]Available Target Types:[/bold]\n")
-
     target_table = Table(show_header=True, header_style="bold cyan")
     target_table.add_column("Type", style="green")
+    target_table.add_column("Bundle")
     target_table.add_column("Description")
-
-    # Dynamically discover targets
-    target_types = {}
-    for name in dir(targets):
-        if name.endswith("Target") and not name.startswith("_"):
-            obj = getattr(targets, name)
-            if inspect.isclass(obj) and obj != targets.BaseTarget:
-                # Convert class name to snake_case type name
-                type_name = _class_name_to_snake_case(name, "Target")
-
-                # Get description from class docstring
-                description = (obj.__doc__ or "").strip().split("\n")[0]
-                target_types[type_name] = description
-
-    for target_type, description in sorted(target_types.items()):
-        target_table.add_row(target_type, description)
-
+    for entry in catalog.get("targets", []):
+        target_table.add_row(
+            entry.get("kind", ""),
+            entry.get("bundle") or "—",
+            entry.get("description") or "—",
+        )
     console.print(target_table)
 
     if not verbose:
-        console.print("\nUse --type <type> --verbose for detailed configuration options")
+        console.print(
+            "\nUse [bold]secretzero catalog --kind <type> --verbose[/bold] "
+            "or [bold]secretzero secret-types --type <type> --verbose[/bold] for details"
+        )
 
 
 def _show_type_details(type_name: str) -> None:
-    """Show detailed information about a specific type."""
-    import inspect
+    """Show detailed information about a specific generator or target kind."""
+    from secretzero.bundle_catalog import build_bundle_catalog, find_catalog_entry
+    from secretzero.cli_catalog import _render_kind_details
 
-    from secretzero import generators, targets
-
-    console.print(f"[bold]Secret Type: {type_name}[/bold]\n")
-
-    # Try to find the class dynamically
-    target_class = None
-
-    # Check generators
-    for name in dir(generators):
-        if name.endswith("Generator") and not name.startswith("_"):
-            obj = getattr(generators, name)
-            if inspect.isclass(obj):
-                # Convert class name to snake_case
-                converted_name = _class_name_to_snake_case(name, "Generator")
-                if converted_name == type_name:
-                    target_class = obj
-                    break
-
-    # Check targets
-    if not target_class:
-        for name in dir(targets):
-            if name.endswith("Target") and not name.startswith("_"):
-                obj = getattr(targets, name)
-                if inspect.isclass(obj):
-                    # Convert class name to snake_case
-                    converted_name = _class_name_to_snake_case(name, "Target")
-                    if converted_name == type_name:
-                        target_class = obj
-                        break
-
-    if not target_class:
+    catalog = build_bundle_catalog(kind=type_name)
+    if not find_catalog_entry(catalog, type_name):
         console.print(f"[red]Unknown type:[/red] {type_name}")
-        console.print("\nRun 'secretzero secret-types' to see available types")
+        console.print("\nRun 'secretzero catalog --format json' to see available kinds")
         return
-
-    # Extract description from class docstring
-    class_doc = (target_class.__doc__ or "").strip()
-    description = class_doc.split("\n")[0] if class_doc else "No description available"
-
-    console.print(f"[cyan]Description:[/cyan] {description}\n")
-
-    # Extract config options from __init__ docstring
-    init_doc = (target_class.__init__.__doc__ or "").strip()
-    config_options = {}
-
-    if init_doc:
-        # Parse the docstring for config parameters
-        lines = init_doc.split("\n")
-        in_config = False
-        for line in lines:
-            stripped = line.strip()
-            # Look for the config section
-            if "config:" in stripped.lower() or "configuration with options:" in stripped.lower():
-                in_config = True
-                continue
-            # Parse config options (lines starting with -)
-            if in_config and stripped.startswith("- "):
-                # Extract option name and description
-                parts = stripped[2:].split(":", 1)
-                if len(parts) == 2:
-                    option_name = parts[0].strip()
-                    option_desc = parts[1].strip()
-                    config_options[option_name] = option_desc
-            # Stop if we hit another section or Args/Returns
-            elif in_config and stripped and not stripped.startswith("- "):
-                if any(keyword in stripped for keyword in ["Args:", "Returns:", "Raises:"]):
-                    break
-
-    if config_options:
-        console.print("[cyan]Configuration Options:[/cyan]")
-        for option, desc in config_options.items():
-            console.print(f"  • {option}: {desc}")
-    else:
-        console.print("[cyan]Configuration Options:[/cyan]")
-        console.print("  • No configuration options documented")
-
-    # Generate example
-    console.print("\n[cyan]Example:[/cyan]")
-    console.print("[dim]Example configuration would go here[/dim]")
+    _render_kind_details(catalog, type_name)
 
 
 def _test_provider_profiles(config) -> None:
@@ -5901,6 +5816,7 @@ main.add_command(config_group)
 main.add_command(format_command)
 main.add_command(providers_group)
 main.add_command(skills_group)
+main.add_command(catalog_command)
 
 
 @main.command()

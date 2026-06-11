@@ -13,7 +13,7 @@ It complements the hand-written workflow pages under `user-guide/providers/*`.
 | `entra-agent-id` | `1.0.0` | `entra-agent-id` | `secretzero.providers.entra_agent_id:EntraAgentIdProvider` | None | `default`, `service_principal`, `token` | `azure.identity` (`secretzero[entra_agent_id]`) |
 | `git_crypt` | `1.0.0` | `git_crypt` | `secretzero.providers.git_crypt:GitCryptProvider` | `git_crypt_file` | `ambient` | None |
 | `github` | `1.0.0` | `github` | `secretzero.providers.github:GitHubProvider` | `github_secret` | `oauth_device`, `token` | `github` (`secretzero[github]`) |
-| `gitlab` | `1.0.0` | `gitlab` | `secretzero.providers.gitlab:GitLabProvider` | `gitlab_variable` | `token` | `gitlab` (`secretzero[gitlab]`) |
+| `gitlab` | `1.0.0` | `gitlab` | `secretzero.providers.gitlab:GitLabProvider` | `gitlab_group_variable`, `gitlab_variable` | `token` | `gitlab` (`secretzero[gitlab]`) |
 | `infisical` | `1.0.0` | `infisical` | `secretzero.providers.infisical:InfisicalProvider` | None | None declared | None |
 | `jenkins` | `1.0.0` | `jenkins` | `secretzero.providers.jenkins:JenkinsProvider` | `jenkins_credential` | `token` | `jenkins` (`secretzero[jenkins]`) |
 | `keeper` | `1.1.0` | `keeper` | `secretzero.providers.keeper:KeeperProvider` | `keeper_record` | `default`, `token` | `keepercommander` (`secretzero[keeper]`) |

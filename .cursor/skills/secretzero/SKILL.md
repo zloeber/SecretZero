@@ -31,6 +31,7 @@ On spill-sensitive hosts set **`SZ_AGENT_MODE=true`** (see `skills/secretzero-ha
 ## Use `secretzero-author` when
 
 - Creating or editing `Secretfile.yml` (guided: manifest root, inventory table, add/edit loop, optional `detect`/`discover`, optional `secretzero web`; Hermes + MCP notes in skill).
+- Discovering valid generator/target kinds: `secretzero catalog --format json` (machine-complete registry).
 - Performing schema-first, high-quality manifest authoring.
 - Doing safe, contextless discovery and `.szvar` environment breakout.
 - Adding least-privilege provider identity policy binding for targets.
