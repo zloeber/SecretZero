@@ -14,7 +14,7 @@ edges:
     condition: when setting up the dev environment or running the project for the first time
   - target: patterns/INDEX.md
     condition: when starting a task — check the pattern index for a matching pattern file
-last_updated: 2026-06-05
+last_updated: 2026-06-11
 ---
 
 # Session Bootstrap
@@ -71,6 +71,7 @@ Then read this file fully before doing anything else in this session.
 - **FAQ clarification for encrypted-in-git lanes:** `docs/reference/faq.md` now explains that SOPS/git-crypt/Ansible Vault workflows are target-layer encrypted repository adapters; the true secret-zero trust anchor remains the bootstrap credential/key material used to unlock them.
 - **Docs hyperlink gate:** `task docs:links` runs lychee on `README.md` and `docs/` (`lychee.toml`); wired into `scripts/agent.pre-commit.sh`, `.pre-commit-config.yaml`, and GitHub Actions (`test.yaml` job `docs-links`, `docs.yaml` pre-build). See `.mex/patterns/docs-links-lychee.md`.
 - **Public onboarding docs now front-load remote agent skill install paths:** `README.md` and `docs/index.md` both include an early **Agent Quick Start** with raw `SKILL.md` URLs, Hermes direct install commands, and a raw-download helper script (`scripts/download-secretzero-skills.zsh`) for copying both skill folders into `./skills` / `~/.agents/skills` / Hermes `external_dirs`.
+- **`secretzero skills`:** Bundled skill management (`list`, `show`, `install`) mirroring metagit-cli — installs package-data skills from `src/secretzero/data/skills/` into supported agent targets (Cursor, Claude Code, Hermes, OpenClaw, Codex, etc.) with `--scope project|user`, `--target`, `--skill`, and `--dry-run`. See `src/secretzero/skills/installer.py`, `src/secretzero/cli_skills.py`, `.mex/patterns/skills-subcommand.md`.
 - **Structured secret hashing:** Lockfile hashing now accepts non-string secret payloads (e.g. JSON objects for multi-field static secrets) via canonical JSON normalization before SHA-256, preventing `'dict' object has no attribute 'encode'` during sync.
 - **Example manifest:** `examples/azure-appreg-to-aws-sm.yml` uses a structured static `value` map with YAML `null` leaves so interactive `secretzero sync` prompts once per missing field (sorted keys); `.szvar` / `--var-file` can pre-fill those leaves to skip prompts.
 - **Script SSH keypair example:** `examples/script-ssh-keypair/Secretfile.yml` demonstrates `script` generator usage with `zsh` + `ssh-keygen` to produce reusable Ed25519 private/public key fields and sync them via a local YAML file target.

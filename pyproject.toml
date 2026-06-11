@@ -213,8 +213,8 @@ version_file = "src/secretzero/_version.py"
 where = ["src"]
 include = ["secretzero*"]
 
-# [tool.setuptools.package-data]
-# metagit = ["data/**/*"]
+[tool.setuptools.package-data]
+secretzero = ["data/**/*"]
 
 [build-system]
 requires = ["setuptools>=64", "setuptools-scm>=8"]
