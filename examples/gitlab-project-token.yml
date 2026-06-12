@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=https://github.com/zloeber/SecretZero/raw/refs/heads/main/Secretfile.schema.json
+#
+# Example: Generate a scoped GitLab project access token and store it as a
+# masked CI/CD variable in the same project.
+#
+# Prerequisites:
+#   export GITLAB_TOKEN=glpat-...   # Personal access token with `api` scope
+#   # Maintainer+ on the target project
+#
+# Project resolution:
+#   project: auto uses CI_PROJECT_PATH in GitLab CI, else git remote origin.
+
+variables:
+  gitlab_project: auto
+
+providers:
+  gitlab:
+    kind: gitlab
+    auth:
+      kind: token
+      config:
+        token: ${GITLAB_TOKEN}
+
+secrets:
+  - name: ci_deploy_token
+    kind: gitlab_project_token
+    config:
+      provider: gitlab
+      project: auto
+      token_name: secretzero-ci-deploy
+      scopes:
+        - read_repository
+        - write_repository
+      access_level: 30
+      expires_in_days: 30
+    targets:
+      - provider: gitlab
+        kind: gitlab_variable
+        config:
+          project: auto
+          masked: true
+          protected: true

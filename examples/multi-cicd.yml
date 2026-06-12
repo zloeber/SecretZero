@@ -20,8 +20,9 @@ variables:
   github_org: myorg
   github_repo: myrepo
   
-  # GitLab variables
+  # GitLab variables (use `auto` to resolve from CI_PROJECT_PATH or git remote)
   gitlab_project: mygroup/myproject
+  # See examples/gitlab-project-token.yml for gitlab_project_token generator usage.
   
   # Jenkins variables
   jenkins_url: https://jenkins.example.com

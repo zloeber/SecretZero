@@ -1,177 +1,129 @@
 """GitLab CI/CD variable targets."""
 
+from __future__ import annotations
+
+from pathlib import Path
 from typing import Any
 
+from secretzero.providers.gitlab_project_resolve import resolve_gitlab_project
+from secretzero.providers.gitlab_variables import (
+    get_group_variable,
+    get_project_variable,
+    upsert_group_variable,
+    upsert_project_variable,
+)
 from secretzero.targets.base import BaseTarget
 
 
-class GitLabVariableTarget(BaseTarget):
-    """Store secrets as GitLab CI/CD variables."""
+class _GitLabVariableOptionsMixin:
+    """Parse shared GitLab variable target options from config."""
+
+    def _init_variable_options(self, config: dict[str, Any]) -> None:
+        self.protected = config.get("protected", False)
+        self.masked = config.get("masked", True)
+        self.masked_and_hidden = config.get("masked_and_hidden", False)
+        self.raw = config.get("raw", True)
+        self.environment_scope = config.get("environment_scope", "*")
+        self.variable_type = config.get("variable_type", "env_var")
+        self.description = config.get("description")
+
+
+class GitLabVariableTarget(_GitLabVariableOptionsMixin, BaseTarget):
+    """Store secrets as GitLab project CI/CD variables."""
 
     def __init__(self, provider: Any, config: dict[str, Any] | None = None):
-        """Initialize GitLab variable target.
-
-        Args:
-            provider: GitLab provider instance.
-            config: Target configuration containing:
-                - project: Project path (e.g., 'group/project' or project ID)
-                - protected: Whether variable is protected (default: False)
-                - masked: Whether variable is masked in logs (default: True)
-                - environment_scope: Environment scope (default: '*' for all)
-                - variable_type: Variable type ('env_var' or 'file', default: 'env_var')
-        """
         super().__init__(config)
         self.provider = provider
-        self.project = self.config.get("project")
-        self.protected = self.config.get("protected", False)
-        self.masked = self.config.get("masked", True)
-        self.environment_scope = self.config.get("environment_scope", "*")
-        self.variable_type = self.config.get("variable_type", "env_var")
+        self._init_variable_options(self.config)
+        self._project_config = self.config.get("project")
 
-        if not self.project:
-            raise ValueError("GitLab variable target requires 'project' in config")
+    def _resolved_project(self) -> str:
+        provider_config = getattr(self.provider, "config", None) or {}
+        return resolve_gitlab_project(
+            project=self._project_config,
+            provider_config=provider_config,
+            cwd=Path.cwd(),
+        )
 
     def store(self, secret_name: str, secret_value: str) -> bool:
-        """Store secret as GitLab CI/CD variable.
-
-        Args:
-            secret_name: Name of the variable.
-            secret_value: Value of the variable.
-
-        Returns:
-            True if storage successful, False otherwise.
-        """
         try:
             client = self.provider.auth.get_client()
-            project = client.projects.get(self.project)
-
-            # Check if variable already exists
-            try:
-                var = project.variables.get(secret_name)
-                # Update existing variable
-                var.value = secret_value
-                var.protected = self.protected
-                var.masked = self.masked
-                var.environment_scope = self.environment_scope
-                var.variable_type = self.variable_type
-                var.save()
-            except Exception:
-                # Create new variable
-                project.variables.create(
-                    {
-                        "key": secret_name,
-                        "value": secret_value,
-                        "protected": self.protected,
-                        "masked": self.masked,
-                        "environment_scope": self.environment_scope,
-                        "variable_type": self.variable_type,
-                    }
-                )
-
+            upsert_project_variable(
+                client,
+                self._resolved_project(),
+                secret_name,
+                secret_value,
+                protected=self.protected,
+                masked=self.masked,
+                masked_and_hidden=self.masked_and_hidden,
+                raw=self.raw,
+                environment_scope=self.environment_scope,
+                variable_type=self.variable_type,
+                description=self.description,
+            )
             return True
-        except Exception as e:
-            print(f"Failed to store variable in GitLab: {e}")
-            return False
+        except Exception as exc:
+            raise ValueError(f"Failed to store GitLab project variable: {exc}") from exc
 
     def retrieve(self, secret_name: str) -> str | None:
-        """Retrieve variable from GitLab CI/CD.
-
-        Args:
-            secret_name: Name of the variable.
-
-        Returns:
-            Variable value if found, None otherwise.
-        """
         try:
             client = self.provider.auth.get_client()
-            project = client.projects.get(self.project)
-            var = project.variables.get(secret_name)
-            return var.value
+            return get_project_variable(
+                client,
+                self._resolved_project(),
+                secret_name,
+                environment_scope=self.environment_scope,
+            )
         except Exception:
             return None
 
+    def validate(self) -> tuple[bool, str | None]:
+        try:
+            self._resolved_project()
+            return True, None
+        except ValueError as exc:
+            return False, str(exc)
 
-class GitLabGroupVariableTarget(BaseTarget):
+
+class GitLabGroupVariableTarget(_GitLabVariableOptionsMixin, BaseTarget):
     """Store secrets as GitLab group-level CI/CD variables."""
 
     def __init__(self, provider: Any, config: dict[str, Any] | None = None):
-        """Initialize GitLab group variable target.
-
-        Args:
-            provider: GitLab provider instance.
-            config: Target configuration containing:
-                - group: Group path or ID
-                - protected: Whether variable is protected (default: False)
-                - masked: Whether variable is masked in logs (default: True)
-                - environment_scope: Environment scope (default: '*' for all)
-                - variable_type: Variable type ('env_var' or 'file', default: 'env_var')
-        """
         super().__init__(config)
         self.provider = provider
+        self._init_variable_options(self.config)
         self.group = self.config.get("group")
-        self.protected = self.config.get("protected", False)
-        self.masked = self.config.get("masked", True)
-        self.environment_scope = self.config.get("environment_scope", "*")
-        self.variable_type = self.config.get("variable_type", "env_var")
-
         if not self.group:
             raise ValueError("GitLab group variable target requires 'group' in config")
 
     def store(self, secret_name: str, secret_value: str) -> bool:
-        """Store secret as GitLab group CI/CD variable.
-
-        Args:
-            secret_name: Name of the variable.
-            secret_value: Value of the variable.
-
-        Returns:
-            True if storage successful, False otherwise.
-        """
         try:
             client = self.provider.auth.get_client()
-            group = client.groups.get(self.group)
-
-            # Check if variable already exists
-            try:
-                var = group.variables.get(secret_name)
-                # Update existing variable
-                var.value = secret_value
-                var.protected = self.protected
-                var.masked = self.masked
-                var.environment_scope = self.environment_scope
-                var.variable_type = self.variable_type
-                var.save()
-            except Exception:
-                # Create new variable
-                group.variables.create(
-                    {
-                        "key": secret_name,
-                        "value": secret_value,
-                        "protected": self.protected,
-                        "masked": self.masked,
-                        "environment_scope": self.environment_scope,
-                        "variable_type": self.variable_type,
-                    }
-                )
-
+            upsert_group_variable(
+                client,
+                self.group,
+                secret_name,
+                secret_value,
+                protected=self.protected,
+                masked=self.masked,
+                masked_and_hidden=self.masked_and_hidden,
+                raw=self.raw,
+                environment_scope=self.environment_scope,
+                variable_type=self.variable_type,
+                description=self.description,
+            )
             return True
-        except Exception as e:
-            print(f"Failed to store variable in GitLab group: {e}")
-            return False
+        except Exception as exc:
+            raise ValueError(f"Failed to store GitLab group variable: {exc}") from exc
 
     def retrieve(self, secret_name: str) -> str | None:
-        """Retrieve variable from GitLab group CI/CD.
-
-        Args:
-            secret_name: Name of the variable.
-
-        Returns:
-            Variable value if found, None otherwise.
-        """
         try:
             client = self.provider.auth.get_client()
-            group = client.groups.get(self.group)
-            var = group.variables.get(secret_name)
-            return var.value
+            return get_group_variable(
+                client,
+                self.group,
+                secret_name,
+                environment_scope=self.environment_scope,
+            )
         except Exception:
             return None

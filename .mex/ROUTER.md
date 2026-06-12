@@ -14,7 +14,7 @@ edges:
     condition: when setting up the dev environment or running the project for the first time
   - target: patterns/INDEX.md
     condition: when starting a task — check the pattern index for a matching pattern file
-last_updated: 2026-06-05
+last_updated: 2026-06-11
 ---
 
 # Session Bootstrap
@@ -30,7 +30,7 @@ Then read this file fully before doing anything else in this session.
 - `secretzero backup` / `secretzero export`: same command group (`export` is an alias of `backup`). `backup create` defaults to plain local JSON backup payloads (stdout unless `--output` is given), blocks plain mode under `SZ_AGENT` **or** `SZ_AGENT_MODE`, and uses `--encrypted` to opt into the SOPS+AGE file workflow. When no environment is selected, backup/restore now fan out across every `environments.profiles` lane and still allow single-environment targeting with `--environment`. `backup restore` / `export restore` accept `--print` to emit selected backup entries (including values) to stdout or a Rich table without reading `Secretfile.yml`, writing targets, or updating the lockfile; plaintext print is blocked under `SZ_AGENT` **or** `SZ_AGENT_MODE`.
 - `secretzero web` target-state wording/UI: per-target **pending** lanes are presented as **Unsynced** in dashboard copy/legend, pending arrow color token is white (`--flow-pending: #fff`), policy/auth-blocked lanes suppress sync/refresh actions in favor of an inline policy note (manual **Update** remains when available, with show/hide input toggle on the update form), and dashboard sections (Secretfile context, Provider identity, and each secret/target card) are now collapsed/expandable by default.
 - Bundle extensibility for providers/generators/targets via `BundleRegistry` and manifest factories.
-- Built-in generators (`random_password`, `random_string`, `static`, `script`, `provider_backed`) and provider-backed targets across AWS/Azure/Vault/GitHub/GitLab/Jenkins/Kubernetes/Infisical.
+- Built-in generators (`random_password`, `random_string`, `static`, `script`, `provider_backed`, `gitlab_project_token`) and provider-backed targets across AWS/Azure/Vault/GitHub/GitLab/Jenkins/Kubernetes/Infisical.
 - **Local file `format: tfvars`:** `local`/`file` targets accept `format: tfvars` for flat HCL Terraform assignment files (`terraform.tfvars`); `.tfvars` paths infer the format when omitted; `*.tfvars.json` still uses `format: json`. See `src/secretzero/hcl_tfvars.py`, `.mex/patterns/file-target-tfvars.md`.
 - Policy/status/drift/terraform command families and comprehensive pytest suite.
 - Task-based verification workflow (`lint:fix`, `format`, `schema:update`, `test`, `security:scan`, `test:validations`).
@@ -71,6 +71,7 @@ Then read this file fully before doing anything else in this session.
 - **FAQ clarification for encrypted-in-git lanes:** `docs/reference/faq.md` now explains that SOPS/git-crypt/Ansible Vault workflows are target-layer encrypted repository adapters; the true secret-zero trust anchor remains the bootstrap credential/key material used to unlock them.
 - **Docs hyperlink gate:** `task docs:links` runs lychee on `README.md` and `docs/` (`lychee.toml`); wired into `scripts/agent.pre-commit.sh`, `.pre-commit-config.yaml`, and GitHub Actions (`test.yaml` job `docs-links`, `docs.yaml` pre-build). See `.mex/patterns/docs-links-lychee.md`.
 - **Public onboarding docs now front-load remote agent skill install paths:** `README.md` and `docs/index.md` both include an early **Agent Quick Start** with raw `SKILL.md` URLs, Hermes direct install commands, and a raw-download helper script (`scripts/download-secretzero-skills.zsh`) for copying both skill folders into `./skills` / `~/.agents/skills` / Hermes `external_dirs`.
+- **`secretzero skills`:** Bundled skill management (`list`, `show`, `install`) mirroring metagit-cli — installs package-data skills from `src/secretzero/data/skills/` into supported agent targets (Cursor, Claude Code, Hermes, OpenClaw, Codex, etc.) with `--scope project|user`, `--target`, `--skill`, and `--dry-run`. See `src/secretzero/skills/installer.py`, `src/secretzero/cli_skills.py`, `.mex/patterns/skills-subcommand.md`.
 - **Structured secret hashing:** Lockfile hashing now accepts non-string secret payloads (e.g. JSON objects for multi-field static secrets) via canonical JSON normalization before SHA-256, preventing `'dict' object has no attribute 'encode'` during sync.
 - **Example manifest:** `examples/azure-appreg-to-aws-sm.yml` uses a structured static `value` map with YAML `null` leaves so interactive `secretzero sync` prompts once per missing field (sorted keys); `.szvar` / `--var-file` can pre-fill those leaves to skip prompts.
 - **Script SSH keypair example:** `examples/script-ssh-keypair/Secretfile.yml` demonstrates `script` generator usage with `zsh` + `ssh-keygen` to produce reusable Ed25519 private/public key fields and sync them via a local YAML file target.
@@ -92,6 +93,8 @@ Then read this file fully before doing anything else in this session.
 **Not yet built:**
 - Autonomous/scheduled secret rotation service (rotation is operator-invoked).
 - Fully automated release/deployment orchestration from scaffold itself.
+- **GitLab bundle extension (implemented, scope D):** `gitlab_variable` hardening, registered `gitlab_group_variable`, `project: auto` resolution, and `gitlab_project_token` generator. GitLab Secrets Manager deferred. See `docs/superpowers/specs/2026-06-11-gitlab-cicd-variables-and-project-tokens-design.md`, `.mex/patterns/gitlab-bundle-extension.md`, `examples/gitlab-project-token.yml`.
+- **`secretzero catalog`:** machine-complete generator/target/bundle catalog from `BundleRegistry` (`secretzero catalog --format json`); `secret-types` now delegates to the same source. Author skill updated to prefer catalog for agent discovery.
 
 **Unified agent sync:** Implemented — `secretzero agent sync --json [--web] [--verbose]` and `POST /agent/sync` share `AgentSecretSynchronizer`; Vector 2 web UI and `GET /agent/sync/web/{session_id}` for polling; Tavern E2E under `tests/e2e/` (`task test:e2e`).
 **Tavern workflow coverage expanded:** Added API workflow E2E scenarios for forced credential rotation, `.szvar`-driven environment targeting, single-secret forced rotation checks, cross-target sync updates, and `azure_app_reg` pending-manual requests. API request schemas now accept `var_files` for `/sync` and `/agent/sync`.

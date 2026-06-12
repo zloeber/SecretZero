@@ -228,6 +228,7 @@ source:
 - `static`: Static value with optional validation
 - `script`: Execute external script
 - `api`: Fetch from external API
+- `gitlab_project_token`: Create a scoped GitLab project access token (requires bootstrap PAT)
 
 ## Templates
 
@@ -314,7 +315,8 @@ targets:
 | `azure_keyvault` | Azure Key Vault | azure |
 | `kubernetes_secret` | Kubernetes Secret | kubernetes |
 | `github_secret` | GitHub Actions Secret | github |
-| `gitlab_variable` | GitLab CI/CD Variable | gitlab |
+| `gitlab_variable` | GitLab CI/CD project variable | gitlab |
+| `gitlab_group_variable` | GitLab CI/CD group variable | gitlab |
 
 ### File Target Configuration
 

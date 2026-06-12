@@ -20,6 +20,23 @@ The GitLab provider is ideal for:
 | `gitlab_variable` | GitLab CI/CD project variable | Project-specific credentials, API keys, environment variables |
 | `gitlab_group_variable` | GitLab CI/CD group variable | Shared secrets across all projects in a GitLab group |
 
+### Supported Generator Kinds
+
+| Generator | Description |
+|-----------|-------------|
+| `gitlab_project_token` | Create a scoped GitLab **project access token** via API (requires bootstrap PAT) |
+
+### Project resolution (`project: auto`)
+
+Targets and the `gitlab_project_token` generator accept `project: auto`. SecretZero resolves the project in this order:
+
+1. Explicit `project` in target/generator config
+2. Provider `project` / `project_id`
+3. `CI_PROJECT_PATH` when running in GitLab CI
+4. `git remote get-url origin` when the remote points at GitLab
+
+See `examples/gitlab-project-token.yml` for a full manifest.
+
 ## Authentication
 
 ### Token Authentication
@@ -237,7 +254,7 @@ The `gitlab_variable` target type stores secrets in GitLab CI/CD project variabl
 
 | Option | Type | Required | Default | Description |
 |--------|------|----------|---------|-------------|
-| `project` | string | Yes | - | Project path (user/project or group/project) or numeric ID |
+| `project` | string | Yes | - | Project path (user/project or group/project), numeric ID, or `auto` |
 | `environment_scope` | string | No | `*` | Environment scope (e.g., `production`, `staging`, `*` for all) |
 | `protected` | boolean | No | `false` | Only available on protected branches/tags |
 | `masked` | boolean | No | `true` | Hidden in job logs |
@@ -256,6 +273,21 @@ The `gitlab_group_variable` target type stores secrets in GitLab CI/CD group var
 | `protected` | boolean | No | `false` | Only available on protected branches/tags |
 | `masked` | boolean | No | `true` | Hidden in job logs |
 | `variable_type` | string | No | `env_var` | Variable type: `env_var` or `file` |
+
+### GitLab Project Access Token Generator
+
+The `gitlab_project_token` generator creates a scoped project access token using the GitLab API. Bootstrap authentication must be a **personal access token** (`GITLAB_TOKEN`) with `api` scope and Maintainer+ access on the project.
+
+| Option | Type | Required | Default | Description |
+|--------|------|----------|---------|-------------|
+| `provider` | string | Yes | - | Provider alias (e.g. `gitlab`) |
+| `token_name` | string | Yes | - | GitLab project access token name |
+| `scopes` | list | Yes | - | GitLab scopes (e.g. `api`, `read_repository`) |
+| `project` | string | No | `auto` | Target project path/ID |
+| `access_level` | integer | No | `40` | GitLab role level (30=Developer, 40=Maintainer) |
+| `expires_in_days` | integer | No | `90` | Token lifetime in days |
+
+On generation, SecretZero revokes any existing project access token with the same `token_name` before creating a new one.
 
 #### Example: Project Variable
 

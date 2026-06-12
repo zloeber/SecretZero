@@ -2,6 +2,8 @@
 
 This example demonstrates how to use SecretZero to manage GitLab CI/CD variables.
 
+For project access token generation with `project: auto`, see `examples/gitlab-project-token.yml`.
+
 ## Configuration
 
 ```yaml
