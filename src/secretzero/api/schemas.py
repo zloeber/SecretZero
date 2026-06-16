@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class HealthResponse(BaseModel):
@@ -308,3 +308,144 @@ class AgentWebSessionStatusResponse(BaseModel):
     done: bool
     error: str | None = None
     result: dict[str, Any] | None = None
+
+
+class VersionResponse(BaseModel):
+    """Version metadata response."""
+
+    name: str
+    version: str
+    website: str
+    backend: str = "api"
+    python_version: str | None = None
+    platform: str | None = None
+    executable: str | None = None
+    manifest_spec_version: str | None = None
+
+
+class CatalogResponse(BaseModel):
+    """Full bundle catalog."""
+
+    generators: list[dict[str, Any]] = Field(default_factory=list)
+    targets: list[dict[str, Any]] = Field(default_factory=list)
+    bundles: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class DetectRequest(BaseModel):
+    directory: str | None = None
+    all_keys: bool = False
+
+
+class DetectResponse(BaseModel):
+    detected: list[dict[str, Any]] = Field(default_factory=list)
+    total: int = 0
+    all_keys: bool = False
+    directory: str | None = None
+
+
+class DiscoverRequest(BaseModel):
+    directory: str | None = None
+    local_only: bool = True
+
+
+class DiscoverResponse(BaseModel):
+    files_scanned: int = 0
+    total_secrets: int = 0
+    dry_run: bool = True
+    directory: str | None = None
+    llm_used: bool = False
+    secrets: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class AgentInstructionsResponse(BaseModel):
+    scope: str
+    total: int
+    secrets: dict[str, Any] = Field(default_factory=dict)
+    resolved_lockfile: str | None = None
+
+
+class AgentListResponse(BaseModel):
+    detections: list[dict[str, Any]] = Field(default_factory=list)
+    registered_targets: list[str] = Field(default_factory=list)
+
+
+class AgentAdoptRequest(BaseModel):
+    target: str | None = None
+    source_dir: str | None = None
+    output_dir: str | None = None
+    template: bool = False
+    preseed_lockfile: bool = False
+    dry_run: bool = True
+    force: bool = False
+
+
+class AgentAdoptResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    generated: bool = False
+    dry_run: bool = True
+    target: str | None = None
+    source_dir: str | None = None
+    output_dir: str | None = None
+    discovered: list[dict[str, Any]] = Field(default_factory=list)
+    artifacts: list[str] = Field(default_factory=list)
+    reason: str | None = None
+    preseed: dict[str, Any] | None = None
+    next_steps: list[str] = Field(default_factory=list)
+
+
+class ImportCheckRequest(BaseModel):
+    environment: str | None = None
+    secret_name: str | None = None
+
+
+class ImportCheckResponse(BaseModel):
+    drift_detected: bool
+    results: list[dict[str, Any]] = Field(default_factory=list)
+    lockfile: str
+
+
+class CleanLockfileRequest(BaseModel):
+    environment: str | None = None
+    dry_run: bool = True
+
+
+class CleanLockfileResponse(BaseModel):
+    cleaned: int
+    orphaned_entries: list[str] = Field(default_factory=list)
+    dry_run: bool = True
+    lockfile: str
+
+
+class IngestPreseedRequest(BaseModel):
+    source: str
+    environment: str | None = None
+    dry_run: bool = True
+
+
+class IngestPreseedResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    imported: int = 0
+    updated: int = 0
+    skipped: int = 0
+    dry_run: bool = True
+    ingest: dict[str, Any] = Field(default_factory=dict)
+    lockfile: str | None = None
+
+
+class SyncExecuteRequest(BaseModel):
+    dry_run: bool = True
+    force: bool = False
+    refresh: bool = True
+    secret_name: str | None = None
+    environment: str | None = None
+    var_files: list[str] = Field(default_factory=list)
+
+
+class SyncExecuteResponse(BaseModel):
+    dry_run: bool = True
+    generated: list[str] = Field(default_factory=list)
+    skipped: list[str] = Field(default_factory=list)
+    results: dict[str, Any] = Field(default_factory=dict)
+    resolved_lockfile: str | None = None

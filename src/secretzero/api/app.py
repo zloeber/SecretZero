@@ -1191,4 +1191,10 @@ def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
                 detail=f"Failed to get secret detail: {str(e)}",
             )
 
+    from secretzero.api.inventory_routes import register_inventory_routes
+    from secretzero.api.parity_routes import register_parity_routes
+
+    register_parity_routes(app)
+    register_inventory_routes(app)
+
     return app

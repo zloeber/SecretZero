@@ -91,14 +91,19 @@ Load `skills/secretzero-agent-adopt/SKILL.md` for the full adopt/restore playboo
 4. Re-run command until both arrays are empty.
 5. Continue downstream only after clean completion.
 
-## API Parity
+## API / MCP parity
 
-Use API when running remote orchestration:
+Use the REST API when running remote orchestration, or **`secretzero-mcp`** when the agent host supports MCP:
 
-- `POST /agent/sync` with `{ dry_run, web, lockfile?, sz_agent? }`
-- For Vector 2 polling: `GET /agent/sync/web/{session_id}`
+- **Local MCP (stdio):** `SECRETZERO_CONFIG`, `SZ_AGENT_MODE=true` — see `docs/user-guide/mcp.md`
+- **Remote MCP (HTTP bridge):** `SZ_MCP_BACKEND=http`, `SECRETZERO_API_URL`, `SECRETZERO_API_KEY`
 
-Treat API payload semantics the same as CLI semantics.
+Agent sync (API or MCP):
+
+- `POST /agent/sync` or MCP `agent_sync` with `{ dry_run, web, refresh, sz_agent? }`
+- Vector 2: MCP `agent_sync_web_start` / `agent_sync_web_poll` or `GET /agent/sync/web/{session_id}`
+
+Treat API/MCP payload semantics the same as CLI `--json` output.
 
 ## Operational Playbooks
 

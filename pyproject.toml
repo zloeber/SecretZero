@@ -126,6 +126,10 @@ api = [
     "uvicorn[standard]>=0.49.0",
     "python-multipart>=0.0.32",
 ]
+mcp = [
+    "mcp>=1.6",
+    "httpx>=0.28.1",
+]
 docs = [
     "mkdocs>=1.6.1",
     "mkdocs-material>=9.7.6",
@@ -169,11 +173,13 @@ all = [
     "uvicorn[standard]>=0.49.0",
     "python-multipart>=0.0.32",
     "keepercommander>=18.0.7",
+    "mcp>=1.6",
 ]
 
 [project.scripts]
 secretzero = "secretzero.cli:main"
 secretzero-api = "secretzero.api.server:run"
+secretzero-mcp = "secretzero.mcp.server:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/secretzero"]

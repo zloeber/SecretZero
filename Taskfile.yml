@@ -256,6 +256,13 @@ tasks:
         uv sync --frozen --all-extras
         uv run pytest --maxfail=1 --disable-warnings -v tests --ignore=tests/e2e
 
+  test:mcp:
+    desc: Run MCP server and API parity unit tests
+    cmds:
+      - |
+        uv sync --frozen --extra dev --extra mcp
+        uv run pytest --maxfail=1 --disable-warnings -v tests/test_mcp_*.py tests/test_api_mcp_parity.py
+
   test:e2e:
     desc: Run Tavern HTTP E2E tests (requires dev extras)
     cmds:

@@ -242,18 +242,21 @@ The guided phases are **transport-agnostic**; only the invocation changes.
 | Phase | Hermes chat | SecretZero via MCP / CLI |
 |-------|-------------|---------------------------|
 | 0 Manifest root | Always ask in chat | — |
-| 1 Discovery | Offer yes/no | Tools should wrap `detect` or `discover --local-only --dry-run --format json` |
-| 2 Inventory | Format JSON as markdown table | `list secrets` / `status --format json` |
-| 3 Add/edit loop | Menus + user choices | `secret-types`, `list providers`, `list targets`; write YAML via edit tool |
-| 4 Validate | Report errors | `validate`, `sync --dry-run` (API: `POST /config/validate` where exposed) |
-| 5 Web / seed | Offer dashboard; hand off sync skill | `web` subprocess or `agent sync` tool |
+| 1 Discovery | Offer yes/no | `detect_secrets`, `discover_bindings` MCP tools (or CLI `detect` / `discover`) |
+| 2 Inventory | Format JSON as markdown table | `secrets_list`, `secrets_status` MCP tools (or CLI JSON) |
+| 3 Add/edit loop | Menus + user choices | `catalog_list`, `schema_get`, `providers_list`, `targets_list`; write YAML via edit tool |
+| 4 Validate | Report errors | `secretfile_validate`, `sync_dry_run` MCP tools (or CLI/API) |
+| 5 Web / seed | Offer dashboard; hand off sync skill | `agent_sync`, `agent_sync_web_*` MCP tools, `secretzero web`, or CLI `agent sync` |
 
 **MCP notes:**
 
-- This repo ships **CLI + REST API**, not a first-party MCP server. Bridges expose subprocess tools; tool names may differ from CLI flags.
-- **`detect` / `discover` are CLI-only** today — MCP authoring should call those commands, not Hermes filesystem reads of `.env`.
-- **Do not use MCP `sampling/createMessage`** for discovery. Use SecretZero `detect` / `discover` (metadata-only JSON). Sampling sends file context to the host LLM and increases spill risk versus purpose-built scanners.
-- Leave **sampling disabled** on untrusted SecretZero MCP bridges unless you operate a custom server with an explicit spill policy.
+- This repo ships a **first-party MCP server** (`secretzero-mcp`). Prefer MCP tools over ad-hoc CLI subprocess bridges when the host supports MCP.
+- Install: `uv tool install -U "secretzero[mcp]"` or `uv run --extra mcp secretzero-mcp`. See `docs/user-guide/mcp.md`.
+- **Local stdio:** set `SECRETZERO_CONFIG` and `SZ_AGENT_MODE=true`.
+- **Remote HTTP:** set `SZ_MCP_BACKEND=http`, `SECRETZERO_API_URL`, and `SECRETZERO_API_KEY` (API key required).
+- MCP tools mirror authoring phases: `detect_secrets`, `discover_bindings`, `secrets_list`, `catalog_list`, `secretfile_validate`, `agent_sync`, `agent_sync_web_*`.
+- **Do not use MCP `sampling/createMessage`** for discovery. Use `detect_secrets` / `discover_bindings` (metadata-only JSON).
+- Mutations (`sync_execute`, `rotate_execute`, `agent_adopt`, …) require `SZ_MCP_ALLOW_MUTATIONS=true`.
 - With **`SZ_AGENT_MODE=true`**, co-load `skills/secretzero-handle/SKILL.md`; inventory and validate still work; avoid `render` and plaintext dumps.
 
 ### Definition of done (guided session)
