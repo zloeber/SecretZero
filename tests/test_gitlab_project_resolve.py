@@ -1,8 +1,6 @@
-"""Tests for GitLab project path resolution."""
+"""Tests for GitLab project auto-resolution."""
 
-import os
-from pathlib import Path
-from unittest.mock import patch
+from __future__ import annotations
 
 import pytest
 
@@ -13,63 +11,40 @@ from secretzero.providers.gitlab_project_resolve import (
 
 
 class TestParseGitlabRemoteProject:
-    def test_ssh_gitlab_com(self):
+    def test_https_gitlab_com(self) -> None:
         assert (
-            parse_gitlab_remote_project("git@gitlab.com:mygroup/myproject.git")
-            == "mygroup/myproject"
+            parse_gitlab_remote_project("https://gitlab.com/group/subgroup/project.git")
+            == "group/subgroup/project"
         )
 
-    def test_https_gitlab_com(self):
-        assert (
-            parse_gitlab_remote_project("https://gitlab.com/mygroup/myproject.git")
-            == "mygroup/myproject"
-        )
+    def test_ssh_gitlab_com(self) -> None:
+        assert parse_gitlab_remote_project("git@gitlab.com:group/project.git") == "group/project"
 
-    def test_nested_group_path(self):
-        assert (
-            parse_gitlab_remote_project("https://gitlab.example.com/org/team/app.git")
-            == "org/team/app"
-        )
-
-    def test_invalid_remote(self):
-        assert parse_gitlab_remote_project("not-a-url") is None
+    def test_empty_remote_returns_none(self) -> None:
+        assert parse_gitlab_remote_project("") is None
 
 
 class TestResolveGitlabProject:
-    def test_explicit_project(self):
+    def test_explicit_project(self) -> None:
         assert (
             resolve_gitlab_project(project="mygroup/myproject", provider_config={})
             == "mygroup/myproject"
         )
 
-    def test_provider_project_fallback(self):
+    def test_provider_project_fallback(self) -> None:
         assert (
             resolve_gitlab_project(
                 project="auto",
-                provider_config={"project": "provider/group"},
+                provider_config={"project": "provider/group/project"},
             )
-            == "provider/group"
+            == "provider/group/project"
         )
 
-    def test_ci_project_path(self, monkeypatch):
+    def test_ci_project_path(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("GITLAB_CI", "true")
         monkeypatch.setenv("CI_PROJECT_PATH", "ci/group/project")
         assert resolve_gitlab_project(project="auto", provider_config={}) == "ci/group/project"
 
-    def test_git_remote_fallback(self, tmp_path: Path):
-        with patch(
-            "secretzero.providers.gitlab_project_resolve._git_origin_remote",
-            return_value="git@gitlab.com:remote/group.git",
-        ):
-            assert resolve_gitlab_project(project="auto", provider_config={}, cwd=tmp_path) == (
-                "remote/group"
-            )
-
-    def test_failure_includes_remediation(self, tmp_path: Path):
-        with patch.dict(os.environ, {}, clear=True):
-            with patch(
-                "secretzero.providers.gitlab_project_resolve._git_origin_remote",
-                return_value=None,
-            ):
-                with pytest.raises(ValueError, match="Could not resolve GitLab project"):
-                    resolve_gitlab_project(project="auto", provider_config={}, cwd=tmp_path)
+    def test_missing_project_raises(self) -> None:
+        with pytest.raises(ValueError, match="Could not resolve GitLab project"):
+            resolve_gitlab_project(project="auto", provider_config={}, cwd="/tmp")

@@ -21,6 +21,8 @@ _AUTO_GENERATOR_KINDS = {
     "random_string",
     "uuid",
     "entra-agent-blueprint",
+    "github_pat",
+    "gitlab_project_token",
 }
 
 _SZ_AGENT_MANUAL_FAIL = (

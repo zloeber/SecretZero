@@ -463,7 +463,13 @@ def create_network_web_app(
             resolved_target_profile=state.resolved_target_profile,
         )
         id_pf = manifest_data.get("identity_preflight")
-        all_rows = build_secret_rows(state.secretfile, state.lockfile, identity_preflight=id_pf)
+        all_rows = build_secret_rows(
+            state.secretfile,
+            state.lockfile,
+            identity_preflight=id_pf,
+            secretfile_path=secretfile_path,
+            secretfile_content=secretfile_content,
+        )
         row_total = len(all_rows)
         unsynced_count = sum(1 for r in all_rows if r.get("is_unsynced"))
         if list_filter == "unsynced":

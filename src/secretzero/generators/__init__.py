@@ -4,6 +4,7 @@ from secretzero.generators.azure_app_reg import AzureAppRegGenerator
 from secretzero.generators.base import BaseGenerator
 from secretzero.generators.entra_agent_blueprint import EntraAgentBlueprintGenerator
 from secretzero.generators.github_pat import GitHubPATGenerator
+from secretzero.generators.gitlab_project_token import GitLabProjectTokenGenerator
 from secretzero.generators.provider_backed import ProviderBackedGenerator
 from secretzero.generators.random_password import RandomPasswordGenerator
 from secretzero.generators.random_string import RandomStringGenerator
@@ -15,6 +16,7 @@ __all__ = [
     "BaseGenerator",
     "EntraAgentBlueprintGenerator",
     "GitHubPATGenerator",
+    "GitLabProjectTokenGenerator",
     "ProviderBackedGenerator",
     "RandomPasswordGenerator",
     "RandomStringGenerator",

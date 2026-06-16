@@ -169,6 +169,25 @@ class SyncEngine:
                 valid.add(f"{target_config.provider}/{target_config.kind}/")
         return valid
 
+    def _definition_hash_for(self, secret: Secret) -> str:
+        from secretzero.secret_definition_hash import hash_secret_definition
+
+        return hash_secret_definition(secret, secretfile=self.secretfile)
+
+    def _record_secret_definition_hash(self, secret: Secret) -> None:
+        """Persist the current Secretfile definition hash for a tracked secret."""
+        if not self.lockfile.has_secret(secret.name):
+            return
+        self.lockfile.record_definition_hash(secret.name, self._definition_hash_for(secret))
+
+    def _record_template_definition_hashes(self, secret: Secret, template: Template) -> None:
+        """Persist template-level definition hash on each tracked field entry."""
+        def_hash = self._definition_hash_for(secret)
+        for field_name in template.fields:
+            field_secret_name = f"{secret.name}.{field_name}"
+            if self.lockfile.has_secret(field_secret_name):
+                self.lockfile.record_definition_hash(field_secret_name, def_hash)
+
     def refresh_lockfile_targets(
         self,
         *,
@@ -970,6 +989,8 @@ class SyncEngine:
         if secret.one_time and self.lockfile.has_secret(secret.name) and not force_rotation:
             result["skipped"] = True
             result["reason"] = "One-time secret already exists"
+            if not dry_run:
+                self._record_secret_definition_hash(secret)
             return result
 
         # Check if secret exists in lockfile and has all targets tracked
@@ -1007,6 +1028,8 @@ class SyncEngine:
         if not targets_to_sync and (secret_exists or len(secret.targets) > 0):
             result["skipped"] = True
             result["reason"] = "All targets already synced"
+            if not dry_run:
+                self._record_secret_definition_hash(secret)
             return result
 
         # Get or generate secret value
@@ -1075,6 +1098,7 @@ class SyncEngine:
             secret_value = self._normalize_secret_value(secret_value)
 
         cache[secret.name] = secret_value
+        def_hash = self._definition_hash_for(secret)
 
         # Store in targets (only targets that need syncing)
         if not dry_run:
@@ -1097,7 +1121,11 @@ class SyncEngine:
                         target_config
                     )
                     self.lockfile.add_secret(
-                        secret.name, secret_value, target_id=target_id, is_rotation=force_rotation
+                        secret.name,
+                        secret_value,
+                        target_id=target_id,
+                        is_rotation=force_rotation,
+                        definition_hash=def_hash,
                     )
                     self.lockfile.record_target_update(
                         secret.name,
@@ -1108,12 +1136,18 @@ class SyncEngine:
             # If secret has no targets, still persist its hash in lockfile.
             if len(targets_to_sync) == 0 and secret_value is not None:
                 self.lockfile.add_secret(
-                    secret.name, secret_value, target_id=None, is_rotation=force_rotation
+                    secret.name,
+                    secret_value,
+                    target_id=None,
+                    is_rotation=force_rotation,
+                    definition_hash=def_hash,
                 )
                 result["stored"] = True
             elif any_target_stored:
                 # Mark as stored if at least one target succeeded
                 result["stored"] = True
+            else:
+                self._record_secret_definition_hash(secret)
         else:
             result["dry_run"] = True
             for target_config in targets_to_sync:
@@ -1284,6 +1318,9 @@ class SyncEngine:
                     )
 
             result["fields"].append(field_result)
+
+        if not dry_run:
+            self._record_template_definition_hashes(secret, template)
 
         return result
 

@@ -41,8 +41,15 @@ def _class_path(cls: type | None) -> str | None:
     return f"{cls.__module__}:{cls.__qualname__}"
 
 
-def _generator_entry(registry: BundleRegistry, kind: str, *, bundle: str | None) -> dict[str, Any]:
+def _generator_entry(
+    registry: BundleRegistry,
+    kind: str,
+    *,
+    bundle: str | None,
+    generator_details: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     cls = registry.get_generator_class(kind)
+    details = (generator_details or {}).get(kind, {})
     entry: dict[str, Any] = {
         "kind": kind,
         "bundle": bundle,
@@ -50,6 +57,12 @@ def _generator_entry(registry: BundleRegistry, kind: str, *, bundle: str | None)
         "description": _class_description(cls),
         "loaded": cls is not None,
     }
+    if details.get("description"):
+        entry["description"] = details["description"]
+    if details.get("config"):
+        entry["config"] = details["config"]
+    if details.get("example"):
+        entry["example"] = details["example"]
     if cls is not None:
         provider_key = getattr(cls, "PROVIDER_CONFIG_KEY", None)
         if provider_key:
@@ -176,7 +189,22 @@ def build_bundle_catalog(
     generators: list[dict[str, Any]] = []
     for gen_kind in registry.list_generator_kinds():
         bundle_name = generator_bundles.get(gen_kind, _CORE_BUNDLE)
-        generators.append(_generator_entry(registry, gen_kind, bundle=bundle_name))
+        provider_cls = (
+            registry.get_provider_class(bundle_name)
+            if bundle_name not in (_CORE_BUNDLE, _LOCAL_BUNDLE)
+            else None
+        )
+        generator_details = (
+            getattr(provider_cls, "generator_details", None) if provider_cls else None
+        )
+        generators.append(
+            _generator_entry(
+                registry,
+                gen_kind,
+                bundle=bundle_name,
+                generator_details=generator_details,
+            )
+        )
 
     targets: list[dict[str, Any]] = []
     for target_kind in registry.list_target_kinds():
@@ -301,8 +329,14 @@ def _bundle_catalog_entry(
     provider_cls: type | None,
 ) -> dict[str, Any]:
     target_details = getattr(provider_cls, "target_details", None) if provider_cls else None
+    generator_details = getattr(provider_cls, "generator_details", None) if provider_cls else None
     generators = [
-        _generator_entry(registry, kind, bundle=manifest.name)
+        _generator_entry(
+            registry,
+            kind,
+            bundle=manifest.name,
+            generator_details=generator_details,
+        )
         for kind in sorted(manifest.generators)
     ]
     targets = [

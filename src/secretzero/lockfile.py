@@ -29,6 +29,10 @@ class SecretLockEntry(BaseModel):
     updated_at: str
     last_rotated: str | None = None
     rotation_count: int = 0
+    definition_hash: str | None = Field(
+        default=None,
+        description="SHA-256 of the Secretfile secret definition at last sync",
+    )
     targets: dict[str, str] = Field(default_factory=dict)  # target_id -> hash
     target_provenance: dict[str, list[TargetUpdate]] = Field(
         default_factory=dict,
@@ -121,6 +125,7 @@ class Lockfile(BaseModel):
         secret_value: Any,
         target_id: str | None = None,
         is_rotation: bool = False,
+        definition_hash: str | None = None,
     ) -> None:
         """Add or update a secret in the lockfile.
 
@@ -129,6 +134,7 @@ class Lockfile(BaseModel):
             secret_value: Value to hash and track
             target_id: Optional target identifier
             is_rotation: Whether this update is a rotation
+            definition_hash: Optional Secretfile definition hash for drift tracking
         """
         value_hash = self._hash_value(secret_value)
         now = datetime.now(UTC).isoformat()
@@ -156,6 +162,16 @@ class Lockfile(BaseModel):
         # Track target-specific hash if provided
         if target_id:
             entry.targets[target_id] = value_hash
+
+        if definition_hash is not None:
+            entry.definition_hash = definition_hash
+
+    def record_definition_hash(self, secret_name: str, definition_hash: str) -> None:
+        """Persist the Secretfile definition hash for an existing lockfile entry."""
+        entry = self.secrets.get(secret_name)
+        if entry is None:
+            return
+        entry.definition_hash = definition_hash
 
     def get_secret_hash(self, secret_name: str) -> str | None:
         """Get the hash of a secret.
