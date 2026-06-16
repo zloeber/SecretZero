@@ -1,8 +1,6 @@
 """FastAPI application for SecretZero API."""
 
-import inspect
 import os
-import re
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, status
@@ -10,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
-from secretzero import __version__, generators, targets
+from secretzero import __version__
 from secretzero.agent import (
     AgentSecretSynchronizer,
     build_agent_sync_json_payload,
@@ -59,28 +57,6 @@ from secretzero.models import AgentMode, Secretfile
 from secretzero.policy import PolicyEngine
 from secretzero.rotation import should_rotate_secret
 from secretzero.sync import SyncEngine
-
-
-def _class_name_to_snake_case(name: str, suffix: str) -> str:
-    """Convert a class name to snake_case type name, removing a suffix.
-
-    Args:
-        name: Class name (e.g., SSMParameterTarget)
-        suffix: Suffix to remove (e.g., Target, Generator)
-
-    Returns:
-        snake_case type name (e.g., ssm_parameter)
-    """
-    # Remove the suffix
-    if name.endswith(suffix):
-        name = name[: -len(suffix)]
-
-    # Insert underscores before uppercase letters that follow lowercase letters or digits
-    s1 = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", name)
-    # Insert underscores before uppercase letters that are followed by lowercase letters
-    # when preceded by multiple uppercase letters (handles acronyms like SSM, KV)
-    s2 = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", s1)
-    return s2.lower()
 
 
 def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
@@ -1059,23 +1035,25 @@ def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
     @app.get("/secret-types", response_model=SecretTypesResponse)
     async def get_secret_types():
         """List all available secret generator and target types."""
-        generator_types = []
-        for name in dir(generators):
-            if name.endswith("Generator") and not name.startswith("_"):
-                obj = getattr(generators, name)
-                if inspect.isclass(obj) and obj != generators.BaseGenerator:
-                    type_name = _class_name_to_snake_case(name, "Generator")
-                    description = (obj.__doc__ or "").strip().split("\n")[0]
-                    generator_types.append({"type": type_name, "description": description})
+        from secretzero.bundle_catalog import build_bundle_catalog
 
-        target_types = []
-        for name in dir(targets):
-            if name.endswith("Target") and not name.startswith("_"):
-                obj = getattr(targets, name)
-                if inspect.isclass(obj) and obj != targets.BaseTarget:
-                    type_name = _class_name_to_snake_case(name, "Target")
-                    description = (obj.__doc__ or "").strip().split("\n")[0]
-                    target_types.append({"type": type_name, "description": description})
+        catalog = build_bundle_catalog()
+        generator_types = [
+            {
+                "type": entry["kind"],
+                "description": entry.get("description") or "",
+            }
+            for entry in catalog.get("generators", [])
+            if entry.get("loaded")
+        ]
+        target_types = [
+            {
+                "type": entry["kind"],
+                "description": entry.get("description") or "",
+            }
+            for entry in catalog.get("targets", [])
+            if entry.get("loaded")
+        ]
 
         return SecretTypesResponse(
             generators=sorted(generator_types, key=lambda x: x["type"]),

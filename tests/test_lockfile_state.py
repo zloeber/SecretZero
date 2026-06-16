@@ -4,6 +4,7 @@ from secretzero.lockfile import Lockfile
 from secretzero.lockfile_state import (
     lock_hash_for_target,
     sync_state_for_secret_target,
+    sync_state_for_target,
     target_id,
 )
 from secretzero.models import TargetConfig
@@ -35,3 +36,11 @@ def test_lock_hash_for_target_supports_legacy_file_target_id() -> None:
 
     resolved = lock_hash_for_target(entry, target_id(file_target), file_target)
     assert resolved == entry.hash
+
+
+def test_sync_state_for_target_definition_drift() -> None:
+    lockfile = Lockfile()
+    lockfile.add_secret("api_key", "value", target_id="local/file/.env")
+    entry = lockfile.get_secret_info("api_key")
+    assert entry is not None
+    assert sync_state_for_target(entry, entry.hash, definition_drift=True) == "drift"

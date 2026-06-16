@@ -1027,12 +1027,23 @@ def status(
         return
 
     _show_status_compact(
-        config=config, lock=lock, lockfile_path=lockfile_path, sync_readiness=sync_readiness
+        config=config,
+        lock=lock,
+        lockfile_path=lockfile_path,
+        sync_readiness=sync_readiness,
+        secretfile_path=file_path,
+        secretfile_content=secretfile_content,
     )
 
 
 def _show_status_compact(
-    config, lock: Lockfile, lockfile_path: Path, sync_readiness: dict[str, Any]
+    config,
+    lock: Lockfile,
+    lockfile_path: Path,
+    sync_readiness: dict[str, Any],
+    *,
+    secretfile_path: Path | None = None,
+    secretfile_content: str | None = None,
 ) -> None:
     """Show compact, relation-focused status mapping for secrets and targets."""
     console.print("[bold]Secret -> Target Status[/bold]")
@@ -1063,7 +1074,15 @@ def _show_status_compact(
 
         state_counts = {"synced": 0, "pending": 0, "unknown": 0}
         for idx, target in enumerate(secret.targets):
-            target_state = sync_state_for_secret_target(lock, secret.name, target)
+            target_state = sync_state_for_secret_target(
+                lock,
+                secret.name,
+                target,
+                secret=secret,
+                secretfile=config,
+                secretfile_path=secretfile_path,
+                secretfile_content=secretfile_content,
+            )
             provider_state = provider_status.get(target.provider)
             arrow = _status_arrow_for_target(
                 target_state, provider_state, provider_access.get(target.provider)

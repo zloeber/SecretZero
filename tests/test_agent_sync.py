@@ -616,3 +616,12 @@ def test_secret_supports_automatic_generation_static_needs_prompt() -> None:
 def test_secret_supports_automatic_generation_entra_blueprint() -> None:
     s = _make_secret("n", "entra-agent-blueprint", {"provider": "entra_agent_id", "spec": {}})
     assert secret_supports_automatic_generation(s) is True
+
+
+def test_secret_supports_automatic_generation_gitlab_project_token() -> None:
+    s = _make_secret(
+        "n",
+        "gitlab_project_token",
+        {"provider": "gitlab", "token_name": "ci", "scopes": ["api"]},
+    )
+    assert secret_supports_automatic_generation(s) is True

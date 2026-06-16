@@ -148,6 +148,29 @@ class GitLabProvider(BaseProvider):
       config:
         url: https://gitlab.example.com
         token: ${GITLAB_TOKEN}"""
+    generator_details = {
+        "gitlab_project_token": {
+            "description": "Create a scoped GitLab project access token via the GitLab API",
+            "config": {
+                "provider": "Provider alias from providers: (required)",
+                "project": "GitLab project ID or path, or auto (default: auto)",
+                "token_name": "Token name in GitLab (required)",
+                "scopes": "List of GitLab scopes, e.g. [api, read_repository] (required)",
+                "access_level": "GitLab access level integer (default: 40 Maintainer)",
+                "expires_in_days": "Days until expiration (default: 90)",
+                "description": "Optional token description (max 255 chars)",
+                "revoke_existing": "Revoke prior tokens with the same name first (default: true)",
+            },
+            "example": """secrets:
+  - name: ci_deploy_token
+    kind: gitlab_project_token
+    config:
+      provider: gitlab
+      project: auto
+      token_name: secretzero-ci-deploy
+      scopes: [read_repository, write_repository]""",
+        },
+    }
     target_details = {
         "gitlab_variable": {
             "description": "GitLab CI/CD project variable",

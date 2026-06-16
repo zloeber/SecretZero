@@ -527,6 +527,8 @@ class TestSecretTypesEndpoint:
         generator = data["generators"][0]
         assert "type" in generator
         assert "description" in generator
+        generator_types = {item["type"] for item in data["generators"]}
+        assert "gitlab_project_token" in generator_types
 
     def test_secret_types_has_targets(self, client):
         """Test that targets are listed."""

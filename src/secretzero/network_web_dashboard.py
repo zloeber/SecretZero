@@ -11,9 +11,9 @@ from secretzero.agent import secret_supports_automatic_generation
 from secretzero.generators.traits import secret_prompts_like_static
 from secretzero.lockfile import Lockfile
 from secretzero.lockfile_state import (
+    definition_drift_for_secret,
     kind_str,
-    lock_hash_for_target,
-    sync_state_for_target,
+    sync_state_for_secret_target,
     target_id,
 )
 from secretzero.models import AgentInstructions, Secret, Secretfile, TargetConfig
@@ -151,6 +151,7 @@ _ARROW_TITLE = {
     "synced": "Lockfile shows this target has the current secret value (hash matches).",
     "pending": "This target is unsynced — run Sync.",
     "drift": "Recorded hash for this target differs from the current secret hash — re-sync.",
+    "definition_drift": "Secretfile definition changed since last sync — re-sync.",
 }
 
 
@@ -334,11 +335,21 @@ def build_secret_rows(
     secretfile: Secretfile,
     lockfile: Lockfile,
     identity_preflight: dict[str, Any] | None = None,
+    *,
+    secretfile_path: Path | None = None,
+    secretfile_content: str | None = None,
 ) -> list[dict[str, Any]]:
     """One card per secret: grouped targets, per-target sync arrows, agent instructions."""
     rows: list[dict[str, Any]] = []
     for sec in secretfile.secrets:
         entry = lockfile.secrets.get(sec.name)
+        secret_definition_drift = definition_drift_for_secret(
+            lockfile,
+            sec,
+            secretfile=secretfile,
+            secretfile_path=secretfile_path,
+            secretfile_content=secretfile_content,
+        )
         has_targets = bool(sec.targets)
         target_groups: list[dict[str, Any]] = []
         if has_targets:
@@ -350,12 +361,24 @@ def build_secret_rows(
                     order.append(key)
                     bucket[key] = []
                 tid = target_id(tc)
-                locked = lock_hash_for_target(entry, tid, tc)
-                sync_state = sync_state_for_target(entry, locked)
+                sync_state = sync_state_for_secret_target(
+                    lockfile,
+                    sec.name,
+                    tc,
+                    secret=sec,
+                    secretfile=secretfile,
+                    secretfile_path=secretfile_path,
+                    secretfile_content=secretfile_content,
+                )
                 lane_ui = build_target_lane_ui(sec.name, tc)
                 blocked, block_reason = lane_identity_blocked(tc.provider, identity_preflight)
                 arrow_css = "unknown" if blocked else sync_state
-                arrow_title = block_reason if blocked else _ARROW_TITLE[sync_state]
+                if secret_definition_drift and not blocked:
+                    arrow_title = _ARROW_TITLE["definition_drift"]
+                elif blocked:
+                    arrow_title = block_reason
+                else:
+                    arrow_title = _ARROW_TITLE[sync_state]
                 bucket[key].append(
                     {
                         "dest": lane_ui["dest"],

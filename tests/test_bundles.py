@@ -454,6 +454,12 @@ class TestGeneratorProviderInjectionAttributes:
         assert ProviderBackedGenerator.PROVIDER_CONFIG_KEY == "provider"
         assert ProviderBackedGenerator.PROVIDER_INJECTION_KEY == "provider"
 
+    def test_gitlab_project_token_has_injection_keys(self) -> None:
+        from secretzero.generators.gitlab_project_token import GitLabProjectTokenGenerator
+
+        assert GitLabProjectTokenGenerator.PROVIDER_CONFIG_KEY == "provider"
+        assert GitLabProjectTokenGenerator.PROVIDER_INJECTION_KEY == "_provider_instance"
+
 
 # ---------------------------------------------------------------------------
 # SyncEngine – provider alias when kind omitted

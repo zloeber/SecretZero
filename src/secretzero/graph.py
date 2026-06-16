@@ -53,7 +53,22 @@ class SecretGraphGenerator:
         """Return sync state for target: synced | pending | drift."""
         if self.lockfile is None:
             return "pending"
-        return sync_state_for_secret_target(self.lockfile, secret_name, target)
+        secret = next((s for s in self.secretfile.secrets if s.name == secret_name), None)
+        secretfile_content = None
+        if self.secretfile_path.exists():
+            try:
+                secretfile_content = self.secretfile_path.read_text()
+            except OSError:
+                secretfile_content = None
+        return sync_state_for_secret_target(
+            self.lockfile,
+            secret_name,
+            target,
+            secret=secret,
+            secretfile=self.secretfile,
+            secretfile_path=self.secretfile_path,
+            secretfile_content=secretfile_content,
+        )
 
     def _mermaid_edge_class(self, lock_state: str, provider_alias: str) -> str:
         """Map lockfile + identity preflight to Mermaid linkStyle token."""

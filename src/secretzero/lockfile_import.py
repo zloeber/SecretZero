@@ -71,8 +71,12 @@ def _apply_plain_import(
         out["detail"] = "dry_run"
         return out
 
+    from secretzero.secret_definition_hash import hash_secret_definition
+
+    def_hash = hash_secret_definition(secret, secretfile=engine.secretfile)
+
     for tid in matched_targets:
-        engine.lockfile.add_secret(name, value, target_id=tid)
+        engine.lockfile.add_secret(name, value, target_id=tid, definition_hash=def_hash)
         engine.lockfile.record_target_update(name, tid, actor=_import_actor(engine))
 
     out["status"] = "imported" if not entry else "updated"
@@ -98,6 +102,10 @@ def _import_template_fields(
 
     any_change = False
     any_error = False
+
+    from secretzero.secret_definition_hash import hash_secret_definition
+
+    def_hash = hash_secret_definition(secret, secretfile=engine.secretfile)
 
     for field_name, field_def in template.fields.items():
         field_secret_name = f"{name}.{field_name}"
@@ -156,7 +164,9 @@ def _import_template_fields(
             continue
 
         for tid in matched:
-            engine.lockfile.add_secret(field_secret_name, value, target_id=tid)
+            engine.lockfile.add_secret(
+                field_secret_name, value, target_id=tid, definition_hash=def_hash
+            )
             engine.lockfile.record_target_update(
                 field_secret_name, tid, actor=_import_actor(engine)
             )

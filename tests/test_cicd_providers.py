@@ -247,6 +247,15 @@ class TestGitLabProvider:
         except ImportError:
             pytest.skip("python-gitlab not installed")
 
+    def test_gitlab_bundle_lists_project_token_generator(self):
+        """GitLab bundle manifest should expose gitlab_project_token generator kind."""
+        from secretzero.bundles.registry import get_bundle_registry
+
+        manifest = get_bundle_registry().get_bundle("gitlab")
+        assert manifest is not None
+        assert "gitlab_project_token" in manifest.generators
+        assert "gitlab_project_token" in manifest.generator_kinds
+
 
 class TestJenkinsProvider:
     """Tests for Jenkins provider."""

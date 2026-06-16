@@ -227,6 +227,27 @@ tasks:
         uv sync --frozen --all-extras
         uv run pip-audit
         uv run bandit -r src -ll
+
+  deps:sync-floors:
+    desc: Align pyproject.toml >= floors with resolved versions in uv.lock
+    cmds:
+      - python3 scripts/sync_pyproject_dep_floors.py
+
+  deps:upgrade:
+    desc: Upgrade locked dependencies and sync pyproject.toml version floors
+    cmds:
+      - |
+        uv lock --upgrade
+        python3 scripts/sync_pyproject_dep_floors.py
+        uv lock --upgrade
+        python3 scripts/sync_pyproject_dep_floors.py
+        uv sync --all-extras
+
+  deps:upgrade:verify:
+    desc: Upgrade dependencies then run full QA gate (tests, security, validations, docs links)
+    cmds:
+      - task: deps:upgrade
+      - ./scripts/agent.pre-commit.sh --mode full --quiet
   
   test:
     desc: Run the tests

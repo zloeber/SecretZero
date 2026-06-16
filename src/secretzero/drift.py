@@ -121,6 +121,36 @@ class DriftDetector:
             if result is not None:
                 return result
 
+        secretfile_content = (
+            self.secretfile_path.read_text() if self.secretfile_path.exists() else None
+        )
+        from secretzero.lockfile_state import definition_drift_for_secret
+        from secretzero.secret_definition_hash import (
+            hash_secret_definition,
+            stored_definition_hash,
+        )
+
+        if definition_drift_for_secret(
+            self.lockfile,
+            secret,
+            secretfile=self.config,
+            secretfile_path=self.secretfile_path,
+            secretfile_content=secretfile_content,
+        ):
+            return DriftStatus(
+                secret_name=secret.name,
+                has_drift=True,
+                message="Secretfile definition changed since last sync",
+                details={
+                    "reason": "definition_changed",
+                    "stored_definition_hash": stored_definition_hash(self.lockfile, secret),
+                    "current_definition_hash": hash_secret_definition(
+                        secret, secretfile=self.config
+                    ),
+                    "targets": targets,
+                },
+            )
+
         # Check if we can verify drift against targets
         # For now, we'll focus on file targets which we can read
         file_targets = self._get_file_targets(secret)
