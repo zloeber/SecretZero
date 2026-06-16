@@ -1,6 +1,7 @@
 """Unit tests for bundled skills installer helpers."""
 
 import pytest
+from pathlib import Path
 
 from secretzero.skills.installer import (
     autodetect_targets,
@@ -15,6 +16,21 @@ def test_list_bundled_skills_includes_public_skills() -> None:
     bundled = list_bundled_skills()
     assert "secretzero-agent" in bundled
     assert "secretzero-author" in bundled
+
+
+def test_package_data_skills_directory_exists() -> None:
+    """Bundled skills must ship in the wheel, not only via repo-root fallback."""
+    import secretzero
+
+    package_skills = Path(secretzero.__file__).resolve().parent / "data" / "skills"
+    assert package_skills.is_dir(), "src/secretzero/data/skills must exist for packaging"
+    names = sorted(
+        item.name
+        for item in package_skills.iterdir()
+        if item.is_dir() and (item / "SKILL.md").exists()
+    )
+    assert "secretzero-agent" in names
+    assert "secretzero-author" in names
 
 
 def test_resolve_targets_respects_disable() -> None:

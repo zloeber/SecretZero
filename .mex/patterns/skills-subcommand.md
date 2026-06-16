@@ -27,6 +27,10 @@ Commands:
 
 `pyproject.toml` includes `[tool.setuptools.package-data] secretzero = ["data/**/*"]`.
 
+Run `task skills:sync` (or `uv run python scripts/sync_bundled_skills.py`) before building wheels. `task cli:build` and CI `build-tests` run sync automatically and assert the wheel contains `data/skills/`.
+
+**Do not** ignore `src/secretzero/data/` in `.gitignore` — only root-level `/data/` is ignored so package data is committed and published wheels include bundled skills.
+
 `DATA_PATH` in `secretzero.__init__` resolves bundled skills; override with `SECRETZERO_SKILLS_SOURCE_ROOT` for tests.
 
 ## Adding a new bundled skill
