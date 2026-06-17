@@ -235,4 +235,18 @@ jobs:
 
       - name: Build Tests - ${{ matrix.os }}
         run: |
+          uv run python scripts/sync_bundled_skills.py
           uv build
+          python3 - <<'PY'
+          import glob
+          import sys
+          import zipfile
+
+          wheel = sorted(glob.glob("dist/*.whl"))[-1]
+          with zipfile.ZipFile(wheel) as archive:
+              skill_files = [name for name in archive.namelist() if "data/skills/" in name]
+          if not skill_files:
+              print("Wheel is missing bundled skills package data", file=sys.stderr)
+              sys.exit(1)
+          print(f"Wheel includes {len(skill_files)} bundled skill file(s)")
+          PY

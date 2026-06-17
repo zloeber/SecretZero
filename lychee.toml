@@ -22,4 +22,6 @@ exclude = [
   '^https://kubernetes\.io/',
   '^https://docs\.microsoft\.com',
   '^https://docs\.aws\.amazon\.com',
+  # iso.org returns 403 to automated link checkers; URL is valid in browsers.
+  '^https://www\.iso\.org/',
 ]

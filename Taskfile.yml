@@ -140,9 +140,15 @@ tasks:
       - task: docs:build
       - task: build:image
 
+  skills:sync:
+    desc: Sync repo-root public skills into package data for wheel bundling
+    cmds:
+      - uv run python scripts/sync_bundled_skills.py
+
   cli:build:
     desc: Build CLI package (sdist + wheel)
     cmds:
+      - task: skills:sync
       - rm -rf dist
       - uv build
 

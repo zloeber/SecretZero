@@ -37,7 +37,7 @@ site
 # Generated before `mkdocs build` / CI docs job (copy of repo-root schema for publishing)
 docs/Secretfile.schema.json
 localstack-data/
-data
+/data/
 src/secretzero/_version.py
 node_modules
 .wrangler
