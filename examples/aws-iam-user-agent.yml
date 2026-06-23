@@ -68,8 +68,10 @@ secrets:
       automation_hint: Fully automated via AWS IAM API
       config:
         provider: aws
+        kind: iam_user_credentials
         method: retrieve_iam_user_credentials
-        config:
+        read:
+          name: "{{var.agent_user}}"
           user_name: "{{var.agent_user}}"
           create_if_missing: true
           replace_oldest: true

@@ -33,9 +33,10 @@ The skill executes the full pre-commit validation suite:
 
 1. **Linting** (`task lint`): Python static analysis, unused variables, code quality
 2. **Testing** (`task test`): Full pytest suite (1180+ tests)
-3. **Formatting** (auto): Black code formatting on violations
-4. **Schema validation**: Secretfile manifests
-5. **Documentation links** (optional): Hyperlink validation
+3. **Security scan** (`task security:scan`): `pip-audit` + `bandit`
+4. **Formatting** (auto): Black code formatting on violations
+5. **Schema validation**: Secretfile manifests
+6. **Documentation links** (optional): Hyperlink validation
 
 ### Output
 
@@ -93,6 +94,16 @@ Add assertion: assert caps.get_capability("retrieve_iam_user_credentials") is no
 **Symptom**: Secretfile manifests invalid or out of sync with schema
 
 **Resolution**: Runs `task schema:update` to regenerate schema and example files.
+
+### Security Vulnerabilities
+
+**Symptom**: `pip-audit` reports known vulnerabilities (GHSA/CVE), e.g. vulnerable transitive packages.
+
+**Resolution**:
+- Bump dependency floors in `pyproject.toml` (`[tool.uv.override-dependencies]`)
+- Add package to `exclude-newer-package` when needed to bypass the global recency window
+- Refresh `uv.lock`
+- Re-run `task security:scan` and then full pre-commit validation
 
 ## Invocation
 
@@ -183,6 +194,7 @@ task lint && task test
 | **Import errors** | Missing dependency | ❌ No | Install via `uv pip install` |
 | **Logic errors** | Test assertion fails | ❌ No | User debugs test logic |
 | **Schema drift** | Secretfile.yml vs schema | ✅ Yes | Regenerated via `task schema:update` |
+| **Dependency CVEs** | `pip-audit` vulnerability findings | ⚠️ Partial | Raise floor + refresh lockfile, then re-run scan |
 
 ## Output Interpretation
 

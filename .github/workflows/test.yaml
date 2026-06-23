@@ -199,8 +199,7 @@ jobs:
 
       - name: Security Scans - ${{ matrix.os }}
         run: |
-          uv run pip-audit
-          uv run bandit -r ${{ env.PROJECT_PATH }} -ll
+          task security:scan
 
   build-tests:
     name: Build Tests - ${{ matrix.os }} - ${{ matrix.python-version }}
