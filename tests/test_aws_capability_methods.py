@@ -145,6 +145,79 @@ class TestAWSRetrieveSecret:
             provider.retrieve_secret("my-secret")
 
 
+class TestAWSRetrieveIamUserCredentials:
+    """Tests for AWSProvider.retrieve_iam_user_credentials() method."""
+
+    def test_retrieve_iam_user_credentials_success(self):
+        """Creates a new IAM access key and returns credential dict."""
+        provider = AWSProvider("test-aws", config={"region": "us-east-1"})
+
+        mock_iam = MagicMock()
+        mock_iam.create_access_key.return_value = {
+            "AccessKey": {
+                "AccessKeyId": "AKIA_TEST_KEY",
+                "SecretAccessKey": "test-secret-key",
+                "UserName": "svc-bot",
+                "Status": "Active",
+                "CreateDate": "2026-06-23T12:00:00Z",
+            }
+        }
+        provider.auth = MagicMock()
+        provider.auth.get_client.return_value = mock_iam
+
+        result = provider.retrieve_iam_user_credentials("svc-bot")
+
+        assert result["access_key_id"] == "AKIA_TEST_KEY"
+        assert result["secret_access_key"] == "test-secret-key"
+        assert result["region"] == "us-east-1"
+        assert result["user_name"] == "svc-bot"
+        assert result["status"] == "Active"
+        mock_iam.create_access_key.assert_called_once_with(UserName="svc-bot")
+
+    def test_retrieve_iam_user_credentials_requires_creation(self):
+        """Fails fast when key creation is disabled."""
+        provider = AWSProvider("test-aws", config={"region": "us-east-1"})
+        provider.auth = MagicMock()
+
+        with pytest.raises(ValueError, match="create_if_missing=true"):
+            provider.retrieve_iam_user_credentials("svc-bot", create_if_missing=False)
+
+    def test_retrieve_iam_user_credentials_replaces_oldest_key_on_limit(self):
+        """Deletes the oldest key and retries when IAM key quota is reached."""
+        provider = AWSProvider("test-aws", config={"region": "us-east-1"})
+
+        mock_iam = MagicMock()
+        mock_iam.create_access_key.side_effect = [
+            Exception("LimitExceeded: Cannot exceed quota for AccessKeysPerUser"),
+            {
+                "AccessKey": {
+                    "AccessKeyId": "AKIA_NEW_KEY",
+                    "SecretAccessKey": "new-secret-key",
+                    "UserName": "svc-bot",
+                    "Status": "Active",
+                    "CreateDate": "2026-06-23T12:00:00Z",
+                }
+            },
+        ]
+        mock_iam.list_access_keys.return_value = {
+            "AccessKeyMetadata": [
+                {"AccessKeyId": "AKIA_OLD", "CreateDate": "2025-01-01T00:00:00Z"},
+                {"AccessKeyId": "AKIA_NEWER", "CreateDate": "2025-06-01T00:00:00Z"},
+            ]
+        }
+
+        provider.auth = MagicMock()
+        provider.auth.get_client.return_value = mock_iam
+
+        result = provider.retrieve_iam_user_credentials("svc-bot", replace_oldest=True)
+
+        assert result["access_key_id"] == "AKIA_NEW_KEY"
+        mock_iam.delete_access_key.assert_called_once_with(
+            UserName="svc-bot", AccessKeyId="AKIA_OLD"
+        )
+        assert mock_iam.create_access_key.call_count == 2
+
+
 class TestAWSStoreSecret:
     """Tests for AWSProvider.store_secret() method."""
 
@@ -311,11 +384,12 @@ class TestAWSCapabilityIntegration:
         capabilities = AWSProvider.get_capabilities()
 
         assert capabilities.provider_kind == "aws"
-        assert len(capabilities.capabilities) == 5
+        assert len(capabilities.capabilities) == 6
 
         capability_names = [cap.method.name for cap in capabilities.capabilities]
         assert "generate_password" in capability_names
         assert "retrieve_secret" in capability_names
+        assert "retrieve_iam_user_credentials" in capability_names
         assert "store_secret" in capability_names
         assert "rotate_secret" in capability_names
         assert "delete_secret" in capability_names

@@ -313,10 +313,11 @@ class TestRealProviderCapabilities:
             caps = AWSProvider.get_capabilities()
             assert isinstance(caps, ProviderCapabilities)
             assert caps.provider_kind == "aws"  # From class name (lowercase, 'Provider' stripped)
-            # AWS provider should have 5 capability methods: generate_password, retrieve_secret, store_secret, rotate_secret, delete_secret
-            assert len(caps.capabilities) == 5
+            # AWS provider should have 6 capability methods: generate_password, retrieve_secret, retrieve_iam_user_credentials, store_secret, rotate_secret, delete_secret
+            assert len(caps.capabilities) == 6
             assert caps.get_capability("generate_password") is not None
             assert caps.get_capability("retrieve_secret") is not None
+            assert caps.get_capability("retrieve_iam_user_credentials") is not None
             assert caps.get_capability("store_secret") is not None
             assert caps.get_capability("rotate_secret") is not None
             assert caps.get_capability("delete_secret") is not None

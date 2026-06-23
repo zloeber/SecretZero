@@ -804,6 +804,38 @@ spec:
 
 ## Troubleshooting
 
+## Source: `provider_read` (IAM User Credentials)
+
+You can use the AWS provider as a non-human source to create an IAM access key
+pair and pass the resulting credentials dictionary into a target.
+
+```yaml
+secrets:
+  - name: aws_iam_user_credentials
+    kind: static
+    source:
+      kind: provider_read
+      required: true
+      config:
+        provider: aws
+        kind: iam_user
+        method: retrieve_iam_user_credentials
+        read:
+          name: svc-secretzero-bot
+          replace_oldest: true
+    targets:
+      - provider: aws
+        kind: secrets_manager
+        config:
+          name: /prod/iam/svc-secretzero-bot
+          format: json
+```
+
+Notes:
+- AWS only returns `SecretAccessKey` at create time, so this method creates a new key.
+- If the IAM user already has two keys, set `replace_oldest: true` to rotate safely.
+- Source dictionaries are normalized to JSON payload text for target compatibility.
+
 ### Authentication Errors
 
 **Error**: `AWS authentication failed. Check credentials and configuration.`

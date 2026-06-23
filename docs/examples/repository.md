@@ -110,6 +110,60 @@ secretzero sync
 
 ---
 
+#### aws-iam-user-agent.yml {#aws-iam-user-agent}
+
+**Purpose**: AWS IAM credentials for agent/automation with local .env seeding
+
+**Features**:
+- Dynamic IAM access key generation via `retrieve_iam_user_credentials`
+- Automatic credential rotation every 30 days
+- Local .env.agent file seeding for AWS CLI access
+- AWS Secrets Manager backup target
+- Supports GitHub Actions, CI/CD, and local automation
+
+**Prerequisites**:
+```bash
+pip install secretzero[aws]
+aws configure
+# IAM permissions to create access keys for the target user
+```
+
+**Usage**:
+```bash
+# Get the example
+curl -O https://raw.githubusercontent.com/zloeber/SecretZero/main/examples/aws-iam-user-agent.yml
+mv aws-iam-user-agent.yml Secretfile.yml
+
+# First sync (creates new IAM access key)
+secretzero sync --dry-run
+secretzero sync
+
+# Source the environment
+source .env.agent
+aws s3 ls
+```
+
+**In GitHub Actions**:
+```yaml
+- name: Sync AWS credentials
+  run: secretzero sync -f examples/aws-iam-user-agent.yml
+
+- name: AWS CLI operations
+  run: |
+    source .env.agent
+    aws s3 ls
+    aws ec2 describe-instances
+```
+
+**Perfect For**:
+- CI/CD automation (GitHub Actions, GitLab CI, Jenkins)
+- Local development agents requiring AWS CLI access
+- Temporary service accounts for automation
+- Environments needing automatic credential rotation
+- Agents that cannot use AWS IAM roles directly
+
+---
+
 #### multi-cloud.yml {#multi-cloud}
 
 **Purpose**: Multi-provider (multi-cloud) secret distribution

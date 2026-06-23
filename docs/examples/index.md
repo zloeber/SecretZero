@@ -18,6 +18,7 @@ Access the complete collection of example Secretfiles in the GitHub repository w
 |----------|-------------|--------------|
 | **Local Development** | Simple local-only setup | [local-only.yml](repository.md#local-only) |
 | **AWS Deployment** | Production AWS configuration | [aws-only.yml](repository.md#aws-only) |
+| **AWS Agent Credentials** | IAM credentials for agent automation | [aws-iam-user-agent.yml](repository.md#aws-iam-user-agent) |
 | **Multi-Cloud** | Distribute across providers | [multi-cloud.yml](repository.md#multi-cloud) |
 | **Kubernetes** | Kubernetes native secrets | [kubernetes-basic.yml](repository.md#kubernetes-basic) |
 | **CI/CD Integration** | GitHub Actions, GitLab CI | [github-actions.yml](repository.md#cicd-examples) |

@@ -1,7 +1,9 @@
 """Tests for secret source resolution in SyncEngine."""
 
+import json
+
 from secretzero.lockfile import Lockfile
-from secretzero.models import Secret, SecretSource, SecretSourceKind, Secretfile
+from secretzero.models import Secret, SecretSource, SecretSourceKind, Secretfile, TargetConfig
 from secretzero.sync import SyncEngine
 
 
@@ -141,3 +143,58 @@ def test_provider_read_source_supports_cross_provider_read() -> None:
     detail = result["details"][0]
     assert detail.get("source") == "resolved"
     assert engine.lockfile.has_secret("copied_secret")
+
+
+def test_provider_read_source_iam_credentials_dict_to_target_payload(monkeypatch) -> None:
+    """provider_read can resolve dict payloads from IAM-credential style provider methods."""
+
+    class _IamSourceProvider(_SourceDummyProvider):
+        def retrieve_iam_user_credentials(self, user_name: str, **kwargs):
+            _ = kwargs
+            return {
+                "access_key_id": f"AKIA-{user_name}",
+                "secret_access_key": "secret-key-value",
+                "region": "us-east-1",
+            }
+
+    sf = Secretfile(
+        secrets=[
+            Secret(
+                name="aws_creds_bundle",
+                kind="static",
+                source=SecretSource(
+                    kind=SecretSourceKind.PROVIDER_READ,
+                    config={
+                        "provider": "aws_src",
+                        "kind": "iam_user",
+                        "method": "retrieve_iam_user_credentials",
+                        "read": {"name": "svc-bot"},
+                    },
+                ),
+                targets=[TargetConfig(provider="local", kind="file", config={"path": ".env.test"})],
+            )
+        ]
+    )
+    engine = SyncEngine(sf, Lockfile())
+    engine._providers["aws_src"] = _IamSourceProvider()
+
+    captured: dict[str, str] = {}
+
+    def _capture_store(secret_name, secret_value, target_config):
+        _ = target_config
+        captured[secret_name] = secret_value
+        return {
+            "provider": "local",
+            "kind": "file",
+            "status": "stored",
+            "target_id": "local/file/.env",
+        }
+
+    monkeypatch.setattr(engine, "_store_in_target", _capture_store)
+    result = engine.sync(dry_run=False)
+    detail = result["details"][0]
+    assert detail.get("source") == "resolved"
+    # Source dicts are normalized to JSON payload text for target compatibility.
+    payload = json.loads(captured.get("aws_creds_bundle", "{}"))
+    assert payload["access_key_id"] == "AKIA-svc-bot"
+    assert payload["secret_access_key"] == "secret-key-value"

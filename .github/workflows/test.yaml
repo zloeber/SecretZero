@@ -199,6 +199,8 @@ jobs:
 
       - name: Security Scans - ${{ matrix.os }}
         run: |
+          # Keep CI equivalent to task security:scan without requiring Task CLI on runner.
+          uv sync --frozen --all-extras
           uv run pip-audit
           uv run bandit -r ${{ env.PROJECT_PATH }} -ll
 

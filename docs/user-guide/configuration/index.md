@@ -195,6 +195,29 @@ Supported kinds:
 - `secret_ref`: `config.secret` required; optional `field`
 - `provider_read`: `config.provider`, `config.kind`, and object `config.read` required; optional `field`, `profile`, `method`
 
+Example (`provider_read` from AWS IAM user, writing JSON payload):
+
+```yaml
+secrets:
+  - name: aws_iam_user_credentials
+    kind: static
+    source:
+      kind: provider_read
+      config:
+        provider: aws
+        kind: iam_user
+        method: retrieve_iam_user_credentials
+        read:
+          name: svc-secretzero-bot
+          replace_oldest: true
+    targets:
+      - provider: aws
+        kind: secrets_manager
+        config:
+          name: /prod/iam/svc-secretzero-bot
+          format: json
+```
+
 `secret_ref` behavior:
 
 - references a previously resolved non-template secret in the same sync run
