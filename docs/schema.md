@@ -198,6 +198,24 @@ secrets:
           name: /prod/shared/token
 ```
 
+AWS IAM user credential source example:
+
+```yaml
+secrets:
+  - name: aws_iam_user_credentials
+    kind: static
+    source:
+      kind: provider_read
+      required: true
+      config:
+        provider: aws
+        kind: iam_user
+        method: retrieve_iam_user_credentials
+        read:
+          name: svc-secretzero-bot
+          replace_oldest: true
+```
+
 #### Source fields
 
 | Field | Type | Description |

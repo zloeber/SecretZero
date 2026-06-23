@@ -3,6 +3,7 @@
 import os
 import secrets
 import string
+from datetime import datetime
 from typing import Any
 
 from secretzero.providers.base import BaseProvider, ProviderAuth
@@ -426,6 +427,108 @@ class AWSProvider(BaseProvider):
 
         except Exception as e:
             raise ValueError(f"Failed to retrieve secret from AWS: {str(e)}")
+
+    def retrieve_iam_user_credentials(
+        self,
+        user_name: str,
+        *,
+        create_if_missing: bool = True,
+        replace_oldest: bool = False,
+        kind: str | None = None,
+        profile: str | None = None,
+        **_: Any,
+    ) -> dict[str, Any]:
+        """Return an AWS IAM credential dictionary for a user.
+
+        AWS only reveals ``SecretAccessKey`` at key creation time. This method
+        creates a new access key for the IAM user and returns the credential
+        material as a dictionary suitable for ``provider_read`` source payloads.
+
+        Args:
+            user_name: IAM user name.
+            create_if_missing: Must be true to create a new key and obtain
+                secret material.
+            replace_oldest: If true and the user reached the two-key IAM limit,
+                delete the oldest access key before creating a new one.
+            kind: Optional source kind from provider_read config (ignored).
+            profile: Optional source profile from provider_read config (ignored).
+
+        Returns:
+            Dictionary containing ``access_key_id``, ``secret_access_key``,
+            ``region``, ``user_name``, ``status``, and ``create_date``.
+
+        Raises:
+            ValueError: If key creation is disabled or AWS API calls fail.
+        """
+        _ = kind, profile
+        if not user_name or not str(user_name).strip():
+            raise ValueError("IAM user name is required")
+        if not create_if_missing:
+            raise ValueError(
+                "AWS IAM does not expose existing SecretAccessKey values. "
+                "Set create_if_missing=true to create a new access key."
+            )
+
+        try:
+            iam = self.auth.get_client("iam")
+
+            def _create_key() -> dict[str, Any]:
+                response = iam.create_access_key(UserName=user_name)
+                return response.get("AccessKey") or {}
+
+            try:
+                access_key = _create_key()
+            except Exception as exc:
+                err = str(exc)
+                limit_hit = (
+                    "LimitExceeded" in err
+                    or "LimitExceededException" in err
+                    or "Cannot exceed quota for AccessKeysPerUser" in err
+                )
+                if not (replace_oldest and limit_hit):
+                    raise
+
+                keys_response = iam.list_access_keys(UserName=user_name)
+                metadata = list(keys_response.get("AccessKeyMetadata") or [])
+                if not metadata:
+                    raise
+
+                def _created_at(item: dict[str, Any]) -> datetime:
+                    value = item.get("CreateDate")
+                    if isinstance(value, datetime):
+                        return value
+                    return datetime.min
+
+                oldest = sorted(metadata, key=_created_at)[0]
+                oldest_key_id = oldest.get("AccessKeyId")
+                if not oldest_key_id:
+                    raise
+                iam.delete_access_key(UserName=user_name, AccessKeyId=oldest_key_id)
+                access_key = _create_key()
+
+            create_date = access_key.get("CreateDate")
+            if isinstance(create_date, datetime):
+                create_date_text = create_date.isoformat()
+            elif create_date is None:
+                create_date_text = ""
+            else:
+                create_date_text = str(create_date)
+
+            region = (
+                (self.config or {}).get("region")
+                or os.environ.get(AWSAuth.ENV_REGION)
+                or "us-east-1"
+            )
+            return {
+                "access_key_id": access_key.get("AccessKeyId", ""),
+                "secret_access_key": access_key.get("SecretAccessKey", ""),
+                "region": region,
+                "user_name": access_key.get("UserName", user_name),
+                "status": access_key.get("Status", "Active"),
+                "create_date": create_date_text,
+            }
+        except Exception as e:
+            raise ValueError(f"Failed to retrieve IAM user credentials from AWS: {str(e)}") from e
 
     # ============================================================================
     # Capability Methods: Store
