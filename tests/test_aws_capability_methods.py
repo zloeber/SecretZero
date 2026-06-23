@@ -384,11 +384,12 @@ class TestAWSCapabilityIntegration:
         capabilities = AWSProvider.get_capabilities()
 
         assert capabilities.provider_kind == "aws"
-        assert len(capabilities.capabilities) == 5
+        assert len(capabilities.capabilities) == 6
 
         capability_names = [cap.method.name for cap in capabilities.capabilities]
         assert "generate_password" in capability_names
         assert "retrieve_secret" in capability_names
+        assert "retrieve_iam_user_credentials" in capability_names
         assert "store_secret" in capability_names
         assert "rotate_secret" in capability_names
         assert "delete_secret" in capability_names

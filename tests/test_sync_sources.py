@@ -171,9 +171,7 @@ def test_provider_read_source_iam_credentials_dict_to_target_payload(monkeypatch
                         "read": {"name": "svc-bot"},
                     },
                 ),
-                targets=[
-                    TargetConfig(provider="local", kind="file", config={"path": ".env.test"})
-                ],
+                targets=[TargetConfig(provider="local", kind="file", config={"path": ".env.test"})],
             )
         ]
     )

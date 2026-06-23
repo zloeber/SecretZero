@@ -1,0 +1,143 @@
+# AWS IAM User Credentials for Agent Automation
+#
+# This example demonstrates using SecretZero to:
+# 1. Create (or retrieve) AWS IAM user access keys
+# 2. Seed a local .env file for AWS CLI / agent authentication
+# 3. Automatically rotate credentials on a schedule
+#
+# This is useful for agents and automation that need AWS CLI access without
+# requiring hardcoded credentials in code or configs.
+#
+# Prerequisites:
+#   - AWS credentials configured (for ambient auth) or explicit AWS_* env vars
+#   - IAM permissions to create access keys for the target user
+#   - Optional: ~/.aws/config for AWS CLI profile setup
+#
+# Usage:
+#   # First run (creates new access key and seeds .env.agent):
+#   secretzero sync -f examples/aws-iam-user-agent.yml --dry-run
+#   secretzero sync -f examples/aws-iam-user-agent.yml
+#
+#   # Subsequent runs (retrieves latest key from lockfile, verifies rotation):
+#   secretzero sync -f examples/aws-iam-user-agent.yml
+#
+#   # View what will be seeded without writing:
+#   secretzero agent sync --dry-run
+#
+# Rotation:
+#   SecretZero automatically rotates credentials every 30 days.
+#   Old access keys are managed per AWS IAM policy (max 2 active keys).
+
+variables:
+  agent_user: gh-actions-bot
+  aws_region: us-east-1
+  environment: ci
+
+providers:
+  aws:
+    kind: aws
+    auth:
+      kind: ambient
+      region: "{{var.aws_region}}"
+
+secrets:
+  # IAM User Credentials for Agent (GitHub Actions, CI/CD, local automation)
+  #
+  # This secret:
+  # - Sources IAM access keys from AWS using retrieve_iam_user_credentials
+  # - Creates a new access key if one doesn't exist
+  # - Stores the key material in the local lockfile (.sz-lockfile.json)
+  # - Seeds a .env.agent file for AWS CLI / SDK automation
+  # - Rotates credentials every 30 days
+  #
+  # The .env.agent file can then be sourced in shell scripts:
+  #   $ source .env.agent
+  #   $ aws s3 ls  # Uses AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY from .env.agent
+  - name: agent_aws_credentials
+    kind: static
+    description: |
+      AWS IAM credentials for agent automation.
+      Auto-rotates every 30 days. Seed to .env.agent for AWS CLI access.
+    one_time: true
+    rotation_period: 30d
+    config:
+      value: null
+    source:
+      kind: provider_read
+      required: true
+      automation_hint: Fully automated via AWS IAM API
+      config:
+        provider: aws
+        method: retrieve_iam_user_credentials
+        config:
+          user_name: "{{var.agent_user}}"
+          create_if_missing: true
+          replace_oldest: true
+    targets:
+      # Seed local .env.agent file with key material
+      - provider: local
+        kind: file
+        config:
+          path: .env.agent
+          format: dotenv
+          structure: flat
+          # Map the IAM credential fields to AWS CLI env vars
+          mappings:
+            - source_key: access_key_id
+              target_key: AWS_ACCESS_KEY_ID
+            - source_key: secret_access_key
+              target_key: AWS_SECRET_ACCESS_KEY
+            - source_key: region
+              target_key: AWS_DEFAULT_REGION
+
+      # Also store in AWS Secrets Manager as backup
+      - provider: aws
+        kind: secrets_manager
+        config:
+          name: "{{var.environment}}/agent/aws-credentials"
+          description: AWS credentials for {{var.agent_user}} (agent automation)
+          tags:
+            Environment: "{{var.environment}}"
+            ManagedBy: SecretZero
+            Purpose: agent-automation
+
+metadata:
+  project: agent-automation
+  owner: platform-team
+  purpose: AWS CLI access for CI/CD and local agents
+  environments:
+    - ci
+    - local-dev
+  notes: |
+    This example is designed for:
+    - GitHub Actions workflows (source .env.agent in job steps)
+    - Local development agents that need AWS CLI access
+    - CI/CD automation (GitLab CI, Jenkins, etc.)
+
+    Usage in GitHub Actions:
+    ```yaml
+    - name: Sync AWS credentials
+      run: secretzero sync -f examples/aws-iam-user-agent.yml
+    
+    - name: AWS CLI operations
+      run: |
+        source .env.agent
+        aws s3 ls
+        aws ec2 describe-instances
+    ```
+
+    Usage in shell scripts:
+    ```bash
+    #!/bin/bash
+    source .env.agent
+    
+    # Now AWS CLI commands use the credentials from .env.agent
+    aws dynamodb list-tables --region $AWS_DEFAULT_REGION
+    ```
+
+    Security notes:
+    - .env.agent is git-ignored by default (see .gitignore)
+    - Never commit .env.agent to version control
+    - Credentials are only exposed locally during `secretzero sync`
+    - Lock file (.sz-lockfile.json) contains hashed credentials only
+    - Rotation happens automatically every 30 days
