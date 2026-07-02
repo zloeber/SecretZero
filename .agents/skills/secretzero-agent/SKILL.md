@@ -2,10 +2,8 @@
 name: secretzero-agent
 description: |
   Use for agentic and operational SecretZero workflows including unified
-  `agent sync`, CLI/API parity, secure human-in-the-loop vectors, and
+  `agent sync`, CLI/API/MCP parity, secure human-in-the-loop vectors, and
   automation-safe run loops.
-metadata:
-  internal: true
 ---
 
 # SecretZero Agent Skill
@@ -40,6 +38,17 @@ Verify CLI:
 secretzero --help
 secretzero agent sync --help
 ```
+
+### MCP host (optional)
+
+When the agent host exposes SecretZero MCP tools (`secretzero-mcp`):
+
+```bash
+uv tool install -U "secretzero[mcp]"
+secretzero-mcp --generate-config --workspace /path/to/repo
+```
+
+See `docs/mcp-setup.md`. The MCP server sets **`SZ_AGENT_MODE=true`** by default (same spill contract as `skills/secretzero-handle/SKILL.md`).
 
 ## Core Agent Contract
 
@@ -102,12 +111,36 @@ Use API when running remote orchestration:
 
 Treat API payload semantics the same as CLI semantics.
 
+## MCP operational tools
+
+When MCP tools are available, prefer them for **metadata-only** maintenance (hashes, counts, drift — never values):
+
+| MCP tool | CLI parity | Use for |
+|----------|------------|---------|
+| `sz_status` | `secretzero status --format json` | Preflight, lockfile hashes, per-target sync state |
+| `sz_sync` | `secretzero sync --format json` | Reconcile targets (non-interactive; prompts disabled) |
+| `sz_rotate` | `secretzero rotate --format json` | Rotation policy execution |
+| `sz_drift_check` | `secretzero drift --format json` | External target drift |
+| `sz_discover` | `secretzero discover --format json` | Credential inventory during authoring (see `secretzero-author`) |
+
+Pass `environment` and `var_files` on MCP tools for multi-environment lanes (same semantics as CLI `--environment` / `--var-file`). Set `SZ_WORKSPACE` (or tool `workspace`) to the repo root.
+
+**MCP gap — bootstrap / human seeding:** MCP does **not** expose `agent sync` (Vectors 1–3) or `--web`. For pending manual secrets, first-time bootstrap, or Vector 2 localhost forms, use:
+
+```bash
+secretzero agent sync --json [--web]
+```
+
+or API `POST /agent/sync` with `{ "web": true }` when remote.
+
+**Agent loop with MCP:** run **`agent sync --json`** until `pending_secrets` / `failed_secrets` are empty; then use `sz_status` / `sz_sync` / `sz_drift_check` for ongoing operations.
+
 ## Operational Playbooks
 
 - **Agent adopt (Hermes/OpenClaw):** see `skills/secretzero-agent-adopt/SKILL.md` — `agent list` → `agent adopt` → `agent sync`
 - **Bootstrap:** `validate` -> `init --install` -> `test` -> `agent sync --json`
-- **Preflight:** `secretzero sync --dry-run` before mutating runs
-- **Maintenance:** pair with `secretzero rotate`, `secretzero drift`, `secretzero status --format json`
+- **Preflight:** `sz_status` or `secretzero status --format json`; dry-run via `sz_sync` (`dry_run: true`) or `secretzero sync --dry-run`
+- **Maintenance:** `sz_rotate` / `sz_drift_check` or CLI `secretzero rotate`, `secretzero drift`
 
 ## Common Failure Handling
 
@@ -120,4 +153,4 @@ Treat API payload semantics the same as CLI semantics.
 
 - Secret bootstrap/sync flow reaches no pending or failed secrets.
 - Workflow used secure vector handling with no secret leakage.
-- CLI/API behavior stays consistent for the selected scenario.
+- CLI/API/MCP behavior stays consistent for the selected scenario.

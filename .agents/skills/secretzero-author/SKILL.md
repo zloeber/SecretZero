@@ -8,8 +8,6 @@ description: |
   discovery, `.szvar` lanes, policy-bound targets. Inherits absolute rule from
   `skills/secretzero/SKILL.md`. Co-load `skills/secretzero-handle/SKILL.md`
   for `.env` / spill-safe CLI.
-metadata:
-  internal: true
 ---
 
 # SecretZero Author Skill
@@ -244,19 +242,30 @@ The guided phases are **transport-agnostic**; only the invocation changes.
 | Phase | Hermes chat | SecretZero via MCP / CLI |
 |-------|-------------|---------------------------|
 | 0 Manifest root | Always ask in chat | — |
-| 1 Discovery | Offer yes/no | Tools should wrap `detect` or `discover --local-only --dry-run --format json` |
-| 2 Inventory | Format JSON as markdown table | `list secrets` / `status --format json` |
+| 1 Discovery | Offer yes/no | **`sz_discover`** or `discover --local-only --dry-run --format json` |
+| 2 Inventory | Format JSON as markdown table | **`sz_status`** or `list secrets` / `status --format json` |
 | 3 Add/edit loop | Menus + user choices | `secret-types`, `list providers`, `list targets`; write YAML via edit tool |
-| 4 Validate | Report errors | `validate`, `sync --dry-run` (API: `POST /config/validate` where exposed) |
-| 5 Web / seed | Offer dashboard; hand off sync skill | `web` subprocess or `agent sync` tool |
+| 4 Validate | Report errors | `validate`, **`sz_sync`** with `dry_run: true` or `sync --dry-run` |
+| 5 Web / seed | Offer dashboard; hand off sync skill | CLI `web` subprocess or **`agent sync --json [--web]`** (not on MCP) |
 
 **MCP notes:**
 
-- This repo ships **CLI + REST API**, not a first-party MCP server. Bridges expose subprocess tools; tool names may differ from CLI flags.
-- **`detect` / `discover` are CLI-only** today — MCP authoring should call those commands, not Hermes filesystem reads of `.env`.
-- **Do not use MCP `sampling/createMessage`** for discovery. Use SecretZero `detect` / `discover` (metadata-only JSON). Sampling sends file context to the host LLM and increases spill risk versus purpose-built scanners.
-- Leave **sampling disabled** on untrusted SecretZero MCP bridges unless you operate a custom server with an explicit spill policy.
+- This repo ships a **first-party MCP server** (`secretzero-mcp`, see `docs/mcp-setup.md`) plus CLI + REST API. Tools: `sz_sync`, `sz_discover`, `sz_status`, `sz_rotate`, `sz_drift_check` — metadata only, `SZ_AGENT_MODE=true` by default.
+- **Tool parity:**
+
+| MCP tool | CLI equivalent |
+|----------|----------------|
+| `sz_discover` | `secretzero discover --format json` |
+| `sz_status` | `secretzero status --format json` |
+| `sz_sync` | `secretzero sync --format json` |
+| `sz_rotate` | `secretzero rotate --format json` |
+| `sz_drift_check` | `secretzero drift --format json` |
+
+- Use **`sz_discover`** (not host filesystem reads of `.env`) for credential inventory during MCP authoring.
+- **Do not use MCP `sampling/createMessage`** for discovery. Use `sz_discover` / `secretzero discover` (metadata-only JSON). Sampling sends file context to the host LLM and increases spill risk versus purpose-built scanners.
+- Leave **sampling disabled** on untrusted MCP bridges unless you operate a custom server with an explicit spill policy.
 - With **`SZ_AGENT_MODE=true`**, co-load `skills/secretzero-handle/SKILL.md`; inventory and validate still work; avoid `render` and plaintext dumps.
+- **Bootstrap / seeding** still requires CLI **`agent sync --json [--web]`** or API `POST /agent/sync` — MCP has no Vector 1–3 tools.
 
 ### Definition of done (guided session)
 
