@@ -5,8 +5,6 @@ description: |
   never consume secrets in agent context — use SecretZero for all secret
   handling. Routes to secretzero-author, secretzero-agent, secretzero-handle,
   and secretzero-agent-adopt.
-metadata:
-  internal: true
 ---
 
 # SecretZero Skill Router
@@ -23,12 +21,25 @@ Use one of the focused skills below for all new work.
 | Forbidden | Use instead |
 |-----------|-------------|
 | User pastes API keys/passwords into chat | `secretzero agent sync --web`, `secretzero web`, or Vector 1 instructions |
-| `read_file` / grep / cat on `.env`, `.env.*`, `*.pem`, credential files | `secretzero detect`, `discover`, `ingest preseed` (metadata / hashes only) |
-| `secretzero get --reveal`, `render`, `backup restore --print` under agents | `agent sync --json`, `status`, `list secrets`, lockfile hashes |
-| MCP sampling or host-LLM scans over secret file contents | `detect` / `discover` tools (names, paths, confidence — no values) |
+| `read_file` / grep / cat on `.env`, `.env.*`, `*.pem`, credential files | `secretzero detect`, `discover`, `ingest preseed`, or MCP **`sz_discover`** (metadata / hashes only) |
+| `secretzero get --reveal`, `render`, `backup restore --print` under agents | `agent sync --json`, **`sz_status`** / `status`, `list secrets`, lockfile hashes |
+| MCP sampling or host-LLM scans over secret file contents | **`sz_discover`** / `secretzero discover` / `detect` (names, paths, confidence — no values) |
 | Putting literals in `Secretfile.yml` during agent authoring | `null`, `${VAR}`, `.szvar`; `SZ_AGENT_MODE=true` + `secretzero-handle` |
 
-On spill-sensitive hosts set **`SZ_AGENT_MODE=true`** (see `skills/secretzero-handle/SKILL.md`). All focused skills below inherit this rule.
+On spill-sensitive hosts set **`SZ_AGENT_MODE=true`** (see `skills/secretzero-handle/SKILL.md`). The MCP server (`secretzero-mcp`) sets this by default when unset. All focused skills below inherit this rule.
+
+## MCP-capable hosts
+
+When the agent host registers **`secretzero-mcp`** (see `docs/mcp-setup.md`):
+
+| Task | Skill | MCP tools |
+|------|-------|-----------|
+| Author / edit `Secretfile.yml` | `secretzero-author` | `sz_discover`, then CLI `validate` / edit |
+| Bootstrap / seed pending secrets | `secretzero-agent` | **CLI/API only** — `agent sync --json [--web]` (not on MCP) |
+| Status, sync, rotate, drift | `secretzero-agent` | `sz_status`, `sz_sync`, `sz_rotate`, `sz_drift_check` |
+| `.env` / spill-safe file workflows | `secretzero-handle` | MCP inherits `SZ_AGENT_MODE`; use `sz_discover` + `ingest preseed` via CLI |
+
+Install: `uv tool install -U "secretzero[mcp]"` then `secretzero-mcp --generate-config --workspace /path/to/repo`.
 
 ## Use `secretzero-author` when
 
@@ -43,7 +54,7 @@ File: `skills/secretzero-author/SKILL.md`
 ## Use `secretzero-agent` when
 
 - Running agentic sync workflows (Vector 1/2/3).
-- Operating CLI/API orchestration flows.
+- Operating CLI/API/MCP orchestration flows (`sz_status`, `sz_sync`, `sz_rotate`, `sz_drift_check`).
 - Managing secure human-in-the-loop runtime scenarios.
 - Handling install/onboarding/automation checks.
 
@@ -55,4 +66,6 @@ File: `skills/secretzero-agent/SKILL.md`
 uv tool install -U "secretzero[all]"
 ```
 
-The two focused skills include detailed workflows, safety rules, and usage examples.
+For MCP hosts add the `mcp` extra: `uv tool install -U "secretzero[mcp]"`.
+
+The focused skills include detailed workflows, safety rules, and usage examples.

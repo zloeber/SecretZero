@@ -5,8 +5,6 @@ description: |
   or any workflow where secret material could enter agent context. Enforces
   `SZ_AGENT_MODE=true` spill-safe CLI usage, ingest preseed, strict manifest validation,
   and safe discovery patterns alongside `secretzero-agent` / `secretzero-author`.
-metadata:
-  internal: true
 ---
 
 # SecretZero Handle (spill-safe context)
@@ -39,6 +37,15 @@ With this set:
 Unset `SZ_AGENT_MODE` only on trusted local shells when you intentionally need full dumps.
 
 `SZ_AGENT` (Vector 3 automation) and `SZ_AGENT_MODE` can both be set; spill guards apply when **either** is true.
+
+## MCP server spill mode
+
+The first-party MCP server (`secretzero-mcp`, see `docs/mcp-setup.md`) sets **`SZ_AGENT_MODE=true`** on startup when the variable is unset — same spill contract as CLI above.
+
+- MCP tools (`sz_status`, `sz_sync`, `sz_discover`, `sz_rotate`, `sz_drift_check`) return **metadata only** and reject `reveal` parameters.
+- Set **`SZ_WORKSPACE`** (or pass tool `workspace`) to the repository root so lockfile/Secretfile resolution matches the project.
+- MCP does **not** replace **`agent sync --web`** or **`ingest preseed`** — use CLI for human seeding and lockfile import from disk.
+- Co-load this skill whenever MCP is used for authoring or operations alongside `secretzero-author` / `secretzero-agent`.
 
 ## Pre-seed lockfile from a secrets file (no values on stdout)
 
