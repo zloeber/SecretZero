@@ -250,7 +250,7 @@ The guided phases are **transport-agnostic**; only the invocation changes.
 
 **MCP notes:**
 
-- This repo ships a **first-party MCP server** (`secretzero-mcp`, see `docs/mcp-setup.md`) plus CLI + REST API. Tools: `sz_sync`, `sz_discover`, `sz_status`, `sz_rotate`, `sz_drift_check` — metadata only, `SZ_AGENT_MODE=true` by default.
+- This repo ships a **first-party MCP server** (`secretzero mcp serve`, see `docs/mcp-setup.md`) plus CLI + REST API. Tools: `sz_sync`, `sz_discover`, `sz_status`, `sz_rotate`, `sz_drift_check` — metadata only, `SZ_AGENT_MODE=true` by default. Host config: `secretzero mcp config generate`; defaults in `config.mcp`.
 - **Tool parity:**
 
 | MCP tool | CLI equivalent |

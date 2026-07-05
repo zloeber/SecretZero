@@ -178,7 +178,7 @@ mcp = [
 [project.scripts]
 secretzero = "secretzero.cli:main"
 secretzero-api = "secretzero.api.server:run"
-secretzero-mcp = "secretzero.mcp_server:run"
+secretzero-mcp = "secretzero.cli_mcp:run_legacy_entrypoint"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/secretzero"]

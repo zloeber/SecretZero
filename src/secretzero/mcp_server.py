@@ -7,11 +7,9 @@ and never returns plaintext secret values.
 
 from __future__ import annotations
 
-import argparse
 import json
 import os
 import shutil
-import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -357,36 +355,51 @@ def generate_mcp_config(
     workspace: Path | None = None,
     output_path: Path | None = None,
     command: str | None = None,
-    format_name: str = "generic",
+    format_name: str | None = None,
+    secretfile_path: Path | None = None,
 ) -> dict[str, Any]:
     """Generate MCP client configuration for the current environment."""
-    ws = (workspace or _resolve_workspace()).resolve()
-    exe = command or shutil.which("secretzero-mcp") or "secretzero-mcp"
+    from secretzero.cli_config import McpConfig, get_effective_config
 
-    env_block = {
-        "SZ_AGENT_MODE": "true",
-        "SZ_WORKSPACE": str(ws),
-    }
+    effective = get_effective_config(secretfile_path=secretfile_path)
+    mcp_cfg: McpConfig = effective.config.mcp
+
+    ws_raw = workspace
+    if ws_raw is None and mcp_cfg.workspace:
+        ws_raw = Path(mcp_cfg.workspace)
+    ws = (ws_raw or _resolve_workspace()).resolve()
+
+    fmt = format_name or mcp_cfg.client_format
+    exe = command or mcp_cfg.command or shutil.which("secretzero") or "secretzero"
+    serve_args = list(mcp_cfg.serve_args or ["mcp", "serve"])
+
+    env_block: dict[str, str] = {"SZ_WORKSPACE": str(ws)}
+    if mcp_cfg.sz_agent_mode:
+        env_block["SZ_AGENT_MODE"] = "true"
     if os.environ.get("SECRETZERO_CONFIG"):
         env_block["SECRETZERO_CONFIG"] = os.environ["SECRETZERO_CONFIG"]
 
     server_entry = {
         "command": exe,
-        "args": [],
+        "args": serve_args,
         "env": env_block,
     }
 
-    if format_name == "cursor":
-        payload: dict[str, Any] = {"servers": {"secretzero": {**server_entry, "type": "stdio"}}}
-    elif format_name == "claude":
-        payload = {"mcpServers": {"secretzero": server_entry}}
+    server_key = mcp_cfg.server_name or "secretzero"
+    if fmt == "cursor":
+        payload: dict[str, Any] = {
+            "servers": {server_key: {**server_entry, "type": "stdio"}},
+        }
+    elif fmt == "claude":
+        payload = {"mcpServers": {server_key: server_entry}}
     else:
         payload = {
             "secretzero_mcp": server_entry,
             "notes": {
                 "cursor": "Use key 'servers' at .cursor/mcp.json",
                 "claude_desktop": "Merge 'mcpServers' into claude_desktop_config.json",
-                "sz_agent_mode": "Always true — blocks reveal/plaintext dumps",
+                "cli": "Prefer `secretzero mcp config generate --format cursor|claude`",
+                "sz_agent_mode": "true when config.mcp.sz_agent_mode is enabled",
             },
         }
 
@@ -487,8 +500,8 @@ def create_mcp_server() -> Any:
     def sz_discover(
         path: str | None = None,
         dry_run: bool = False,
-        local_only: bool = True,
-        provider: str | None = "ollama",
+        local_only: bool | None = None,
+        provider: str | None = None,
         model: str | None = None,
         no_llm: bool = False,
         threshold: float | None = None,
@@ -507,8 +520,14 @@ def create_mcp_server() -> Any:
         secretfile_path = scan_root / "Secretfile.yml"
         effective = get_effective_config(secretfile_path=secretfile_path)
         cli_cfg = effective.config
+        mcp_cfg = cli_cfg.mcp
         if threshold is not None:
             cli_cfg.discovery.confidence_threshold = threshold
+
+        local_only_eff = (
+            local_only if local_only is not None else mcp_cfg.discover_local_only
+        )
+        provider_eff = provider if provider is not None else mcp_cfg.discover_provider
 
         agent = DiscoveryAgent(config=cli_cfg)
         with workspace_context(ws):
@@ -516,8 +535,8 @@ def create_mcp_server() -> Any:
                 project_root=str(scan_root),
                 dry_run=dry_run,
                 use_llm=not no_llm,
-                local_only=local_only,
-                provider=provider,
+                local_only=local_only_eff,
+                provider=provider_eff,
                 model=model,
                 verbose=False,
             )
@@ -712,58 +731,18 @@ def create_mcp_server() -> Any:
     return mcp
 
 
-def run() -> None:
-    """Entry point for ``secretzero-mcp``."""
-    parser = argparse.ArgumentParser(description="SecretZero MCP server (stdio)")
-    parser.add_argument(
-        "--generate-config",
-        action="store_true",
-        help="Write MCP client configuration JSON and exit",
-    )
-    parser.add_argument(
-        "--output",
-        "-o",
-        type=Path,
-        default=Path("mcp_config.json"),
-        help="Output path for --generate-config (default: mcp_config.json)",
-    )
-    parser.add_argument(
-        "--workspace",
-        type=Path,
-        default=None,
-        help="Workspace directory for generated config (default: cwd or SZ_WORKSPACE)",
-    )
-    parser.add_argument(
-        "--format",
-        choices=["generic", "cursor", "claude"],
-        default="generic",
-        help="Client config format for --generate-config",
-    )
-    parser.add_argument(
-        "--command",
-        default=None,
-        help="Override secretzero-mcp executable path in generated config",
-    )
-    args, _unknown = parser.parse_known_args()
-
-    if args.generate_config:
-        payload = generate_mcp_config(
-            workspace=args.workspace,
-            output_path=args.output,
-            command=args.command,
-            format_name=args.format,
-        )
-        print(json.dumps(payload, indent=2))
-        return
-
+def run_stdio_server() -> None:
+    """Start the MCP stdio server (blocks until the host disconnects)."""
     ensure_agent_mode()
-    try:
-        server = create_mcp_server()
-    except ImportError as exc:
-        print(f"Error: {exc}", file=sys.stderr)
-        sys.exit(1)
-
+    server = create_mcp_server()
     server.run(transport="stdio")
+
+
+def run() -> None:
+    """Backward-compatible entry point for ``secretzero-mcp``."""
+    from secretzero.cli_mcp import run_legacy_entrypoint
+
+    run_legacy_entrypoint()
 
 
 if __name__ == "__main__":

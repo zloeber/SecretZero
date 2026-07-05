@@ -36,6 +36,7 @@ from secretzero.bundles import get_bundle_registry
 from secretzero.cli_catalog import catalog_command
 from secretzero.cli_config_cmd import config_group
 from secretzero.cli_format import format_command
+from secretzero.cli_mcp import mcp_group
 from secretzero.cli_providers import providers_group
 from secretzero.cli_skills import skills_group
 from secretzero.config import ConfigLoader
@@ -5832,6 +5833,7 @@ def gitnexus_blast_radius_cmd(symbol_fqn: str, cwd: str | None, as_json: bool) -
 
 # Register config, format, provider, and skills CLI groups/commands
 main.add_command(config_group)
+main.add_command(mcp_group)
 main.add_command(format_command)
 main.add_command(providers_group)
 main.add_command(skills_group)

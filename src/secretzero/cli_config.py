@@ -189,6 +189,48 @@ class OutputConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# MCP configuration
+# ---------------------------------------------------------------------------
+
+
+class McpConfig(BaseModel):
+    """MCP host integration: client config generation and server tool defaults."""
+
+    workspace: str | None = Field(
+        default=None,
+        description="Default repository root for MCP tools and generated client config",
+    )
+    client_format: str = Field(
+        default="generic",
+        description="Default host config shape: generic, cursor, or claude",
+    )
+    server_name: str = Field(
+        default="secretzero",
+        description="Server key in generated MCP host configuration",
+    )
+    sz_agent_mode: bool = Field(
+        default=True,
+        description="Include SZ_AGENT_MODE=true in generated client env",
+    )
+    command: str | None = Field(
+        default=None,
+        description="Override MCP server executable (default: secretzero on PATH)",
+    )
+    serve_args: list[str] = Field(
+        default_factory=lambda: ["mcp", "serve"],
+        description="Arguments for the MCP server command in generated host config",
+    )
+    discover_local_only: bool = Field(
+        default=True,
+        description="Default local-only mode for sz_discover / discover",
+    )
+    discover_provider: str | None = Field(
+        default="ollama",
+        description="Default LLM provider for sz_discover when not overridden",
+    )
+
+
+# ---------------------------------------------------------------------------
 # App config block (Secretfile config key / config.yml)
 # ---------------------------------------------------------------------------
 
@@ -196,13 +238,14 @@ class OutputConfig(BaseModel):
 class AppConfig(BaseModel):
     """Application config block: Secretfile root ``config`` key or ``~/.config/secretzero/config.yml``.
 
-    Same shape as the mergeable app config (llm, discovery, output). Used for
+    Same shape as the mergeable app config (llm, discovery, output, mcp). Used for
     centralized configuration resolution: defaults ← config.yml ← Secretfile.config.
     """
 
     llm: LLMConfig = Field(default_factory=LLMConfig)
     discovery: DiscoveryConfig = Field(default_factory=DiscoveryConfig)
     output: OutputConfig = Field(default_factory=OutputConfig)
+    mcp: McpConfig = Field(default_factory=McpConfig)
 
 
 # ---------------------------------------------------------------------------
@@ -217,6 +260,7 @@ class CliConfig(BaseModel):
     llm: LLMConfig = Field(default_factory=LLMConfig)
     discovery: DiscoveryConfig = Field(default_factory=DiscoveryConfig)
     output: OutputConfig = Field(default_factory=OutputConfig)
+    mcp: McpConfig = Field(default_factory=McpConfig)
 
 
 # ---------------------------------------------------------------------------

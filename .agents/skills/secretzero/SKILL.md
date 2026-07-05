@@ -39,7 +39,7 @@ When the agent host registers **`secretzero-mcp`** (see `docs/mcp-setup.md`):
 | Status, sync, rotate, drift | `secretzero-agent` | `sz_status`, `sz_sync`, `sz_rotate`, `sz_drift_check` |
 | `.env` / spill-safe file workflows | `secretzero-handle` | MCP inherits `SZ_AGENT_MODE`; use `sz_discover` + `ingest preseed` via CLI |
 
-Install: `uv tool install -U "secretzero[mcp]"` then `secretzero-mcp --generate-config --workspace /path/to/repo`.
+Install: `uv tool install -U "secretzero[mcp]"` then `secretzero mcp config generate --workspace /path/to/repo`.
 
 ## Use `secretzero-author` when
 
