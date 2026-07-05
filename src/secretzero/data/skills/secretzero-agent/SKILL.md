@@ -4,6 +4,12 @@ description: |
   Use for agentic and operational SecretZero workflows including unified
   `agent sync`, CLI/API/MCP parity, secure human-in-the-loop vectors, and
   automation-safe run loops.
+license: Apache-2.0
+compatibility: Requires SecretZero CLI (Python 3.12+). Set SZ_AGENT_MODE=true on agent hosts. MCP extra for sz_* tools.
+metadata:
+  author: secretzero
+  version: "1.1"
+allowed-tools: Bash(secretzero:*) Read
 ---
 
 # SecretZero Agent Skill

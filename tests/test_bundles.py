@@ -277,6 +277,22 @@ class TestBundleRegistryDiscovery:
 
         assert reg.list_bundles() == []
 
+    def test_discover_and_register_callable_factory(self) -> None:
+        """Entry points may expose a zero-arg factory returning BundleManifest."""
+        manifest = BundleManifest(
+            name="factory_ep",
+            generators={"static": "secretzero.generators.static:StaticGenerator"},
+        )
+        ep = MagicMock()
+        ep.load.return_value = lambda: manifest
+
+        reg = BundleRegistry()
+        with patch("importlib.metadata.entry_points", return_value=[ep]):
+            reg.discover_and_register()
+
+        assert "factory_ep" in reg.list_bundles()
+        assert reg.get_generator_class("static") is not None
+
     def test_discover_bundles_top_level(self) -> None:
         """discover_bundles() returns list of BundleManifest instances."""
         manifest = BundleManifest(name="disc_test")

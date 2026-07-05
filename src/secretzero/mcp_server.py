@@ -524,9 +524,7 @@ def create_mcp_server() -> Any:
         if threshold is not None:
             cli_cfg.discovery.confidence_threshold = threshold
 
-        local_only_eff = (
-            local_only if local_only is not None else mcp_cfg.discover_local_only
-        )
+        local_only_eff = local_only if local_only is not None else mcp_cfg.discover_local_only
         provider_eff = provider if provider is not None else mcp_cfg.discover_provider
 
         agent = DiscoveryAgent(config=cli_cfg)

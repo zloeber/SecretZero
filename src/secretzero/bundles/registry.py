@@ -227,12 +227,9 @@ class BundleRegistry:
         silently skipped.
         """
         for ep in importlib.metadata.entry_points(group="secretzero.providers"):
-            try:
-                manifest = ep.load()
-                if isinstance(manifest, BundleManifest):
-                    self.register_bundle(manifest)
-            except Exception:
-                pass  # graceful degradation: never crash on bad bundles
+            manifest = _load_entry_point_manifest(ep)
+            if manifest is not None:
+                self.register_bundle(manifest)
 
     # ------------------------------------------------------------------
     # Lookups
@@ -373,6 +370,19 @@ class BundleRegistry:
 _bundle_registry: BundleRegistry | None = None
 
 
+def _load_entry_point_manifest(ep: importlib.metadata.EntryPoint) -> BundleManifest | None:
+    """Load a bundle manifest from an entry point (object or zero-arg factory)."""
+    try:
+        loaded = ep.load()
+        if callable(loaded) and not isinstance(loaded, BundleManifest):
+            loaded = loaded()
+        if isinstance(loaded, BundleManifest):
+            return loaded
+    except Exception:
+        pass
+    return None
+
+
 def get_bundle_registry() -> BundleRegistry:
     """Return the global :class:`BundleRegistry` singleton.
 
@@ -389,8 +399,8 @@ def get_bundle_registry() -> BundleRegistry:
         _register_builtin_generators(_bundle_registry)
         _register_builtin_targets(_bundle_registry)
         _register_builtin_providers(_bundle_registry)
-        _register_builtin_bundles(_bundle_registry)
         _bundle_registry.discover_and_register()
+        _register_builtin_bundles(_bundle_registry)
     return _bundle_registry
 
 
@@ -402,12 +412,9 @@ def discover_bundles() -> list[BundleManifest]:
     """
     bundles: list[BundleManifest] = []
     for ep in importlib.metadata.entry_points(group="secretzero.providers"):
-        try:
-            manifest = ep.load()
-            if isinstance(manifest, BundleManifest):
-                bundles.append(manifest)
-        except Exception:
-            pass
+        manifest = _load_entry_point_manifest(ep)
+        if manifest is not None:
+            bundles.append(manifest)
     return bundles
 
 
@@ -502,6 +509,8 @@ def _register_builtin_bundles(registry: BundleRegistry) -> None:
             mod = _importlib.import_module(module_path)
             factory = getattr(mod, factory_name)
             manifest: BundleManifest = factory()
+            if manifest.name in registry._bundles:
+                continue
             registry.register_bundle(manifest)
         except (ImportError, AttributeError):
             pass

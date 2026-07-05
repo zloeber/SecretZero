@@ -8,6 +8,12 @@ description: |
   discovery, `.szvar` lanes, policy-bound targets. Inherits absolute rule from
   `skills/secretzero/SKILL.md`. Co-load `skills/secretzero-handle/SKILL.md`
   for `.env` / spill-safe CLI.
+license: Apache-2.0
+compatibility: Requires SecretZero CLI (Python 3.12+). Set SZ_AGENT_MODE=true when authoring under agents.
+metadata:
+  author: secretzero
+  version: "1.1"
+allowed-tools: Bash(secretzero:*) Read Write
 ---
 
 # SecretZero Author Skill

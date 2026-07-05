@@ -5,6 +5,12 @@ description: |
   or any workflow where secret material could enter agent context. Enforces
   `SZ_AGENT_MODE=true` spill-safe CLI usage, ingest preseed, strict manifest validation,
   and safe discovery patterns alongside `secretzero-agent` / `secretzero-author`.
+license: Apache-2.0
+compatibility: Requires SecretZero CLI (Python 3.12+). Always set SZ_AGENT_MODE=true before CLI on agent hosts.
+metadata:
+  author: secretzero
+  version: "1.1"
+allowed-tools: Bash(secretzero:*) Read
 ---
 
 # SecretZero Handle (spill-safe context)

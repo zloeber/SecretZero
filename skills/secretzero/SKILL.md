@@ -5,6 +5,12 @@ description: |
   never consume secrets in agent context — use SecretZero for all secret
   handling. Routes to secretzero-author, secretzero-agent, secretzero-handle,
   and secretzero-agent-adopt.
+license: Apache-2.0
+compatibility: Requires SecretZero CLI (Python 3.12+). Optional MCP extra for sz_* tools in agent hosts.
+metadata:
+  author: secretzero
+  version: "1.1"
+allowed-tools: Bash(secretzero:*) Read
 ---
 
 # SecretZero Skill Router
