@@ -2533,8 +2533,10 @@ def sync(
     # Read secretfile content for change detection
     secretfile_content = file_path.read_text()
 
-    # Load lockfile
-    lock = Lockfile.load(lockfile_path)
+    # Load lockfile pair (shared + machine-local)
+    from secretzero.local_secrets import load_lockfile_pair, save_lockfile_pair
+
+    lock, local_lock = load_lockfile_pair(lockfile_path)
 
     # Determine active variable context
     active_var_files = env_ctx.resolved_var_files or []
@@ -2595,6 +2597,7 @@ def sync(
         secretfile_content=secretfile_content,
         hide_input=not show_input,
         prompt_on_empty=not no_prompt,
+        local_lockfile=local_lock,
     )
 
     provider_identity_rows = collect_provider_identity_rows(config)
@@ -2897,14 +2900,19 @@ def sync(
         if not dry_run:
             if results["secrets_stored"] > 0 or cleaned_entries:
                 lock.track_variable_context(active_var_files, dict(config.variables or {}))
-                lock.save(lockfile_path)
+                save_lockfile_pair(lockfile_path, lock, local_lock)
                 console.print(f"\n[green]✓[/green] Lockfile saved: {lockfile_path}")
+                if not local_lock.is_semantically_empty():
+                    console.print(
+                        f"[green]✓[/green] Local lockfile saved: "
+                        f"{lockfile_path.parent / '.gitsecrets.local.lock'}"
+                    )
             else:
                 # Check if lockfile was modified (secretfile tracking)
                 if results.get("secretfile_changed") is not None:
                     # Lockfile exists and secretfile was tracked
                     lock.track_variable_context(active_var_files, dict(config.variables or {}))
-                    lock.save(lockfile_path)
+                    save_lockfile_pair(lockfile_path, lock, local_lock)
                     console.print(
                         f"\n[dim]Lockfile updated (secretfile tracking only): {lockfile_path}[/dim]"
                     )

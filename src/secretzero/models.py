@@ -5,7 +5,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from secretzero.cli_config import AppConfig
 
@@ -425,6 +425,35 @@ class Secret(BaseModel):
             "(e.g. auth_flow, payment_gateway) for graph tooling and policy filtering."
         ),
     )
+    local: bool = Field(
+        default=False,
+        description=(
+            "When true, sync state is stored in .gitsecrets.local.lock on this workstation "
+            "instead of the shared .gitsecrets.lock. Supports variable interpolation "
+            "(e.g. local: ${IS_LOCAL_ENV:-false})."
+        ),
+    )
+    local_allow_cloud: bool = Field(
+        default=False,
+        description=(
+            "When local is true, allow non-local cloud targets. Default false restricts "
+            "local secrets to local/file or local/template targets only."
+        ),
+    )
+
+    @field_validator("local", "local_allow_cloud", mode="before")
+    @classmethod
+    def _coerce_local_flags(cls, value: Any) -> bool:
+        from secretzero.local_secrets import coerce_local_flag
+
+        return coerce_local_flag(value)
+
+    @model_validator(mode="after")
+    def _validate_local_targets(self) -> Secret:
+        from secretzero.local_secrets import validate_local_secret_targets
+
+        validate_local_secret_targets(self)
+        return self
 
 
 class Metadata(BaseModel):

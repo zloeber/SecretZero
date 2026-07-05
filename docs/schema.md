@@ -156,6 +156,8 @@ secrets:
       special: true
     one_time: false            # Generate once and never rotate
     rotation_period: 90d       # Rotation period
+    local: false               # When true, lockfile state goes to .gitsecrets.local.lock
+    local_allow_cloud: false   # Override to allow cloud targets for local secrets
     process_tags:               # Optional flow labels for graph tooling
       - auth_flow
     targets:                   # Where to store this secret
@@ -176,6 +178,8 @@ secrets:
 | `source` | object/null | Optional non-human source resolved before generator flow |
 | `config` | dict | Configuration for the generator |
 | `one_time` | boolean | If true, generate once and don't rotate |
+| `local` | boolean | When true, sync hashes/provenance go to `.gitsecrets.local.lock` (machine-local, gitignored) |
+| `local_allow_cloud` | boolean | Allow non-`local` targets when `local` is true (default false) |
 | `rotation_period` | string | Rotation period (e.g., 90d, 6m, 1y) |
 | `targets` | list | List of storage targets |
 | `process_tags` | list of strings | Optional labels tying secrets to execution flows (e.g., `auth_flow`, `payment_gateway`) for GitNexus/MetaGit tooling |

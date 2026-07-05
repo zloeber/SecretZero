@@ -10,6 +10,12 @@ import yaml
 
 from secretzero.bundles import get_bundle_registry
 from secretzero.generators.base import BaseGenerator
+from secretzero.local_secrets import (
+    is_local_secret,
+    resolve_lockfile_for_secret,
+    stamp_local_lockfile_host,
+    validate_local_secret_targets,
+)
 from secretzero.lockfile import Lockfile, LockfileSyncIdentity
 from secretzero.models import AgentInstructions, Secret, Secretfile, Template
 from secretzero.policy import (
@@ -43,6 +49,7 @@ class SyncEngine:
         hide_input: bool = True,
         prompt_on_empty: bool = True,
         *,
+        local_lockfile: Lockfile | None = None,
         sync_client: str = "cli",
         sync_identity: LockfileSyncIdentity | None = None,
         sync_identity_cwd: Path | None = None,
@@ -59,9 +66,11 @@ class SyncEngine:
             sync_client: Logical caller surface (cli, api, agent, network_web) for lockfile metadata
             sync_identity: When set, persisted as lockfile sync identity instead of auto-collection
             sync_identity_cwd: Optional directory for git identity probes (defaults to Secretfile parent)
+            local_lockfile: Machine-local lockfile for secrets marked ``local: true``
         """
         self.secretfile = secretfile
         self.lockfile = lockfile
+        self.local_lockfile = local_lockfile if local_lockfile is not None else Lockfile()
         self.secretfile_path = secretfile_path
         self.secretfile_content = secretfile_content
         self.hide_input = hide_input
@@ -75,6 +84,26 @@ class SyncEngine:
         self._providers: dict[str, Any] = {}
         self._template_targets: dict[str, Any] = {}  # Track template targets and their secrets
         self._initialize_providers()
+
+    def _lockfile_for(self, secret: Secret) -> Lockfile:
+        """Return global or machine-local lockfile for *secret*."""
+        return resolve_lockfile_for_secret(self.lockfile, self.local_lockfile, secret)
+
+    def _lockfile_for_name(self, secret_name: str) -> Lockfile:
+        """Resolve lockfile backing by secret name (defaults to global)."""
+        for secret in self.secretfile.secrets:
+            if secret.name == secret_name:
+                return self._lockfile_for(secret)
+        return self.lockfile
+
+    def _finalize_local_lockfile_metadata(self, dry_run: bool) -> None:
+        """Stamp host identity onto the local lockfile after a successful sync."""
+        if dry_run or not any(is_local_secret(s) for s in self.secretfile.secrets):
+            return
+        stamp_local_lockfile_host(
+            self.local_lockfile,
+            sync_identity=self._sync_actor_dict(),
+        )
 
     def _git_identity_cwd(self) -> Path | None:
         if self.sync_identity_cwd is not None:
@@ -176,17 +205,19 @@ class SyncEngine:
 
     def _record_secret_definition_hash(self, secret: Secret) -> None:
         """Persist the current Secretfile definition hash for a tracked secret."""
-        if not self.lockfile.has_secret(secret.name):
+        lf = self._lockfile_for(secret)
+        if not lf.has_secret(secret.name):
             return
-        self.lockfile.record_definition_hash(secret.name, self._definition_hash_for(secret))
+        lf.record_definition_hash(secret.name, self._definition_hash_for(secret))
 
     def _record_template_definition_hashes(self, secret: Secret, template: Template) -> None:
         """Persist template-level definition hash on each tracked field entry."""
+        lf = self._lockfile_for(secret)
         def_hash = self._definition_hash_for(secret)
         for field_name in template.fields:
             field_secret_name = f"{secret.name}.{field_name}"
-            if self.lockfile.has_secret(field_secret_name):
-                self.lockfile.record_definition_hash(field_secret_name, def_hash)
+            if lf.has_secret(field_secret_name):
+                lf.record_definition_hash(field_secret_name, def_hash)
 
     def refresh_lockfile_targets(
         self,
@@ -209,7 +240,8 @@ class SyncEngine:
         rows: list[dict[str, Any]] = []
 
         for secret in scoped:
-            entry = self.lockfile.get_secret_info(secret.name)
+            lf = self._lockfile_for(secret)
+            entry = lf.get_secret_info(secret.name)
             if not entry:
                 continue
             checked += 1
@@ -772,6 +804,7 @@ class SyncEngine:
             template_render_errors = self._render_template_targets()
             if template_render_errors:
                 results["errors"].extend(template_render_errors)
+            self._finalize_local_lockfile_metadata(dry_run)
 
         return results
 
@@ -971,6 +1004,15 @@ class SyncEngine:
 
         self._record_lockfile_source_state(dry_run)
 
+        try:
+            validate_local_secret_targets(secret)
+        except ValueError as exc:
+            result["errors"].append(str(exc))
+            result["skipped"] = True
+            return result
+
+        secret_lockfile = self._lockfile_for(secret)
+
         # Check if this is a template-based secret
         if secret.kind.startswith("templates."):
             template_name = secret.kind.replace("templates.", "")
@@ -986,7 +1028,7 @@ class SyncEngine:
                 )
 
         # Check if secret needs generation (one_time check)
-        if secret.one_time and self.lockfile.has_secret(secret.name) and not force_rotation:
+        if secret.one_time and secret_lockfile.has_secret(secret.name) and not force_rotation:
             result["skipped"] = True
             result["reason"] = "One-time secret already exists"
             if not dry_run:
@@ -994,8 +1036,8 @@ class SyncEngine:
             return result
 
         # Check if secret exists in lockfile and has all targets tracked
-        secret_exists = self.lockfile.has_secret(secret.name)
-        lockfile_entry = self.lockfile.get_secret_info(secret.name) if secret_exists else None
+        secret_exists = secret_lockfile.has_secret(secret.name)
+        lockfile_entry = secret_lockfile.get_secret_info(secret.name) if secret_exists else None
 
         # Determine which targets need syncing
         if lockfile_entry and lockfile_entry.targets and not ignore_foreign_context_targets:
@@ -1120,14 +1162,14 @@ class SyncEngine:
                     target_id = target_result.get("target_id") or self._build_target_id(
                         target_config
                     )
-                    self.lockfile.add_secret(
+                    secret_lockfile.add_secret(
                         secret.name,
                         secret_value,
                         target_id=target_id,
                         is_rotation=force_rotation,
                         definition_hash=def_hash,
                     )
-                    self.lockfile.record_target_update(
+                    secret_lockfile.record_target_update(
                         secret.name,
                         target_id,
                         actor=self._target_provenance_actor(target_result.get("actor")),
@@ -1135,7 +1177,7 @@ class SyncEngine:
 
             # If secret has no targets, still persist its hash in lockfile.
             if len(targets_to_sync) == 0 and secret_value is not None:
-                self.lockfile.add_secret(
+                secret_lockfile.add_secret(
                     secret.name,
                     secret_value,
                     target_id=None,
@@ -1195,6 +1237,8 @@ class SyncEngine:
 
         self._record_lockfile_source_state(dry_run)
 
+        secret_lockfile = self._lockfile_for(secret)
+
         # Process each field in the template
         for field_name, field_def in template.fields.items():
             field_result = {
@@ -1210,9 +1254,9 @@ class SyncEngine:
             field_secret_name = f"{secret.name}.{field_name}"
 
             # Check if field exists in lockfile
-            field_exists = self.lockfile.has_secret(field_secret_name)
+            field_exists = secret_lockfile.has_secret(field_secret_name)
             lockfile_entry = (
-                self.lockfile.get_secret_info(field_secret_name) if field_exists else None
+                secret_lockfile.get_secret_info(field_secret_name) if field_exists else None
             )
 
             # Determine which targets need syncing
@@ -1292,10 +1336,10 @@ class SyncEngine:
                         target_id = target_result.get("target_id") or self._build_target_id(
                             target_config
                         )
-                        self.lockfile.add_secret(
+                        secret_lockfile.add_secret(
                             field_secret_name, field_value, target_id=target_id
                         )
-                        self.lockfile.record_target_update(
+                        secret_lockfile.record_target_update(
                             field_secret_name,
                             target_id,
                             actor=self._target_provenance_actor(target_result.get("actor")),
@@ -1698,13 +1742,14 @@ class SyncEngine:
             return None
 
         # Get lockfile entry
-        lock_entry = self.lockfile.secrets.get(secret_name)
+        lock_entry = self._lockfile_for(secret).secrets.get(secret_name)
 
         info = {
             "name": secret.name,
             "kind": secret.kind,
             "one_time": secret.one_time,
             "rotation_period": secret.rotation_period,
+            "local": secret.local,
             "targets": [{"provider": t.provider, "kind": t.kind} for t in secret.targets],
             "exists_in_lockfile": lock_entry is not None,
         }

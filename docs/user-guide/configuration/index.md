@@ -149,9 +149,22 @@ Secrets are the core entities managed by SecretZero. Each secret definition incl
 - **Targets**: Where to store the generated value
 - **Rotation Policy**: When to regenerate the secret
 - **Process tags** (optional): Short labels (for example `auth_flow`) used by GitNexus/MetaGit overlays to relate secrets to execution flows
+- **Local secrets** (optional): Set `local: true` to keep sync state in `.gitsecrets.local.lock` on each workstation (see [Local-only secrets](../local-secrets.md))
 
 ```yaml
 secrets:
+  - name: mysql_root_password
+    kind: random_password
+    local: true
+    config:
+      length: 32
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: .env.local
+          format: dotenv
+          merge: true
   - name: api_key
     kind: random_password
     rotation_period: 90d

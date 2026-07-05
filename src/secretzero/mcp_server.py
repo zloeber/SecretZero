@@ -20,6 +20,11 @@ from secretzero.agent_context import env_sz_agent_mode, spill_guard_active
 from secretzero.config import ConfigLoader
 from secretzero.drift import DriftDetector
 from secretzero.environment_resolution import apply_target_profile, resolve_environment_context
+from secretzero.local_secrets import (
+    load_lockfile_pair,
+    resolve_lockfile_for_secret,
+    save_lockfile_pair,
+)
 from secretzero.lockfile import Lockfile
 from secretzero.lockfile_state import sync_state_for_secret_target, target_id
 from secretzero.models import Secretfile
@@ -205,6 +210,7 @@ def _build_sync_engine(
     config: Secretfile,
     lock: Lockfile,
     secretfile_content: str,
+    local_lock: Lockfile | None = None,
 ) -> SyncEngine:
     return SyncEngine(
         config,
@@ -214,6 +220,7 @@ def _build_sync_engine(
         hide_input=True,
         prompt_on_empty=False,
         sync_client="mcp",
+        local_lockfile=local_lock,
     )
 
 
@@ -236,6 +243,7 @@ def _build_status_payload(
     config: Secretfile,
     lock: Lockfile,
     secretfile_content: str,
+    local_lock: Lockfile | None = None,
 ) -> dict[str, Any]:
     tracked_secretfile = lock.get_secretfile_info()
     current_hash = Lockfile._hash_value(secretfile_content)
@@ -247,12 +255,13 @@ def _build_status_payload(
             tracked_filename != paths.secretfile.name or tracked_hash != current_hash
         )
 
-    engine = _build_sync_engine(paths, config, lock, secretfile_content)
+    engine = _build_sync_engine(paths, config, lock, secretfile_content, local_lock)
     sync_readiness = engine.preflight_sync_readiness()
 
     secrets_data: list[dict[str, Any]] = []
     for secret in config.secrets:
-        entry = lock.get_secret_info(secret.name)
+        secret_lock = resolve_lockfile_for_secret(lock, local_lock, secret)
+        entry = secret_lock.get_secret_info(secret.name)
         targets_meta: list[dict[str, Any]] = []
         for target in secret.targets:
             tid = target_id(target)
@@ -455,8 +464,8 @@ def create_mcp_server() -> Any:
         )
         with workspace_context(paths.workspace):
             config, secretfile_content = _load_secretfile(paths)
-            lock = Lockfile.load(paths.lockfile)
-            engine = _build_sync_engine(paths, config, lock, secretfile_content)
+            lock, local_lock = load_lockfile_pair(paths.lockfile)
+            engine = _build_sync_engine(paths, config, lock, secretfile_content, local_lock)
 
             active_var_files = paths.var_files
             active_variables = dict(config.variables or {})
@@ -475,7 +484,7 @@ def create_mcp_server() -> Any:
 
             if not dry_run and (results["secrets_stored"] > 0 or results.get("secretfile_changed")):
                 lock.track_variable_context(active_var_files, active_variables)
-                lock.save(paths.lockfile)
+                save_lockfile_pair(paths.lockfile, lock, local_lock)
 
             payload = _sanitize_payload(
                 {
@@ -573,8 +582,8 @@ def create_mcp_server() -> Any:
         )
         with workspace_context(paths.workspace):
             config, secretfile_content = _load_secretfile(paths)
-            lock = Lockfile.load(paths.lockfile)
-            return _build_status_payload(paths, config, lock, secretfile_content)
+            lock, local_lock = load_lockfile_pair(paths.lockfile)
+            return _build_status_payload(paths, config, lock, secretfile_content, local_lock)
 
     @mcp.tool(name="sz_rotate", description=_SZ_ROTATE_DESC)
     def sz_rotate(
@@ -599,7 +608,7 @@ def create_mcp_server() -> Any:
         )
         with workspace_context(paths.workspace):
             config, secretfile_content = _load_secretfile(paths)
-            lock = Lockfile.load(paths.lockfile)
+            lock, local_lock = load_lockfile_pair(paths.lockfile)
 
             secrets_to_check = config.secrets
             if secrets:
@@ -620,7 +629,9 @@ def create_mcp_server() -> Any:
             for secret in secrets_to_check:
                 if not secret.rotation_period:
                     continue
-                entry = lock.get_secret_info(secret.name)
+                entry = resolve_lockfile_for_secret(lock, local_lock, secret).get_secret_info(
+                    secret.name
+                )
                 if not entry:
                     continue
                 if secret.one_time:
@@ -662,7 +673,7 @@ def create_mcp_server() -> Any:
                     }
                 )
 
-            engine = _build_sync_engine(paths, config, lock, secretfile_content)
+            engine = _build_sync_engine(paths, config, lock, secretfile_content, local_lock)
             original_secrets = config.secrets
             config.secrets = secrets_to_rotate
             try:
@@ -670,7 +681,7 @@ def create_mcp_server() -> Any:
             finally:
                 config.secrets = original_secrets
 
-            lock.save(paths.lockfile)
+            save_lockfile_pair(paths.lockfile, lock, local_lock)
             return _sanitize_payload(
                 {
                     "dry_run": False,

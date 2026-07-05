@@ -1,5 +1,6 @@
 """Configuration loading and variable interpolation."""
 
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -174,9 +175,15 @@ class ConfigLoader:
             return text
 
         # First, handle shell-style variables: ${VAR_NAME}
+
         def replace_shell_var(match: Any) -> str:
-            var_name = match.group(1)
-            return str(variables.get(var_name, match.group(0)))
+            expr = match.group(1)
+            var_name, sep, default = expr.partition(":-")
+            if var_name in variables:
+                return str(variables[var_name])
+            if sep:
+                return str(os.environ.get(var_name, default))
+            return str(os.environ.get(var_name, match.group(0)))
 
         text = re.sub(r"\$\{([^}]+)\}", replace_shell_var, text)
 

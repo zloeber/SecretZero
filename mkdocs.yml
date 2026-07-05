@@ -197,7 +197,7 @@ nav:
           - Python Client: user-guide/api/python-client.md
           - Deployment: user-guide/api/deployment.md
       - Agent Sync: user-guide/agent-sync.md
-      - Entra Agent ID Workflows: ENTRA-AGENT-ID.md
+      - Local-only secrets: user-guide/local-secrets.md
       - Lockfile Version Control Policy: user-guide/lockfile-version-control-policy.md
       - Provider Bundles:
           - user-guide/bundles/index.md

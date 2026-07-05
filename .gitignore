@@ -28,6 +28,7 @@ htmlcov/
 
 # SecretZero specific
 #.gitsecrets.lock
+.gitsecrets.local.lock
 mcp_config.json
 secret_results.json
 .env.*
