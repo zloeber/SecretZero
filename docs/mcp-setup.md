@@ -13,17 +13,53 @@ uv sync --extra mcp && source .venv/bin/activate
 Verify:
 
 ```bash
-secretzero-mcp --help
+secretzero mcp serve --help
+secretzero mcp config generate --help
 ```
+
+The standalone `secretzero-mcp` script remains available for backward compatibility; prefer `secretzero mcp serve`.
+
+## Application config (`config.mcp`)
+
+MCP defaults live in the same app config merge chain as LLM and discovery settings:
+
+**defaults ← `~/.config/secretzero/config.yml` ← Secretfile `config` block**
+
+Example `~/.config/secretzero/config.yml`:
+
+```yaml
+mcp:
+  workspace: /path/to/your/repo
+  client_format: cursor
+  sz_agent_mode: true
+  discover_local_only: true
+  discover_provider: ollama
+  serve_args:
+    - mcp
+    - serve
+```
+
+Or in `Secretfile.yml`:
+
+```yaml
+config:
+  mcp:
+    workspace: .
+    server_name: secretzero
+
+secrets: []
+```
+
+Show effective config: `secretzero config show --format yaml`
 
 ## Security defaults
 
 The MCP server enables spill-safe semantics automatically:
 
-| Variable | Default in MCP | Purpose |
-|----------|----------------|---------|
-| `SZ_AGENT_MODE` | `true` (set if unset) | Blocks reveal/plaintext dumps |
-| `SZ_WORKSPACE` | current directory | Project root for Secretfile/lockfile resolution |
+| Setting / variable | Default | Purpose |
+|--------------------|---------|---------|
+| `config.mcp.sz_agent_mode` | `true` | Sets `SZ_AGENT_MODE` in generated host env |
+| `SZ_WORKSPACE` / `config.mcp.workspace` | current directory | Project root for Secretfile/lockfile resolution |
 | `SECRETZERO_CONFIG` | `Secretfile.yml` | Manifest path relative to workspace |
 | `SZ_SANDBOX` | respected | Blocks `sz_sync` / `sz_rotate` writes unless `SZ_ALLOW_SYNC_IN_SANDBOX=true` |
 
@@ -34,36 +70,36 @@ The MCP server enables spill-safe semantics automatically:
 | Tool | CLI parity | Description |
 |------|------------|-------------|
 | `sz_sync` | `secretzero sync --format json` | Reconcile Secretfile with targets |
-| `sz_discover` | `secretzero discover --format json` | AI discovery (Ollama by default) |
+| `sz_discover` | `secretzero discover --format json` | AI discovery (defaults from `config.mcp`) |
 | `sz_status` | `secretzero status --format json` | Lockfile hashes, rotation, sync state |
 | `sz_rotate` | `secretzero rotate --format json` | Force rotation policy |
 | `sz_drift_check` | `secretzero drift --format json` | External target drift |
 
 All tools support **multi-environment profiles** via the `environment` and `var_files` parameters (same semantics as CLI `--environment` / `--var-file`).
 
-## Generate client configuration
+## Generate host client configuration
 
 ```bash
 cd /path/to/your/project
-secretzero-mcp --generate-config --workspace . --output mcp_config.json
+secretzero mcp config generate --workspace . --format cursor -o .cursor/mcp.json
 ```
 
 Formats:
 
 ```bash
 # Cursor (.cursor/mcp.json style)
-secretzero-mcp --generate-config --format cursor -o .cursor/mcp.json
+secretzero mcp config generate --format cursor -o .cursor/mcp.json
 
 # Claude Desktop (merge into claude_desktop_config.json)
-secretzero-mcp --generate-config --format claude -o claude_mcp_snippet.json
+secretzero mcp config generate --format claude -o claude_mcp_snippet.json
 ```
 
-Example generated entry:
+Generated hosts invoke `secretzero mcp serve` (not a separate binary):
 
 ```json
 {
-  "command": "secretzero-mcp",
-  "args": [],
+  "command": "secretzero",
+  "args": ["mcp", "serve"],
   "env": {
     "SZ_AGENT_MODE": "true",
     "SZ_WORKSPACE": "/path/to/project"
@@ -71,10 +107,12 @@ Example generated entry:
 }
 ```
 
+Legacy: `secretzero-mcp --generate-config` still works but prints a deprecation notice; use `secretzero mcp config generate` instead. The filename `mcp_config.json` was only ever a suggested **output** path for that generator — the application does not read it at runtime.
+
 ## Claude Desktop
 
-1. Install `secretzero[mcp]` so `secretzero-mcp` is on `PATH`.
-2. Generate config: `secretzero-mcp --generate-config --format claude --workspace /your/repo`
+1. Install `secretzero[mcp]` so `secretzero` is on `PATH`.
+2. Generate config: `secretzero mcp config generate --format claude --workspace /your/repo`
 3. Merge the `mcpServers.secretzero` block into:
 
    - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
@@ -84,19 +122,19 @@ Example generated entry:
 
 ## Cursor
 
-1. Run `secretzero-mcp --generate-config --format cursor -o .cursor/mcp.json` in your repo (or merge manually).
+1. Run `secretzero mcp config generate --format cursor -o .cursor/mcp.json` in your repo.
 2. Reload MCP servers in Cursor settings.
 
 ## VS Code / GitHub Copilot
 
-Use the generic config and adapt to your client's MCP schema. Point `command` at the `secretzero-mcp` executable and set `SZ_WORKSPACE` to your repository root.
+Use the generic format and adapt to your client's MCP schema. Point `command` at `secretzero` with args `["mcp", "serve"]` and set `SZ_WORKSPACE` to your repository root.
 
 ## Manual stdio test
 
 Use the [MCP Inspector](https://github.com/modelcontextprotocol/inspector):
 
 ```bash
-npx -y @modelcontextprotocol/inspector secretzero-mcp
+npx -y @modelcontextprotocol/inspector secretzero mcp serve
 ```
 
 Set `SZ_WORKSPACE` in the inspector environment panel when testing against a specific repo.

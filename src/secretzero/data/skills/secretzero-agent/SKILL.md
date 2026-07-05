@@ -4,6 +4,12 @@ description: |
   Use for agentic and operational SecretZero workflows including unified
   `agent sync`, CLI/API/MCP parity, secure human-in-the-loop vectors, and
   automation-safe run loops.
+license: Apache-2.0
+compatibility: Requires SecretZero CLI (Python 3.12+). Set SZ_AGENT_MODE=true on agent hosts. MCP extra for sz_* tools.
+metadata:
+  author: secretzero
+  version: "1.1"
+allowed-tools: Bash(secretzero:*) Read
 ---
 
 # SecretZero Agent Skill
@@ -45,10 +51,10 @@ When the agent host exposes SecretZero MCP tools (`secretzero-mcp`):
 
 ```bash
 uv tool install -U "secretzero[mcp]"
-secretzero-mcp --generate-config --workspace /path/to/repo
+secretzero mcp config generate --workspace /path/to/repo --format cursor
 ```
 
-See `docs/mcp-setup.md`. The MCP server sets **`SZ_AGENT_MODE=true`** by default (same spill contract as `skills/secretzero-handle/SKILL.md`).
+See `docs/mcp-setup.md`. The MCP server sets **`SZ_AGENT_MODE=true`** by default (same spill contract as `skills/secretzero-handle/SKILL.md`). Prefer `secretzero mcp serve`; `secretzero-mcp` remains a deprecated wrapper.
 
 ## Core Agent Contract
 

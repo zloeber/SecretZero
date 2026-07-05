@@ -7,6 +7,10 @@ from pydantic import BaseModel, Field
 
 from secretzero.config import ConfigLoader
 from secretzero.environment_resolution import apply_target_profile, resolve_environment_context
+from secretzero.local_secrets import (
+    local_lockfile_path,
+    resolve_lockfile_for_secret,
+)
 from secretzero.lockfile import Lockfile
 from secretzero.models import Secret, TargetConfig
 from secretzero.providers.registry import GLOBAL_PROVIDER_REGISTRY
@@ -42,6 +46,7 @@ class DriftDetector:
         """
         self.secretfile_path = secretfile_path
         self.lockfile_path = lockfile_path
+        self.local_lockfile_path = local_lockfile_path(lockfile_path)
 
         loader = ConfigLoader()
         base_secretfile = loader.load_file(secretfile_path)
@@ -58,6 +63,10 @@ class DriftDetector:
         self.config = apply_target_profile(self.config, env_ctx.resolved_target_profile)
         self.environment_context = env_ctx
         self.lockfile = Lockfile.load(lockfile_path)
+        self.local_lockfile = Lockfile.load(self.local_lockfile_path)
+
+    def _lockfile_for(self, secret: Secret) -> Lockfile:
+        return resolve_lockfile_for_secret(self.lockfile, self.local_lockfile, secret)
 
     def check_drift(self, secret_name: str | None = None) -> list[DriftStatus]:
         """Check for drift in secrets.
@@ -94,9 +103,10 @@ class DriftDetector:
             return self._check_template_secret_drift(secret)
 
         targets = self._format_targets(secret.targets)
+        secret_lockfile = self._lockfile_for(secret)
 
         # Check if secret exists in lockfile
-        if not self.lockfile.has_secret(secret.name):
+        if not secret_lockfile.has_secret(secret.name):
             return DriftStatus(
                 secret_name=secret.name,
                 has_drift=True,
@@ -107,7 +117,7 @@ class DriftDetector:
                 },
             )
 
-        lockfile_entry = self.lockfile.get_secret_info(secret.name)
+        lockfile_entry = secret_lockfile.get_secret_info(secret.name)
         if not lockfile_entry:
             return DriftStatus(
                 secret_name=secret.name,
@@ -131,7 +141,7 @@ class DriftDetector:
         )
 
         if definition_drift_for_secret(
-            self.lockfile,
+            secret_lockfile,
             secret,
             secretfile=self.config,
             secretfile_path=self.secretfile_path,
@@ -143,7 +153,7 @@ class DriftDetector:
                 message="Secretfile definition changed since last sync",
                 details={
                     "reason": "definition_changed",
-                    "stored_definition_hash": stored_definition_hash(self.lockfile, secret),
+                    "stored_definition_hash": stored_definition_hash(secret_lockfile, secret),
                     "current_definition_hash": hash_secret_definition(
                         secret, secretfile=self.config
                     ),

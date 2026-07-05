@@ -24,6 +24,7 @@ last_updated: 2026-07-02
 5. Keep `SZ_AGENT_MODE=true` default in `ensure_agent_mode()`.
 6. Add tests in `tests/test_mcp_server.py`; document client wiring in `docs/mcp-setup.md`.
 7. Optional extra: `secretzero[mcp]` (`mcp>=1.27,<2`).
+8. Prefer `secretzero mcp serve` and `secretzero mcp config generate`; keep `secretzero-mcp` as a deprecated wrapper.
 
 ## Gotchas
 - MCP tools are non-interactive — always `prompt_on_empty=False`.

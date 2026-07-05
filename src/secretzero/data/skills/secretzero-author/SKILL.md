@@ -8,6 +8,12 @@ description: |
   discovery, `.szvar` lanes, policy-bound targets. Inherits absolute rule from
   `skills/secretzero/SKILL.md`. Co-load `skills/secretzero-handle/SKILL.md`
   for `.env` / spill-safe CLI.
+license: Apache-2.0
+compatibility: Requires SecretZero CLI (Python 3.12+). Set SZ_AGENT_MODE=true when authoring under agents.
+metadata:
+  author: secretzero
+  version: "1.1"
+allowed-tools: Bash(secretzero:*) Read Write
 ---
 
 # SecretZero Author Skill
@@ -250,7 +256,7 @@ The guided phases are **transport-agnostic**; only the invocation changes.
 
 **MCP notes:**
 
-- This repo ships a **first-party MCP server** (`secretzero-mcp`, see `docs/mcp-setup.md`) plus CLI + REST API. Tools: `sz_sync`, `sz_discover`, `sz_status`, `sz_rotate`, `sz_drift_check` — metadata only, `SZ_AGENT_MODE=true` by default.
+- This repo ships a **first-party MCP server** (`secretzero mcp serve`, see `docs/mcp-setup.md`) plus CLI + REST API. Tools: `sz_sync`, `sz_discover`, `sz_status`, `sz_rotate`, `sz_drift_check` — metadata only, `SZ_AGENT_MODE=true` by default. Host config: `secretzero mcp config generate`; defaults in `config.mcp`.
 - **Tool parity:**
 
 | MCP tool | CLI equivalent |

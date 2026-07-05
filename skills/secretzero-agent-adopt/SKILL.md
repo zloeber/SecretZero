@@ -5,6 +5,12 @@ description: |
   bootstrap SecretZero environments with `secretzero agent list` / `agent adopt`,
   lockfile preseed, and restore loops. Inherits absolute rule from
   `skills/secretzero/SKILL.md` (SecretZero only; never secrets in context).
+license: Apache-2.0
+compatibility: Requires SecretZero CLI (Python 3.12+). Set SZ_AGENT_MODE=true for automated adopt flows.
+metadata:
+  author: secretzero
+  version: "1.1"
+allowed-tools: Bash(secretzero:*) Read
 ---
 
 # SecretZero Agent Adopt Skill

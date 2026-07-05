@@ -16,6 +16,8 @@ _DEFINITION_FIELDS = frozenset(
         "one_time",
         "rotation_period",
         "targets",
+        "local",
+        "local_allow_cloud",
     }
 )
 

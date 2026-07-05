@@ -125,8 +125,20 @@ class TestGenerateConfig:
         out = tmp_path / "mcp.json"
         payload = generate_mcp_config(workspace=tmp_path, output_path=out, format_name="cursor")
         assert "servers" in payload
-        assert payload["servers"]["secretzero"]["env"]["SZ_AGENT_MODE"] == "true"
+        entry = payload["servers"]["secretzero"]
+        assert entry["command"]
+        assert entry["args"] == ["mcp", "serve"]
+        assert entry["env"]["SZ_AGENT_MODE"] == "true"
         assert out.exists()
+
+    def test_generate_uses_secretfile_app_config(self, tmp_path: Path) -> None:
+        sf = tmp_path / "Secretfile.yml"
+        sf.write_text(
+            "config:\n  mcp:\n    server_name: project-mcp\nsecrets: []\n",
+            encoding="utf-8",
+        )
+        payload = generate_mcp_config(secretfile_path=sf, format_name="claude")
+        assert "project-mcp" in payload["mcpServers"]
 
 
 class TestMcpTools:

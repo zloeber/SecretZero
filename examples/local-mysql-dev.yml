@@ -1,0 +1,28 @@
+# Local MySQL root password (workstation-only)
+# Sync state is stored in .gitsecrets.local.lock (gitignored), not .gitsecrets.lock.
+
+version: "1.0"
+
+variables:
+  IS_LOCAL_ENV: "true"
+
+providers:
+  local:
+    kind: local
+
+secrets:
+  - name: mysql_root_password
+    kind: random_password
+    local: ${IS_LOCAL_ENV:-false}
+    config:
+      length: 32
+      special: true
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: .env.local
+          format: dotenv
+          merge: true
+
+templates: {}
