@@ -240,6 +240,3 @@ secretzero = ["data/**/*"]
 [build-system]
 requires = ["setuptools>=64", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
-# [build-system]
-# requires = ["hatchling"]
-# build-backend = "hatchling.build"
