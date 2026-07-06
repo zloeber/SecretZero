@@ -34,6 +34,14 @@ This guide is organized into three main sections covering configuration, CLI com
     
     [API Documentation →](api/index.md)
 
+-   :material-connection: **MCP Server**
+
+    ---
+
+    Native MCP server for Cursor, Claude Desktop, and agent hosts (metadata-only tools)
+    
+    [MCP Setup →](../mcp-setup.md)
+
 -   :material-puzzle: **Provider Bundles**
 
     ---

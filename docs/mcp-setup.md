@@ -65,6 +65,60 @@ The MCP server enables spill-safe semantics automatically:
 
 **Reveal is blocked:** no tool accepts `reveal=true` or equivalent flags.
 
+## Modality parity
+
+MCP is **not** a full replacement for the CLI, REST API, or `secretzero web`. It is a **fifth modality** scoped for agent hosts: metadata-only orchestration over stdio with spill guards enabled by default.
+
+For the operations it exposes, MCP calls the **same core engines** as CLI/API (`SyncEngine`, `DriftDetector`, `DiscoveryAgent`, `Lockfile`, environment profile resolution). Responses are sanitized; business logic is not reimplemented in tool handlers.
+
+### Covered on MCP (aligned semantics)
+
+| MCP tool | CLI | API | Notes |
+|----------|-----|-----|-------|
+| `sz_sync` | `secretzero sync --format json` | `POST /sync` | Non-interactive (`prompt_on_empty=False`); supports `dry_run`, `secrets`, `environment`, `var_files`, `refresh` |
+| `sz_status` | `secretzero status --format json` | `GET /secrets`, `GET /secrets/{name}/status` | Includes lockfile hashes, per-target sync state, provider identity, sync readiness |
+| `sz_rotate` | `secretzero rotate --format json` | `POST /rotation/check`, `POST /rotation/execute` | Supports `force`, `dry_run`, per-secret filter |
+| `sz_drift_check` | `secretzero drift --format json` | `POST /drift/check` | Requires existing lockfile |
+| `sz_discover` | `secretzero discover --format json` | — | Defaults from `config.mcp`; never returns candidate values |
+
+Shared across these paths: multi-environment `environment` / `var_files`, local+shared lockfile merge, `sync_client="mcp"` provenance, and `SZ_AGENT_MODE` spill contract.
+
+### Intentionally not on MCP (by design)
+
+| Capability | CLI | API | Web | Why not MCP |
+|------------|-----|-----|-----|-------------|
+| **Agent bootstrap / seeding** (`agent sync`, Vector 2 `--web`) | ✅ | `POST /agent/sync` | one-shot form | Requires human-in-the-loop or structured bootstrap output; MCP has no plaintext input channel |
+| **Plaintext retrieval** (`get --reveal`, `render`, backup `--print`) | ✅ (guarded) | partial | dashboard edit | Zero-leakage rule for LLM-connected hosts |
+| **Interactive prompts** (missing static fields) | ✅ | — | ✅ | MCP is non-interactive |
+| **`secretzero web` dashboard** | ✅ | — | ✅ | Separate bindable UI modality (sync, rotate, import, graph, manifest views) |
+
+Use CLI or API for bootstrap loops; use MCP for ongoing metadata-only maintenance after secrets are seeded.
+
+### Available on CLI/API but not yet on MCP
+
+These use the same backends and may be added later; today agents should fall back to CLI subprocess or REST API:
+
+| Capability | CLI | API |
+|------------|-----|-----|
+| Validate manifest | `secretzero validate` | `POST /config/validate` |
+| Policy check | `secretzero policy` | `POST /policy/check` |
+| Lockfile import / preseed | `secretzero import`, `ingest preseed` | — |
+| Provider connectivity test | `secretzero test` | — |
+| Catalog / list providers & targets | `secretzero catalog`, `list *` | `GET /list/*`, `GET /secret-types` |
+| Agent instructions report | `secretzero agent instructions` | — |
+| Per-target force sync | `sync --force-target` | — (CLI + web today) |
+| Graph / Terraform export | `graph`, `terraform` | `GET /graph` |
+| Backup / restore | `secretzero backup` | — |
+| Audit log query | — | `GET /audit/logs` |
+
+### Recommended agent workflow
+
+1. **Bootstrap (CLI/API only):** `secretzero agent sync --json` until `pending_secrets` and `failed_secrets` are empty; use `--web` for Vector 2 human input.
+2. **Ongoing ops (MCP or CLI):** `sz_status` → `sz_sync` / `sz_rotate` / `sz_drift_check` as needed.
+3. **Authoring (MCP + CLI):** `sz_discover` for inventory; edit `Secretfile.yml`; `secretzero validate` via CLI; dry-run with `sz_sync(dry_run=true)`.
+
+See also `skills/secretzero-agent/SKILL.md` for the MCP gap callout on bootstrap.
+
 ## Tools
 
 | Tool | CLI parity | Description |

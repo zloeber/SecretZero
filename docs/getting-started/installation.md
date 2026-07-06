@@ -134,6 +134,20 @@ Includes:
 - OpenAPI documentation
 - REST API endpoints
 
+### MCP Server
+
+```bash
+pip install secretzero[mcp]
+```
+
+Includes:
+
+- Official Model Context Protocol (`mcp`) SDK
+- `secretzero mcp serve` stdio server
+- `secretzero mcp config generate` for Cursor, Claude Desktop, and other hosts
+
+See [MCP Server Setup](../mcp-setup.md) for host configuration and tool reference.
+
 ### Documentation Tools
 
 ```bash
