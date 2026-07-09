@@ -1,5 +1,17 @@
 """SecretZero: Secrets orchestration, lifecycle, and bootstrap engine."""
 
+# Guard: a caller-injected PYTHONPATH (e.g. an embedding app) can shadow our
+# bundled deps and crash import (ModuleNotFoundError pydantic_core._pydantic_core).
+# Force our own site-packages ahead of any env-injected path.
+import sys as _sys
+import sysconfig as _sc
+
+_own = _sc.get_paths()["purelib"]
+if _own in _sys.path:
+    _sys.path.remove(_own)
+_sys.path.insert(0, _own)
+del _sys, _sc, _own
+
 import os
 from os import path
 
