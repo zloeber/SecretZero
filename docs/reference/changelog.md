@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Import no longer crashes when a caller (e.g. Hermes) injects a `PYTHONPATH` that shadows SecretZero's bundled `pydantic` with an incompatible install (`ModuleNotFoundError: No module named pydantic_core._pydantic_core`). Package `__init__` now forces the interpreter's own `site-packages` ahead of env-injected paths without clearing `PYTHONPATH`.
+
 ### Added
 - Local `file` target `format: tfvars` for flat HCL Terraform variable files (`terraform.tfvars`); paths ending in `.tfvars` infer this format when omitted.
 - Expanded Tavern API E2E workflow coverage with scenarios for credential rotation, `.szvar`-driven multi-environment target resolution, single-secret forced rotation, cross-target sync updates, and `azure_app_reg` pending-manual requests.
