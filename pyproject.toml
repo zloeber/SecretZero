@@ -172,7 +172,7 @@ all = [
     "keepercommander>=18.0.7",
 ]
 mcp = [
-    "mcp>=1.27,<2",
+    "mcp>=1.27,<3",
 ]
 
 [project.entry-points."secretzero.providers"]
