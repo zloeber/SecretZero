@@ -1,0 +1,29 @@
+variables:
+  gitlab_group: auto
+
+providers:
+  gitlab:
+    kind: gitlab
+    auth:
+      kind: token
+      config:
+        token: ${GITLAB_TOKEN}
+
+secrets:
+  - name: org_deploy_token
+    kind: gitlab_group_token
+    config:
+      provider: gitlab
+      group: auto
+      token_name: secretzero-org-deploy
+      scopes: [read_repository, write_repository]
+      access_level: 30
+      expires_in_days: 365
+      revoke_existing: true
+    targets:
+      - provider: gitlab
+        kind: gitlab_group_variable
+        config:
+          group: auto
+          masked: true
+          protected: true

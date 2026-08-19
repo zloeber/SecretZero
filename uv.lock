@@ -3993,6 +3993,7 @@ cicd = [
     { name = "pynacl" },
     { name = "python-gitlab" },
     { name = "python-jenkins" },
+    { name = "requests" },
 ]
 demos = [
     { name = "asciinema" },
@@ -4124,6 +4125,7 @@ requires-dist = [
     { name = "python-multipart", marker = "extra == 'api'", specifier = ">=0.0.32" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "requests", marker = "extra == 'all'", specifier = ">=2.34.2" },
+    { name = "requests", marker = "extra == 'cicd'", specifier = ">=2.32.0" },
     { name = "requests", marker = "extra == 'entra-agent-id'", specifier = ">=2.34.2" },
     { name = "requests", marker = "extra == 'vercel'", specifier = ">=2.34.2" },
     { name = "rich", specifier = ">=15.0.0" },
@@ -4138,7 +4140,7 @@ requires-dist = [
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'api'", specifier = ">=0.49.0" },
     { name = "wcwidth", marker = "extra == 'demos'" },
 ]
-provides-extras = ["dev", "aws", "azure", "entra-agent-id", "vault", "ansible-vault", "github", "gitlab", "jenkins", "kubernetes", "infisical", "vercel", "keeper", "cicd", "api", "docs", "ai", "security", "demos", "all", "mcp"]
+provides-extras = ["dev", "aws", "azure", "entra-agent-id", "vault", "ansible-vault", "github", "gitlab", "jenkins", "kubernetes", "infisical", "vercel", "keeper", "azure-devops", "cicd", "api", "docs", "ai", "security", "demos", "all", "mcp"]
 
 [[package]]
 name = "setuptools"

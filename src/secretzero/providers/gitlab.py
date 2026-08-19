@@ -130,13 +130,24 @@ class GitLabAuth(ProviderAuth):
                 "token_type": "gitlab_pat",
             }
         except Exception:
+            username = None
+            try:
+                user = self._client.user
+                username = getattr(user, "username", None)
+            except Exception:
+                username = None
+            token_type = "gitlab_project_access_token"
+            if username and str(username).startswith("service_account"):
+                token_type = "gitlab_service_account_pat"
+            elif username and "group" in str(username).lower():
+                token_type = "gitlab_group_access_token"
             return {
-                "user": None,
+                "user": username,
                 "name": None,
                 "email": None,
                 "user_id": None,
                 "scopes": [],
-                "token_type": "gitlab_project_access_token",
+                "token_type": token_type,
             }
 
 

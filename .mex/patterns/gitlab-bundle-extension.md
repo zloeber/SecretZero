@@ -1,50 +1,59 @@
 ---
 name: gitlab-bundle-extension
-description: Extend GitLab provider bundle with variables, group targets, project auto-resolve, and project access tokens.
+description: Extend GitLab provider bundle with variables, group targets, tokens, and service accounts.
 triggers:
   - "gitlab variable"
   - "gitlab project token"
+  - "gitlab group token"
+  - "gitlab service account"
   - "gitlab_group_variable"
   - "project auto"
+  - "group auto"
 edges:
   - target: patterns/add-bundle.md
     condition: when registering new GitLab bundle kinds
   - target: patterns/schema-doc-parity.md
     condition: when updating GeneratorKind/TargetKind enums
-last_updated: 2026-06-11
+last_updated: 2026-08-19
 ---
 
 # GitLab Bundle Extension
 
 ## Context
 
-GitLab CI/CD variable sync and project access token generation live in:
+GitLab CI/CD integration lives in:
 
 - `src/secretzero/providers/gitlab_variables.py` — REST upsert/get helpers
-- `src/secretzero/providers/gitlab_project_resolve.py` — `project: auto` chain
-- `src/secretzero/providers/gitlab.py` — provider + `generate_project_access_token()`
-- `src/secretzero/targets/gitlab.py` — `gitlab_variable`, `gitlab_group_variable`
-- `src/secretzero/generators/gitlab_project_token.py` — thin generator
+- `src/secretzero/providers/gitlab_project_resolve.py` — `project: auto`
+- `src/secretzero/providers/gitlab_group_resolve.py` — `group: auto`, top-level group detection
+- `src/secretzero/providers/gitlab_tokens.py` — group/project access token helpers
+- `src/secretzero/providers/gitlab_service_accounts.py` — group service account lifecycle
+- `src/secretzero/providers/gitlab.py` — provider + token/SA generation
+- `src/secretzero/targets/gitlab.py` — variables, group variables, SA membership
+- `src/secretzero/generators/gitlab_project_token.py`
+- `src/secretzero/generators/gitlab_group_token.py`
+- `src/secretzero/generators/gitlab_group_service_account.py`
 
-GitLab Secrets Manager (`gitlab_ci_secret`) is **deferred** — variables + project tokens only.
+GitLab Secrets Manager (`gitlab_ci_secret`) remains **deferred**.
+
+Structured SA payloads use target `value_field: token` (sync extracts scalar before store).
 
 ## Steps
 
 1. Register all target/generator kinds in `_get_bundle_manifest()`.
-2. Use shared variable helpers; always set `filter={'environment_scope': ...}` before variable `save()` when scope is not `*`.
-3. Use `resolve_gitlab_project()` for `project: auto`; never hard-code CI env reads in targets.
-4. Project access tokens require bootstrap PAT; default `revoke_existing: true` on generate.
+2. Use shared helpers; set `environment_scope` filter before variable save when scope is not `*`.
+3. Use `resolve_gitlab_project()` / `resolve_gitlab_group()` for `auto` resolution.
+4. Bootstrap PAT required; group tokens need Owner role; group SA APIs need top-level group.
 5. Run `task schema:update` and `task docs:generate:provider-bundles` after enum/manifest changes.
 
 ## Gotchas
 
-- `gitlab_group_variable` was documented before bundle registration — verify manifest lists it.
-- Masked variables must be single-line and ≥8 characters or GitLab silently rejects saves.
-- Project access tokens cannot create other project access tokens (PAT required).
-- `python-gitlab` is optional extra `secretzero[gitlab]`; import `gitlab.exceptions` with ImportError fallback in helpers.
+- Group access tokens on GitLab.com require Premium+.
+- Service account PAT plaintext is one-time only — lockfile stores hash + metadata IDs.
+- `python-gitlab` optional extra `secretzero[gitlab]`.
 
 ## Verify
 
 - [ ] `pytest tests/test_gitlab_*.py` passes
-- [ ] `gitlab_group_variable` and `gitlab_project_token` appear in bundle listing
-- [ ] `examples/gitlab-project-token.yml` validates
+- [ ] Bundle lists `gitlab_group_token`, `gitlab_group_service_account`, `gitlab_service_account_member`
+- [ ] `examples/gitlab-group-token.yml` and `examples/gitlab-group-service-account.yml` validate

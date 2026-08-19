@@ -25,6 +25,7 @@ _AUTO_GENERATOR_KINDS = {
     "gitlab_project_token",
     "gitlab_group_token",
     "gitlab_group_service_account",
+    "azdo_pat",
 }
 
 _SZ_AGENT_MANUAL_FAIL = (

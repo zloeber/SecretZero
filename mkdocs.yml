@@ -149,6 +149,7 @@ nav:
           - Encrypted Repo Workflows: user-guide/providers/encrypted-repo-workflows.md
           - AWS: user-guide/providers/aws.md
           - Azure: user-guide/providers/azure.md
+          - Azure DevOps: user-guide/providers/azure-devops.md
           - HashiCorp Vault: user-guide/providers/vault.md
           - GitHub: user-guide/providers/github.md
           - GitLab: user-guide/providers/gitlab.md

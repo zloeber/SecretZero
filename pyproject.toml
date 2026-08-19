@@ -116,11 +116,13 @@ vercel = [
 keeper = [
     "keepercommander>=18.0.7",
 ]
+azure-devops = []
 cicd = [
     "PyGithub>=2.1.0",
     "PyNaCl>=1.5.0",
     "python-gitlab>=8.4.0",
     "python-jenkins>=1.8.3",
+    "requests>=2.32.0",
 ]
 api = [
     "fastapi>=0.136.3",
@@ -190,6 +192,7 @@ infisical = "secretzero.providers.infisical:_get_bundle_manifest"
 entra_agent_id = "secretzero.providers.entra_agent_id:_get_bundle_manifest"
 vercel = "secretzero.providers.vercel:_get_bundle_manifest"
 keeper = "secretzero.providers.keeper:_get_bundle_manifest"
+azure_devops = "secretzero.providers.azure_devops:_get_bundle_manifest"
 
 [project.scripts]
 secretzero = "secretzero.cli:main"
