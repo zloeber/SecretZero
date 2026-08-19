@@ -23,6 +23,7 @@ _AUTO_GENERATOR_KINDS = {
     "entra-agent-blueprint",
     "github_pat",
     "gitlab_project_token",
+    "gitlab_group_token",
 }
 
 _SZ_AGENT_MANUAL_FAIL = (

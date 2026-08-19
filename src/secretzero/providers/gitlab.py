@@ -10,7 +10,12 @@ from pathlib import Path
 from typing import Any
 
 from secretzero.providers.base import BaseProvider, ProviderAuth
+from secretzero.providers.gitlab_group_resolve import resolve_gitlab_group
 from secretzero.providers.gitlab_project_resolve import resolve_gitlab_project
+from secretzero.providers.gitlab_tokens import (
+    create_group_access_token,
+    revoke_group_access_tokens_by_name,
+)
 
 GITLAB_PROJECT_TOKEN_SCOPES = frozenset(
     {
@@ -641,6 +646,82 @@ class GitLabProvider(BaseProvider):
             revoke_existing=manifest.get("revoke_existing", False),
         )
 
+    def generate_group_access_token(
+        self,
+        *,
+        token_name: str,
+        scopes: list[str],
+        group: str | None = None,
+        access_level: int = 40,
+        expires_in_days: int = 90,
+        description: str | None = None,
+        revoke_existing: bool = False,
+    ) -> str:
+        """Create a GitLab group access token.
+
+        Requires a personal access token with Owner role on the target group.
+
+        Args:
+            token_name: Token name in GitLab.
+            scopes: GitLab token scopes.
+            group: Group path/ID or ``auto``.
+            access_level: GitLab access level integer (default Maintainer).
+            expires_in_days: Days until expiration.
+            description: Optional token description.
+            revoke_existing: Revoke prior tokens with the same name first.
+
+        Returns:
+            One-time group access token string.
+        """
+        if not token_name:
+            raise ValueError("token_name is required for gitlab_group_token")
+        if not scopes:
+            raise ValueError("scopes is required for gitlab_group_token")
+
+        unknown = [scope for scope in scopes if scope not in GITLAB_PROJECT_TOKEN_SCOPES]
+        if unknown:
+            raise ValueError(f"Unknown GitLab group token scopes: {', '.join(unknown)}")
+
+        resolved_group = resolve_gitlab_group(
+            group=group or "auto",
+            provider_config=self.config or {},
+            cwd=Path.cwd(),
+        )
+
+        client = self.auth.get_client()
+        if not client:
+            raise ValueError("GitLab authentication failed")
+
+        if revoke_existing:
+            revoke_group_access_tokens_by_name(client, resolved_group, token_name)
+
+        expires_at = (datetime.now(UTC) + timedelta(days=expires_in_days)).strftime("%Y-%m-%d")
+        result = create_group_access_token(
+            client,
+            resolved_group,
+            token_name=token_name,
+            scopes=scopes,
+            access_level=access_level,
+            expires_at=expires_at,
+            description=description,
+        )
+        return result["token"]
+
+    def generate_group_access_token_with_manifest(
+        self,
+        manifest: dict[str, Any],
+    ) -> str:
+        """Create a group access token from a generator manifest."""
+        return self.generate_group_access_token(
+            token_name=manifest["token_name"],
+            scopes=manifest["scopes"],
+            group=manifest.get("group", "auto"),
+            access_level=manifest.get("access_level", 40),
+            expires_in_days=manifest.get("expires_in_days", 90),
+            description=manifest.get("description"),
+            revoke_existing=manifest.get("revoke_existing", True),
+        )
+
 
 # ---------------------------------------------------------------------------
 # Bundle manifest – makes this provider extractable as a standalone package.
@@ -662,12 +743,15 @@ def _get_bundle_manifest() -> BundleManifest:  # noqa: F821
             "gitlab_project_token": (
                 "secretzero.generators.gitlab_project_token:GitLabProjectTokenGenerator"
             ),
+            "gitlab_group_token": (
+                "secretzero.generators.gitlab_group_token:GitLabGroupTokenGenerator"
+            ),
         },
         targets={
             "gitlab_variable": "secretzero.targets.gitlab:GitLabVariableTarget",
             "gitlab_group_variable": "secretzero.targets.gitlab:GitLabGroupVariableTarget",
         },
-        generator_kinds=["gitlab_project_token"],
+        generator_kinds=["gitlab_project_token", "gitlab_group_token"],
         target_kinds=["gitlab_variable", "gitlab_group_variable"],
         terraform_provider={
             "name": "gitlab",

@@ -187,6 +187,7 @@ class GeneratorKind(str, Enum):
     PROVIDER_BACKED = "provider_backed"
     GITHUB_PAT = "github_pat"
     GITLAB_PROJECT_TOKEN = "gitlab_project_token"
+    GITLAB_GROUP_TOKEN = "gitlab_group_token"
 
     @classmethod
     def _missing_(cls, value: object) -> GeneratorKind | None:
