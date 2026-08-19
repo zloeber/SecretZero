@@ -824,6 +824,25 @@ class SyncEngine:
         return current
 
     @staticmethod
+    def _coerce_target_store_value(secret_value: str, target_config: Any) -> str:
+        """Extract a scalar payload for a target from a normalized secret value."""
+        config = getattr(target_config, "config", None) or {}
+        value_field = config.get("value_field", "token")
+        try:
+            parsed = json.loads(secret_value)
+        except json.JSONDecodeError:
+            return secret_value
+        if not isinstance(parsed, dict):
+            return secret_value
+        if value_field:
+            try:
+                extracted = SyncEngine._extract_object_field(parsed, value_field)
+            except ValueError:
+                return secret_value
+            return SyncEngine._normalize_secret_value(extracted)
+        return secret_value
+
+    @staticmethod
     def _normalize_secret_value(value: Any) -> str:
         """Normalize source/generator outputs to string payloads for targets."""
         if isinstance(value, str):
@@ -1136,10 +1155,14 @@ class SyncEngine:
                 agent_instructions=secret.agent_instructions,
             )
             result["generated"] = True
-        else:
-            secret_value = self._normalize_secret_value(secret_value)
 
-        cache[secret.name] = secret_value
+        if isinstance(secret_value, dict):
+            cache[secret.name] = secret_value
+        else:
+            cache[secret.name] = secret_value
+
+        normalized_secret_value = self._normalize_secret_value(secret_value)
+        secret_value = normalized_secret_value
         def_hash = self._definition_hash_for(secret)
 
         # Store in targets (only targets that need syncing)
@@ -1668,7 +1691,8 @@ class SyncEngine:
                 return result
 
             # Generic store
-            success = target.store(secret_name, secret_value)
+            store_value = self._coerce_target_store_value(secret_value, target_config)
+            success = target.store(secret_name, store_value)
             result["status"] = "stored" if success else "failed"
 
             resolve_target_id = getattr(target, "resolve_target_id", None)
