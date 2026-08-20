@@ -655,6 +655,29 @@ providers:
 | `1` | Some provider tests failed |
 | `4` | Provider connection error |
 
+## Gated Live Validations
+
+Optional live API checks live under `tests/validations/` and are skipped unless credentials are present. See `tests/validations/README.md`.
+
+```bash
+# GitLab group automation (Owner role on test group)
+export GITLAB_TOKEN=glpat-...
+export GITLAB_TEST_GROUP=myorg/mygroup
+uv run pytest tests/validations/test_gitlab_group_live.py -v
+
+# Azure DevOps Services
+export AZDO_PAT=...
+export AZDO_ORG=myorg
+export AZDO_TEST_PROJECT=my-project
+uv run pytest tests/validations/test_azdo_live.py -v
+```
+
+Example-manifest validation (no live credentials) remains:
+
+```bash
+task test:validations
+```
+
 ## Related Commands
 
 - [`validate`](validate.md) - Validate configuration

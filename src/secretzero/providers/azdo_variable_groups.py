@@ -13,7 +13,9 @@ def _variable_groups_url(client: AzdoClient, project: str) -> str:
     return client.project_url(project, "_apis/distributedtask/variablegroups")
 
 
-def get_variable_group_by_name(client: AzdoClient, project: str, name: str) -> dict[str, Any] | None:
+def get_variable_group_by_name(
+    client: AzdoClient, project: str, name: str
+) -> dict[str, Any] | None:
     url = _variable_groups_url(client, project)
     payload = client.get(url, params={"groupName": name, "api-version": API_VERSION})
     if not payload:

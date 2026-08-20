@@ -21,7 +21,9 @@ def get_environment_by_name(client: AzdoClient, project: str, name: str) -> dict
     return None
 
 
-def ensure_environment(client: AzdoClient, project: str, name: str, *, create_if_missing: bool) -> dict[str, Any]:
+def ensure_environment(
+    client: AzdoClient, project: str, name: str, *, create_if_missing: bool
+) -> dict[str, Any]:
     existing = get_environment_by_name(client, project, name)
     if existing:
         return existing

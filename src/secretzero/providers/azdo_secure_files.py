@@ -16,18 +16,17 @@ def upload_secure_file(
     content: bytes,
 ) -> dict[str, Any]:
     url = client.project_url(project, "_apis/distributedtask/securefiles")
-    return (
-        client.post(
-            url,
-            data=content,
-            headers={"Content-Type": "application/octet-stream"},
-            params={"api-version": API_VERSION, "name": file_name},
-        )
-        or {"name": file_name}
-    )
+    return client.post(
+        url,
+        data=content,
+        headers={"Content-Type": "application/octet-stream"},
+        params={"api-version": API_VERSION, "name": file_name},
+    ) or {"name": file_name}
 
 
-def get_secure_file_by_name(client: AzdoClient, project: str, file_name: str) -> dict[str, Any] | None:
+def get_secure_file_by_name(
+    client: AzdoClient, project: str, file_name: str
+) -> dict[str, Any] | None:
     url = client.project_url(project, "_apis/distributedtask/securefiles")
     payload = client.get(url, params={"api-version": API_VERSION})
     for entry in (payload or {}).get("value") or []:

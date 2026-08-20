@@ -237,6 +237,7 @@ nav:
       - Local Development: use-cases/local-development.md
       - GitHub Actions: use-cases/github-actions.md
       - GitLab CI/CD: use-cases/gitlab-cicd.md
+      - Azure DevOps Pipelines: use-cases/azure-devops-pipelines.md
       - Jenkins Pipelines: use-cases/jenkins.md
       - Kubernetes Deployment: use-cases/kubernetes.md
       - Multi-Cloud Setup: use-cases/multi-cloud.md

@@ -26,17 +26,23 @@ def test_auto_from_ci_namespace():
 
 
 def test_auto_from_provider_config():
-    assert resolve_gitlab_group(
-        group="auto",
-        provider_config={"group": "myorg/from-provider"},
-    ) == "myorg/from-provider"
+    assert (
+        resolve_gitlab_group(
+            group="auto",
+            provider_config={"group": "myorg/from-provider"},
+        )
+        == "myorg/from-provider"
+    )
 
 
 def test_auto_from_variables():
-    assert resolve_gitlab_group(
-        group="auto",
-        variables={"gitlab_group": "myorg/from-vars"},
-    ) == "myorg/from-vars"
+    assert (
+        resolve_gitlab_group(
+            group="auto",
+            variables={"gitlab_group": "myorg/from-vars"},
+        )
+        == "myorg/from-vars"
+    )
 
 
 def test_auto_derives_from_project_path():

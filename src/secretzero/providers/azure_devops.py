@@ -26,8 +26,10 @@ class AzureDevOpsAuth(ProviderAuth):
         self._client: AzdoClient | None = None
 
     def authenticate(self) -> bool:
-        token = self.config.get("token") or os.environ.get(self.ENV_PAT) or os.environ.get(
-            self.ENV_PAT_ALT
+        token = (
+            self.config.get("token")
+            or os.environ.get(self.ENV_PAT)
+            or os.environ.get(self.ENV_PAT_ALT)
         )
         if not token or not self.organization:
             return False
@@ -89,7 +91,11 @@ class AzureDevOpsProvider(BaseProvider):
         auth: AzureDevOpsAuth | None = None,
     ):
         if config:
-            blocked = [key for key in _ON_PREM_KEYS if key in config or key in (config.get("auth") or {}).get("config", {})]
+            blocked = [
+                key
+                for key in _ON_PREM_KEYS
+                if key in config or key in (config.get("auth") or {}).get("config", {})
+            ]
             if blocked:
                 raise ValueError(
                     "Azure DevOps Server is not supported in v1. "
@@ -146,7 +152,7 @@ class AzureDevOpsProvider(BaseProvider):
         return token
 
 
-def _get_bundle_manifest() -> "BundleManifest":  # noqa: F821
+def _get_bundle_manifest() -> BundleManifest:  # noqa: F821
     from secretzero.bundles.registry import BundleManifest
 
     return BundleManifest(
