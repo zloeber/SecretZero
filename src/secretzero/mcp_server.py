@@ -420,16 +420,16 @@ def generate_mcp_config(
 
 
 def create_mcp_server() -> Any:
-    """Build and return the FastMCP server instance."""
+    """Build and return the MCP server instance (``mcp`` SDK 2.x ``MCPServer``)."""
     try:
-        from mcp.server.fastmcp import FastMCP
+        from mcp.server import MCPServer
     except ImportError as exc:
         raise ImportError(
             "MCP SDK is not installed. Install with: pip install 'secretzero[mcp]'"
         ) from exc
 
     ensure_agent_mode()
-    mcp = FastMCP(
+    mcp = MCPServer(
         "SecretZero",
         instructions=(
             "SecretZero secrets-as-code orchestration. All tools return metadata only — "
@@ -438,10 +438,9 @@ def create_mcp_server() -> Any:
             "and sz_drift_check for external drift. Set environment/var_files for "
             "multi-environment profiles."
         ),
-        json_response=True,
     )
 
-    @mcp.tool(name="sz_sync", description=_SZ_SYNC_DESC)
+    @mcp.tool(name="sz_sync", description=_SZ_SYNC_DESC, structured_output=True)
     def sz_sync(
         dry_run: bool = False,
         secrets: list[str] | None = None,
@@ -505,7 +504,7 @@ def create_mcp_server() -> Any:
             )
             return payload
 
-    @mcp.tool(name="sz_discover", description=_SZ_DISCOVER_DESC)
+    @mcp.tool(name="sz_discover", description=_SZ_DISCOVER_DESC, structured_output=True)
     def sz_discover(
         path: str | None = None,
         dry_run: bool = False,
@@ -563,7 +562,7 @@ def create_mcp_server() -> Any:
             }
         )
 
-    @mcp.tool(name="sz_status", description=_SZ_STATUS_DESC)
+    @mcp.tool(name="sz_status", description=_SZ_STATUS_DESC, structured_output=True)
     def sz_status(
         environment: str | None = None,
         secretfile: str | None = None,
@@ -585,7 +584,7 @@ def create_mcp_server() -> Any:
             lock, local_lock = load_lockfile_pair(paths.lockfile)
             return _build_status_payload(paths, config, lock, secretfile_content, local_lock)
 
-    @mcp.tool(name="sz_rotate", description=_SZ_ROTATE_DESC)
+    @mcp.tool(name="sz_rotate", description=_SZ_ROTATE_DESC, structured_output=True)
     def sz_rotate(
         secrets: list[str] | None = None,
         force: bool = False,
@@ -691,7 +690,7 @@ def create_mcp_server() -> Any:
                 }
             )
 
-    @mcp.tool(name="sz_drift_check", description=_SZ_DRIFT_CHECK_DESC)
+    @mcp.tool(name="sz_drift_check", description=_SZ_DRIFT_CHECK_DESC, structured_output=True)
     def sz_drift_check(
         secret_name: str | None = None,
         environment: str | None = None,

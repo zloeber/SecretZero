@@ -206,11 +206,20 @@ def _call_tool(server, name: str, arguments: dict):
     import asyncio
 
     async def _invoke():
-        _content, structured = await server.call_tool(name, arguments)
+        result = await server.call_tool(name, arguments)
+        # mcp SDK 2.x returns CallToolResult; 1.x returned (content, structured).
+        structured = getattr(result, "structured_content", None)
         if isinstance(structured, dict):
             return structured
-        if _content and hasattr(_content[0], "text"):
-            return json.loads(_content[0].text)
+        content = getattr(result, "content", None)
+        if content is None and isinstance(result, tuple) and len(result) == 2:
+            content, structured = result
+            if isinstance(structured, dict):
+                return structured
+        if content and hasattr(content[0], "text"):
+            return json.loads(content[0].text)
+        if isinstance(result, dict):
+            return result
         return structured
 
     return asyncio.run(_invoke())

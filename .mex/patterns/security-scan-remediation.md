@@ -32,7 +32,7 @@ last_updated: 2026-06-05
 - Fixing only `uv.lock` is not enough if the task does not bootstrap the environment first.
 - If the pre-commit script shells out to raw audit commands instead of `task security:scan`, the two gates can drift again later.
 - Parallel security + validations in `scripts/agent.pre-commit.sh` must capture both `wait` exit statuses explicitly. A bare sequential `wait` can miss a failed `security:scan` when validations exit 0 last.
-- `tool.uv.override-dependencies` replaces package constraints. Preserve upper bounds (for example `mcp>=1.28.1,<2`) in overrides or they will be cleared and major upgrades can land unintentionally.
+- `tool.uv.override-dependencies` replaces package constraints. Preserve intentional upper bounds in overrides or they will be cleared and major upgrades can land unintentionally. Prefer latest majors when the code has been migrated (for example `mcp` 2.x uses `MCPServer` instead of `FastMCP`).
 
 ## Verify
 - `task security:scan` exits 0.

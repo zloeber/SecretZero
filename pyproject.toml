@@ -57,7 +57,7 @@ override-dependencies = [
     "langsmith>=0.11.1",
     "msgpack>=1.2.1",
     "lxml>=6.1.2",
-    "mcp>=1.28.1,<2",
+    "mcp>=2.0.0",
     "ollama>=0.6.2",
     "pillow>=12.3.0",
     "pip>=26.2.1",
@@ -180,7 +180,7 @@ all = [
     "keepercommander>=18.1.0",
 ]
 mcp = [
-    "mcp>=1.28.1,<2",
+    "mcp>=2.0.0",
 ]
 
 [project.entry-points."secretzero.providers"]
