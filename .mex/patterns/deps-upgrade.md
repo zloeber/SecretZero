@@ -39,7 +39,7 @@ Script: `scripts/sync_pyproject_dep_floors.py` (`--dry-run`, `--check`).
 ## Gotchas
 
 - Floors only update the `>=` portion of a spec; trailing constraints (for example `pytest>=9.0.3,<9.1`) are preserved.
-- **Tavern + pytest:** Tavern 3.6.x is not compatible with pytest 9.1+ (`FormattedExcinfo` removal). Keep `pytest>=9.0.3,<9.1` until Tavern ships a fix.
+- **Tavern + pytest:** Prefer keeping the documented upper bound in `pytest` floors. After Tavern 3.6.1+, pytest 9.1.x collection works; re-check e2e collect/run if either package jumps major.
 - Local/path dependencies are skipped (not in `uv.lock` as PyPI names).
 - `pip-audit` may skip auditing `secretzero` itself (local editable install) — expected.
 

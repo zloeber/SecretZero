@@ -74,8 +74,8 @@ class GitLabGroupTokenGenerator(BaseGenerator):
                     description="Navigate to group access token settings",
                 ),
                 AgentInstructionStep(
-                    action=f"Select group '{group}' (or resolve from project namespace)",
-                    description="Group access tokens require Owner role on the group",
+                    action=f"Choose GitLab group path: {group}",
+                    description="Group access tokens require Owner role on that group",
                 ),
                 AgentInstructionStep(
                     action=f"Set token name to '{token_name}'",

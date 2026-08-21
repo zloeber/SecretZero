@@ -104,8 +104,13 @@ else
 fi
 
 log "==> Running security scan + validations"
+# Run in parallel, but fail the gate if either job fails. A bare sequential
+# ``wait`` pair can miss a failed security scan when the validations job exits 0
+# last (zsh ``wait`` without capturing statuses under ``set -e`` edge cases).
 task security:scan &
 pid_security=$!
+security_status=0
+valid_status=0
 
 if [[ "${requires_all_validations}" -eq 1 ]]; then
   (
@@ -125,8 +130,12 @@ else
   pid_valid=$!
 fi
 
-wait "${pid_security}"
-wait "${pid_valid}"
+wait "${pid_security}" || security_status=$?
+wait "${pid_valid}" || valid_status=$?
+if [[ "${security_status}" -ne 0 || "${valid_status}" -ne 0 ]]; then
+  echo "Security/validation gate failed (security=${security_status}, validations=${valid_status})"
+  exit 1
+fi
 
 log "==> Checking README and docs hyperlinks (lychee)"
 task docs:links
