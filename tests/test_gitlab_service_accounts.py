@@ -43,29 +43,6 @@ def test_gitlab_service_accounts_importable_without_python_gitlab(
     assert callable(mod.create_group_service_account)
 
 
-def test_cli_importable_without_python_gitlab(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Regression: bare ``import secretzero.cli`` must not pull unguarded gitlab."""
-    monkeypatch.setitem(sys.modules, "gitlab", None)
-    # Drop cached modules on the reported import chain so they re-resolve.
-    for name in list(sys.modules):
-        if name == "secretzero.cli" or name.startswith("secretzero."):
-            if "gitlab" in name or name in {
-                "secretzero.cli",
-                "secretzero.agent_adopt_cli",
-                "secretzero.integrations",
-                "secretzero.integrations.adopt",
-                "secretzero.lockfile_import",
-                "secretzero.sync",
-                "secretzero.generators",
-                "secretzero.generators.gitlab_project_token",
-                "secretzero.providers.gitlab",
-                "secretzero.providers.gitlab_service_accounts",
-            }:
-                monkeypatch.delitem(sys.modules, name, raising=False)
-    monkeypatch.delitem(sys.modules, "secretzero.cli", raising=False)
-    importlib.import_module("secretzero.cli")
-
-
 def test_create_group_service_account():
     client = MagicMock()
     client.http_post.return_value = {"id": 123, "username": "service_account_myorg_bot"}

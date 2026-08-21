@@ -103,35 +103,27 @@ class TestMcpServerClassResolver:
         assert callable(cls)
 
     def test_resolve_falls_back_to_fastmcp(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        import builtins
+        import sys
         import types
+
+        import mcp.server as mcp_server_mod
 
         sentinel = type("FakeFastMCP", (), {})
         fake_fastmcp = types.ModuleType("mcp.server.fastmcp")
         fake_fastmcp.FastMCP = sentinel  # type: ignore[attr-defined]
-        real_import = builtins.__import__
 
-        def _import(name, globals=None, locals=None, fromlist=(), level=0):
-            if name == "mcp.server" and fromlist and "MCPServer" in fromlist:
-                raise ImportError("simulated missing MCPServer")
-            if name == "mcp.server.fastmcp":
-                return fake_fastmcp
-            return real_import(name, globals, locals, fromlist, level)
+        monkeypatch.delattr(mcp_server_mod, "MCPServer", raising=False)
+        monkeypatch.setitem(sys.modules, "mcp.server.fastmcp", fake_fastmcp)
 
-        monkeypatch.setattr(builtins, "__import__", _import)
         assert resolve_mcp_server_cls() is sentinel
 
     def test_resolve_error_reports_found_version(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        import builtins
+        import sys
 
-        real_import = builtins.__import__
+        import mcp.server as mcp_server_mod
 
-        def _import(name, globals=None, locals=None, fromlist=(), level=0):
-            if name in {"mcp.server", "mcp.server.fastmcp"} or name.startswith("mcp.server"):
-                raise ImportError("simulated missing")
-            return real_import(name, globals, locals, fromlist, level)
-
-        monkeypatch.setattr(builtins, "__import__", _import)
+        monkeypatch.delattr(mcp_server_mod, "MCPServer", raising=False)
+        monkeypatch.setitem(sys.modules, "mcp.server.fastmcp", None)
         monkeypatch.setattr(
             "secretzero.mcp_server._mcp_package_version",
             lambda: "1.27.0",
