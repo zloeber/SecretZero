@@ -5,7 +5,12 @@ from __future__ import annotations
 from typing import Any
 from urllib.parse import quote
 
-import gitlab
+
+def _gitlab() -> Any:
+    """Deferred import — python-gitlab is an optional extra (``secretzero[gitlab]``)."""
+    import gitlab
+
+    return gitlab
 
 
 def _group_path(group: str) -> str:
@@ -18,6 +23,7 @@ def create_group_service_account(client: Any, top_level_group: str, name: str) -
     Returns:
         Dict with ``user_id`` and ``username``.
     """
+    gitlab = _gitlab()
     path = f"/groups/{_group_path(top_level_group)}/service_accounts"
     try:
         response = client.http_post(path, post_data={"name": name})
@@ -42,6 +48,7 @@ def create_service_account_pat(
     description: str | None = None,
 ) -> dict[str, Any]:
     """Create a personal access token for a group service account."""
+    gitlab = _gitlab()
     path = (
         f"/groups/{_group_path(top_level_group)}/service_accounts/{user_id}/personal_access_tokens"
     )
@@ -76,6 +83,7 @@ def rotate_service_account_pat(
     expires_at: str | None = None,
 ) -> dict[str, Any]:
     """Rotate a service account personal access token."""
+    gitlab = _gitlab()
     path = (
         f"/groups/{_group_path(top_level_group)}/service_accounts/{user_id}/"
         f"personal_access_tokens/{token_id}/rotate"
@@ -104,6 +112,7 @@ def revoke_service_account_pat(
     token_id: int,
 ) -> None:
     """Revoke a service account personal access token."""
+    gitlab = _gitlab()
     path = (
         f"/groups/{_group_path(top_level_group)}/service_accounts/{user_id}/"
         f"personal_access_tokens/{token_id}"
@@ -121,6 +130,7 @@ def add_group_member(
     access_level: int,
 ) -> None:
     """Add a service account user to a group (idempotent)."""
+    gitlab = _gitlab()
     gl_group = client.groups.get(group, lazy=True)
     try:
         gl_group.members.create({"user_id": user_id, "access_level": access_level})
@@ -137,6 +147,7 @@ def add_project_member(
     access_level: int,
 ) -> None:
     """Add a service account user to a project (idempotent)."""
+    gitlab = _gitlab()
     gl_project = client.projects.get(project, lazy=True)
     try:
         gl_project.members.create({"user_id": user_id, "access_level": access_level})

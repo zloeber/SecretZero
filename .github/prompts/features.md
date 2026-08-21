@@ -86,7 +86,8 @@ class OperationPlan(BaseModel):
     operations: list[Operation]
     summary: dict[str, int]  # created, updated, deleted, unchanged
     estimated_duration: float
-    
+
+
 class Operation(BaseModel):
     action: str  # "create", "update", "delete", "skip"
     resource_type: str
@@ -107,11 +108,13 @@ Create consistent list command outputs:
 def list(resource: str, output: str):
     """List secrets, providers, targets, or variables."""
     config = load_config()
-    
+
     if resource == "secrets":
-        items = [{"name": s.name, "kind": s.kind, "targets": len(s.targets)} for s in config.secrets]
+        items = [
+            {"name": s.name, "kind": s.kind, "targets": len(s.targets)} for s in config.secrets
+        ]
     # ... etc
-    
+
     if output == "json":
         console.print(json.dumps(items, indent=2))
     else:
@@ -149,16 +152,17 @@ Add tests for new features:
 def test_command_json_output(temp_secretfile):
     runner = CliRunner()
     result = runner.invoke(cli, ["command_name", "--output", "json", "--file", temp_secretfile])
-    
+
     assert result.exit_code == 0
     output_data = json.loads(result.output)
     assert output_data["status"] == "success"
     assert "data" in output_data
 
+
 def test_exit_code_on_error():
     runner = CliRunner()
     result = runner.invoke(cli, ["command_name", "--file", "nonexistent.yml"])
-    
+
     assert result.exit_code == 1  # validation error
 ```
 

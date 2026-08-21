@@ -74,13 +74,6 @@ class AzdoClient:
             return None
         return response.json()
 
-    def patch(self, url: str, *, json: dict[str, Any] | None = None) -> Any:
-        response = self._session.patch(url, json=json, timeout=self._timeout)
-        response.raise_for_status()
-        if not response.content:
-            return None
-        return response.json()
-
     def patch(
         self,
         url: str,

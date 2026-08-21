@@ -419,17 +419,55 @@ def generate_mcp_config(
     return payload
 
 
-def create_mcp_server() -> Any:
-    """Build and return the MCP server instance (``mcp`` SDK 2.x ``MCPServer``)."""
+def _mcp_package_version() -> str | None:
+    """Return the installed ``mcp`` distribution version, if any."""
+    try:
+        from importlib.metadata import PackageNotFoundError, version
+    except ImportError:  # pragma: no cover
+        return None
+    try:
+        return version("mcp")
+    except PackageNotFoundError:
+        return None
+
+
+def resolve_mcp_server_cls() -> type[Any]:
+    """Resolve the MCP server class across ``mcp`` 1.x and 2.x.
+
+    ``mcp`` 2.x exposes ``mcp.server.MCPServer``; ``mcp`` 1.x exposes
+    ``mcp.server.fastmcp.FastMCP``. The constructor / ``.tool()`` /
+    ``.run(transport=...)`` surface used here is compatible across both.
+    """
     try:
         from mcp.server import MCPServer
+
+        return MCPServer
+    except ImportError:
+        pass
+
+    try:
+        from mcp.server.fastmcp import FastMCP
+
+        return FastMCP
     except ImportError as exc:
+        found = _mcp_package_version()
+        if found is None:
+            raise ImportError(
+                "MCP SDK is not installed. Install with: pip install 'secretzero[mcp]' "
+                "(requires mcp>=1.27)"
+            ) from exc
         raise ImportError(
-            "MCP SDK is not installed. Install with: pip install 'secretzero[mcp]'"
+            f"Found mcp {found} but neither MCPServer (mcp>=2) nor FastMCP (mcp 1.x) "
+            "is importable. Install with: pip install 'secretzero[mcp]' (mcp>=1.27)"
         ) from exc
 
+
+def create_mcp_server() -> Any:
+    """Build and return the MCP server instance (``mcp`` 1.x FastMCP or 2.x MCPServer)."""
+    server_cls = resolve_mcp_server_cls()
+
     ensure_agent_mode()
-    mcp = MCPServer(
+    mcp = server_cls(
         "SecretZero",
         instructions=(
             "SecretZero secrets-as-code orchestration. All tools return metadata only — "

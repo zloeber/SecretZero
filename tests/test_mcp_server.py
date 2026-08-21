@@ -19,6 +19,7 @@ from secretzero.mcp_server import (
     ensure_agent_mode,
     generate_mcp_config,
     resolve_mcp_paths,
+    resolve_mcp_server_cls,
 )
 
 
@@ -93,6 +94,50 @@ class TestDiscoverPayload:
         rows = _discover_candidates_payload(result)
         assert rows[0]["name"] == "api_key"
         assert "raw_value" not in rows[0]
+
+
+class TestMcpServerClassResolver:
+    def test_resolve_prefers_mcp_server_when_available(self) -> None:
+        cls = resolve_mcp_server_cls()
+        assert cls is not None
+        assert callable(cls)
+
+    def test_resolve_falls_back_to_fastmcp(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import builtins
+        import types
+
+        sentinel = type("FakeFastMCP", (), {})
+        fake_fastmcp = types.ModuleType("mcp.server.fastmcp")
+        fake_fastmcp.FastMCP = sentinel  # type: ignore[attr-defined]
+        real_import = builtins.__import__
+
+        def _import(name, globals=None, locals=None, fromlist=(), level=0):
+            if name == "mcp.server" and fromlist and "MCPServer" in fromlist:
+                raise ImportError("simulated missing MCPServer")
+            if name == "mcp.server.fastmcp":
+                return fake_fastmcp
+            return real_import(name, globals, locals, fromlist, level)
+
+        monkeypatch.setattr(builtins, "__import__", _import)
+        assert resolve_mcp_server_cls() is sentinel
+
+    def test_resolve_error_reports_found_version(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import builtins
+
+        real_import = builtins.__import__
+
+        def _import(name, globals=None, locals=None, fromlist=(), level=0):
+            if name in {"mcp.server", "mcp.server.fastmcp"} or name.startswith("mcp.server"):
+                raise ImportError("simulated missing")
+            return real_import(name, globals, locals, fromlist, level)
+
+        monkeypatch.setattr(builtins, "__import__", _import)
+        monkeypatch.setattr(
+            "secretzero.mcp_server._mcp_package_version",
+            lambda: "1.27.0",
+        )
+        with pytest.raises(ImportError, match=r"Found mcp 1\.27\.0"):
+            resolve_mcp_server_cls()
 
 
 class TestMcpPaths:

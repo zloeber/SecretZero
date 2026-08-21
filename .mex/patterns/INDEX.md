@@ -22,6 +22,7 @@ Lookup table for all pattern files in this directory. Check here before starting
 | [lockfile-state-parity.md](lockfile-state-parity.md) | Changing synced/pending/drift target-state logic across web/graph/CLI surfaces |
 | [lockfile-sync-identity.md](lockfile-sync-identity.md) | Extending lockfile operator/CI identity metadata or sync provenance |
 | [mcp-server.md](mcp-server.md) | Native `secretzero-mcp` server, tool parity, spill guards |
+| [optional-extra-import-guards.md](optional-extra-import-guards.md) | Guard extras-only SDK imports so bare installs can load the CLI |
 | [pythonpath-shadow-guard.md](pythonpath-shadow-guard.md) | Caller-injected PYTHONPATH shadowing bundled deps (pydantic) at import |
 | [schema-doc-parity.md](schema-doc-parity.md) | Any schema/model/config-surface change requiring schema+docs+examples parity |
 | [security-scan-remediation.md](security-scan-remediation.md) | Reproducing and fixing `task security:scan` / `pip-audit` / `bandit` failures and keeping pre-commit in sync |

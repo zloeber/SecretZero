@@ -65,10 +65,10 @@ Returns a structured report:
 ```python
 # Before
 style_name = style.get("Style Category", "")  # Assigned but never used
-keywords = style.get("Keywords", "")          # Used
+keywords = style.get("Keywords", "")  # Used
 
 # After
-keywords = style.get("Keywords", "")          # Only used variables remain
+keywords = style.get("Keywords", "")  # Only used variables remain
 ```
 
 ### Code Formatting Issues
