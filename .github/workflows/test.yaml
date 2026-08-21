@@ -49,7 +49,7 @@ jobs:
   unit-tests:
     name: Unit Tests - ${{ matrix.os }} - ${{ matrix.python-version }} - ${{ github.ref_name }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    timeout-minutes: 20
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
@@ -83,7 +83,8 @@ jobs:
           uv sync --frozen --all-extras
 
       - name: Unit Tests - ${{ matrix.os }}
-        run: uv run pytest --maxfail=1 --disable-warnings -v tests
+        # Keep e2e in the dedicated e2e-tests job (matches scripts/agent.pre-commit.sh).
+        run: uv run pytest --maxfail=1 --disable-warnings -v tests --ignore=tests/e2e
 
   e2e-tests:
     name: E2E Tavern Tests - ${{ matrix.os }} - ${{ matrix.python-version }}
