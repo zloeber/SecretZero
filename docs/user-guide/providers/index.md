@@ -20,9 +20,10 @@ SecretZero supports the following providers:
 | [Local](local.md) | Local Filesystem | `file`, `template` | Local development, `.env` files, configuration files |
 | [AWS](aws.md) | Amazon Web Services | `ssm_parameter`, `secrets_manager` | Cloud infrastructure, serverless apps, ECS/EKS |
 | [Azure](azure.md) | Microsoft Azure | `key_vault` | Azure cloud services, App Service, AKS |
+| [Azure DevOps](azure-devops.md) | Azure DevOps Services | `azdo_variable_group`, `azdo_pipeline_variable`, `azdo_environment_variable`, `azdo_secure_file`, `azdo_keyvault_variable_group` | Azure Pipelines library secrets (Services only) |
 | [Vault](vault.md) | HashiCorp Vault | `kv` | Multi-cloud secrets, centralized secret management |
 | [GitHub](github.md) | GitHub Actions | `github_secret` | CI/CD pipelines, GitHub workflows |
-| [GitLab](gitlab.md) | GitLab CI/CD | `gitlab_variable`, `gitlab_group_variable` | CI/CD pipelines, GitLab runners |
+| [GitLab](gitlab.md) | GitLab CI/CD | `gitlab_variable`, `gitlab_group_variable`, `gitlab_service_account_member` | CI/CD pipelines, group tokens / service accounts |
 | [Jenkins](jenkins.md) | Jenkins | `jenkins_credential` | Build automation, deployment pipelines |
 | [Kubernetes](kubernetes.md) | Kubernetes | `kubernetes_secret`, `external_secret` | Container orchestration, microservices |
 | [Vercel](vercel.md) | Vercel | `vercel_env` | Project environment variable delivery |

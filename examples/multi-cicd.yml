@@ -1,15 +1,20 @@
 # # Multi-CI/CD Platform Integration Example
 
-# This example demonstrates using SecretZero to manage secrets across GitHub Actions, GitLab CI/CD, and Jenkins simultaneously.
+# This example demonstrates using SecretZero to manage secrets across GitHub Actions,
+# GitLab CI/CD, Azure DevOps Services, and Jenkins simultaneously.
 
 # ## Use Case
 
 # Many organizations use multiple CI/CD platforms:
 # - GitHub Actions for open-source projects
 # - GitLab CI/CD for internal projects
+# - Azure DevOps Pipelines for Microsoft-centric teams
 # - Jenkins for legacy pipelines
 
 # SecretZero allows you to manage all these secrets from a single source of truth.
+# The ``shared_deploy_token`` secret shows a cross-provider pattern: mint a GitLab
+# group service account PAT once, then sync it into GitLab group variables and an
+# Azure DevOps Library variable group.
 
 # ## Configuration
 
@@ -22,7 +27,12 @@ variables:
   
   # GitLab variables (use `auto` to resolve from CI_PROJECT_PATH or git remote)
   gitlab_project: mygroup/myproject
-  # See examples/gitlab-project-token.yml for gitlab_project_token generator usage.
+  gitlab_group: auto
+  # See examples/gitlab-project-token.yml / gitlab-group-service-account.yml for token generators.
+  
+  # Azure DevOps Services
+  azdo_project: auto
+  azdo_organization: myorg
   
   # Jenkins variables
   jenkins_url: https://jenkins.example.com
@@ -41,6 +51,14 @@ providers:
       kind: token
       config:
         token: ${GITLAB_TOKEN}
+  
+  azdo:
+    kind: azure_devops
+    auth:
+      kind: token
+      config:
+        token: ${AZDO_PAT}
+        organization: ${azdo_organization}
   
   jenkins:
     kind: jenkins
@@ -80,6 +98,16 @@ secrets:
         config:
           project: ${gitlab_project}
           masked: true
+      
+      # Azure DevOps Library
+      - provider: azdo
+        kind: azdo_variable_group
+        config:
+          project: auto
+          variable_group: shared-secrets
+          variable_name: EXTERNAL_API_KEY
+          is_secret: true
+          create_if_missing: true
       
       # Jenkins
       - provider: jenkins
@@ -218,6 +246,37 @@ secrets:
         config:
           credential_id: slack-webhook
           description: Slack Notification Webhook
+
+  # Cross-provider automation identity: GitLab group SA → GitLab group var + ADO library
+  - name: shared_deploy_token
+    kind: gitlab_group_service_account
+    config:
+      provider: gitlab
+      group: auto
+      service_account_name: secretzero-deploy-bot
+      token_name: deploy-token
+      scopes: [read_repository, write_repository]
+      memberships:
+        - resource_type: project
+          resource: auto
+          access_level: 30
+    targets:
+      - provider: gitlab
+        kind: gitlab_group_variable
+        config:
+          group: auto
+          masked: true
+          value_field: token
+      - provider: azdo
+        kind: azdo_variable_group
+        config:
+          project: auto
+          variable_group: production-secrets
+          variable_name: GITLAB_DEPLOY_TOKEN
+          is_secret: true
+          create_if_missing: true
+          value_field: token
+          authorize_pipelines: [backend-release]
 # ```
 
 # ## Setup
@@ -234,6 +293,9 @@ secrets:
    
 #    # GitLab
 #    export GITLAB_TOKEN=glpat-your_gitlab_token
+#
+#    # Azure DevOps Services
+#    export AZDO_PAT=your_azure_devops_pat
    
 #    # Jenkins
 #    export JENKINS_USERNAME=admin

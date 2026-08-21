@@ -187,6 +187,9 @@ class GeneratorKind(str, Enum):
     PROVIDER_BACKED = "provider_backed"
     GITHUB_PAT = "github_pat"
     GITLAB_PROJECT_TOKEN = "gitlab_project_token"
+    GITLAB_GROUP_TOKEN = "gitlab_group_token"
+    GITLAB_GROUP_SERVICE_ACCOUNT = "gitlab_group_service_account"
+    AZDO_PAT = "azdo_pat"
 
     @classmethod
     def _missing_(cls, value: object) -> GeneratorKind | None:
@@ -235,6 +238,12 @@ class TargetKind(str, Enum):
     GITHUB_SECRET = "github_secret"
     GITLAB_VARIABLE = "gitlab_variable"
     GITLAB_GROUP_VARIABLE = "gitlab_group_variable"
+    GITLAB_SERVICE_ACCOUNT_MEMBER = "gitlab_service_account_member"
+    AZDO_VARIABLE_GROUP = "azdo_variable_group"
+    AZDO_PIPELINE_VARIABLE = "azdo_pipeline_variable"
+    AZDO_ENVIRONMENT_VARIABLE = "azdo_environment_variable"
+    AZDO_SECURE_FILE = "azdo_secure_file"
+    AZDO_KEYVAULT_VARIABLE_GROUP = "azdo_keyvault_variable_group"
     JENKINS_CREDENTIAL = "jenkins_credential"
 
     @classmethod

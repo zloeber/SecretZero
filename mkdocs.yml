@@ -149,6 +149,7 @@ nav:
           - Encrypted Repo Workflows: user-guide/providers/encrypted-repo-workflows.md
           - AWS: user-guide/providers/aws.md
           - Azure: user-guide/providers/azure.md
+          - Azure DevOps: user-guide/providers/azure-devops.md
           - HashiCorp Vault: user-guide/providers/vault.md
           - GitHub: user-guide/providers/github.md
           - GitLab: user-guide/providers/gitlab.md
@@ -236,6 +237,7 @@ nav:
       - Local Development: use-cases/local-development.md
       - GitHub Actions: use-cases/github-actions.md
       - GitLab CI/CD: use-cases/gitlab-cicd.md
+      - Azure DevOps Pipelines: use-cases/azure-devops-pipelines.md
       - Jenkins Pipelines: use-cases/jenkins.md
       - Kubernetes Deployment: use-cases/kubernetes.md
       - Multi-Cloud Setup: use-cases/multi-cloud.md

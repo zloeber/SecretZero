@@ -115,7 +115,9 @@ Providers are the backends for storing and retrieving secrets. They handle:
 **Supported provider types**:
 
 - **Cloud**: `aws`, `azure`, `vault`
-- **CI/CD**: `github`, `gitlab`, `jenkins` (GitLab supports `gitlab_variable`, `gitlab_group_variable`, and `gitlab_project_token` generator with `project: auto`)
+- **CI/CD**: `github`, `gitlab`, `jenkins`, `azure_devops`
+  - GitLab: `gitlab_variable`, `gitlab_group_variable`, `gitlab_service_account_member`; generators `gitlab_project_token`, `gitlab_group_token`, `gitlab_group_service_account` with `project: auto` / `group: auto`
+  - Azure DevOps (Services only): `azdo_variable_group`, `azdo_pipeline_variable`, `azdo_environment_variable`, `azdo_secure_file`, `azdo_keyvault_variable_group`; generator `azdo_pat`
 - **Container**: `kubernetes`
 - **Local**: `local` (file-based)
 

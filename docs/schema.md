@@ -251,6 +251,9 @@ source:
 - `script`: Execute external script
 - `api`: Fetch from external API
 - `gitlab_project_token`: Create a scoped GitLab project access token (requires bootstrap PAT)
+- `gitlab_group_token`: Create a scoped GitLab group access token (Owner role; Premium+ on GitLab.com)
+- `gitlab_group_service_account`: Provision a group service account and PAT (structured dict payload; use target `value_field: token`)
+- `azdo_pat`: Create an Azure DevOps automation PAT when org policy allows
 
 ## Templates
 
@@ -339,6 +342,12 @@ targets:
 | `github_secret` | GitHub Actions Secret | github |
 | `gitlab_variable` | GitLab CI/CD project variable | gitlab |
 | `gitlab_group_variable` | GitLab CI/CD group variable | gitlab |
+| `gitlab_service_account_member` | GitLab group/project membership for a service account | gitlab |
+| `azdo_variable_group` | Azure DevOps Library variable group secret | azure_devops |
+| `azdo_pipeline_variable` | Azure DevOps pipeline definition variable | azure_devops |
+| `azdo_environment_variable` | Azure DevOps environment variable | azure_devops |
+| `azdo_secure_file` | Azure DevOps secure file | azure_devops |
+| `azdo_keyvault_variable_group` | Azure DevOps Key Vault–linked variable group mapping | azure_devops |
 
 ### File Target Configuration
 

@@ -1,0 +1,52 @@
+variables:
+  azdo_project: auto
+
+providers:
+  azdo:
+    kind: azure_devops
+    auth:
+      kind: token
+      config:
+        token: ${AZDO_PAT}
+        organization: myorg
+
+secrets:
+  - name: database_password
+    kind: random_password
+    config:
+      length: 32
+      special: true
+    targets:
+      - provider: azdo
+        kind: azdo_variable_group
+        config:
+          project: auto
+          variable_group: production-secrets
+          variable_name: DATABASE_PASSWORD
+          is_secret: true
+          create_if_missing: true
+
+  - name: release_api_key
+    kind: random_string
+    config:
+      length: 32
+    targets:
+      - provider: azdo
+        kind: azdo_environment_variable
+        config:
+          project: auto
+          environment: production
+          variable_name: RELEASE_API_KEY
+          is_secret: true
+
+  - name: deploy_key
+    kind: random_string
+    config:
+      length: 64
+      charset: alphanumeric
+    targets:
+      - provider: azdo
+        kind: azdo_secure_file
+        config:
+          project: auto
+          file_name: deploy-key.pem

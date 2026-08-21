@@ -10,7 +10,21 @@ from pathlib import Path
 from typing import Any
 
 from secretzero.providers.base import BaseProvider, ProviderAuth
+from secretzero.providers.gitlab_group_resolve import (
+    resolve_gitlab_group,
+    resolve_gitlab_top_level_group,
+)
 from secretzero.providers.gitlab_project_resolve import resolve_gitlab_project
+from secretzero.providers.gitlab_service_accounts import (
+    apply_memberships,
+    create_group_service_account,
+    create_service_account_pat,
+    rotate_service_account_pat,
+)
+from secretzero.providers.gitlab_tokens import (
+    create_group_access_token,
+    revoke_group_access_tokens_by_name,
+)
 
 GITLAB_PROJECT_TOKEN_SCOPES = frozenset(
     {
@@ -116,13 +130,24 @@ class GitLabAuth(ProviderAuth):
                 "token_type": "gitlab_pat",
             }
         except Exception:
+            username = None
+            try:
+                user = self._client.user
+                username = getattr(user, "username", None)
+            except Exception:
+                username = None
+            token_type = "gitlab_project_access_token"
+            if username and str(username).startswith("service_account"):
+                token_type = "gitlab_service_account_pat"
+            elif username and "group" in str(username).lower():
+                token_type = "gitlab_group_access_token"
             return {
-                "user": None,
+                "user": username,
                 "name": None,
                 "email": None,
                 "user_id": None,
                 "scopes": [],
-                "token_type": "gitlab_project_access_token",
+                "token_type": token_type,
             }
 
 
@@ -641,6 +666,194 @@ class GitLabProvider(BaseProvider):
             revoke_existing=manifest.get("revoke_existing", False),
         )
 
+    def generate_group_access_token(
+        self,
+        *,
+        token_name: str,
+        scopes: list[str],
+        group: str | None = None,
+        access_level: int = 40,
+        expires_in_days: int = 90,
+        description: str | None = None,
+        revoke_existing: bool = False,
+    ) -> str:
+        """Create a GitLab group access token.
+
+        Requires a personal access token with Owner role on the target group.
+
+        Args:
+            token_name: Token name in GitLab.
+            scopes: GitLab token scopes.
+            group: Group path/ID or ``auto``.
+            access_level: GitLab access level integer (default Maintainer).
+            expires_in_days: Days until expiration.
+            description: Optional token description.
+            revoke_existing: Revoke prior tokens with the same name first.
+
+        Returns:
+            One-time group access token string.
+        """
+        if not token_name:
+            raise ValueError("token_name is required for gitlab_group_token")
+        if not scopes:
+            raise ValueError("scopes is required for gitlab_group_token")
+
+        unknown = [scope for scope in scopes if scope not in GITLAB_PROJECT_TOKEN_SCOPES]
+        if unknown:
+            raise ValueError(f"Unknown GitLab group token scopes: {', '.join(unknown)}")
+
+        resolved_group = resolve_gitlab_group(
+            group=group or "auto",
+            provider_config=self.config or {},
+            cwd=Path.cwd(),
+        )
+
+        client = self.auth.get_client()
+        if not client:
+            raise ValueError("GitLab authentication failed")
+
+        if revoke_existing:
+            revoke_group_access_tokens_by_name(client, resolved_group, token_name)
+
+        expires_at = (datetime.now(UTC) + timedelta(days=expires_in_days)).strftime("%Y-%m-%d")
+        result = create_group_access_token(
+            client,
+            resolved_group,
+            token_name=token_name,
+            scopes=scopes,
+            access_level=access_level,
+            expires_at=expires_at,
+            description=description,
+        )
+        return result["token"]
+
+    def generate_group_access_token_with_manifest(
+        self,
+        manifest: dict[str, Any],
+    ) -> str:
+        """Create a group access token from a generator manifest."""
+        return self.generate_group_access_token(
+            token_name=manifest["token_name"],
+            scopes=manifest["scopes"],
+            group=manifest.get("group", "auto"),
+            access_level=manifest.get("access_level", 40),
+            expires_in_days=manifest.get("expires_in_days", 90),
+            description=manifest.get("description"),
+            revoke_existing=manifest.get("revoke_existing", True),
+        )
+
+    def provision_group_service_account(
+        self,
+        *,
+        service_account_name: str,
+        token_name: str,
+        scopes: list[str],
+        group: str | None = None,
+        expires_in_days: int = 90,
+        description: str | None = None,
+        rotate_existing: bool = True,
+        memberships: list[dict[str, Any]] | None = None,
+        token_id: int | None = None,
+        service_account_user_id: int | None = None,
+    ) -> dict[str, Any]:
+        """Create or rotate a group service account and PAT."""
+        if not service_account_name:
+            raise ValueError("service_account_name is required")
+        if not token_name:
+            raise ValueError("token_name is required")
+        if not scopes:
+            raise ValueError("scopes is required")
+
+        unknown = [scope for scope in scopes if scope not in GITLAB_PROJECT_TOKEN_SCOPES]
+        if unknown:
+            raise ValueError(f"Unknown GitLab service account token scopes: {', '.join(unknown)}")
+
+        resolved_group = resolve_gitlab_group(
+            group=group or "auto",
+            provider_config=self.config or {},
+            cwd=Path.cwd(),
+        )
+
+        client = self.auth.get_client()
+        if not client:
+            raise ValueError("GitLab authentication failed")
+
+        top_level_group = resolve_gitlab_top_level_group(client, resolved_group)
+        expires_at = (datetime.now(UTC) + timedelta(days=expires_in_days)).strftime("%Y-%m-%d")
+
+        user_id = service_account_user_id
+        username: str | None = None
+        if user_id is None:
+            created_sa = create_group_service_account(client, top_level_group, service_account_name)
+            user_id = created_sa["user_id"]
+            username = created_sa.get("username")
+
+        pat_result: dict[str, Any]
+        if rotate_existing and token_id is not None and user_id is not None:
+            pat_result = rotate_service_account_pat(
+                client,
+                top_level_group,
+                user_id,
+                token_id,
+                expires_at=expires_at,
+            )
+        else:
+            pat_result = create_service_account_pat(
+                client,
+                top_level_group,
+                int(user_id),
+                name=token_name,
+                scopes=scopes,
+                expires_at=expires_at,
+                description=description,
+            )
+
+        default_project = None
+        try:
+            default_project = resolve_gitlab_project(
+                project="auto",
+                provider_config=self.config or {},
+                cwd=Path.cwd(),
+            )
+        except ValueError:
+            default_project = None
+
+        if memberships and user_id is not None:
+            apply_memberships(
+                client,
+                int(user_id),
+                memberships,
+                default_project=default_project,
+            )
+
+        return {
+            "token": pat_result["token"],
+            "service_account_user_id": int(user_id),
+            "service_account_username": username,
+            "token_id": pat_result.get("token_id"),
+            "expires_at": pat_result.get("expires_at") or expires_at,
+            "group": resolved_group,
+            "top_level_group": top_level_group,
+        }
+
+    def provision_group_service_account_with_manifest(
+        self,
+        manifest: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Provision a group service account from a generator manifest."""
+        return self.provision_group_service_account(
+            service_account_name=manifest["service_account_name"],
+            token_name=manifest["token_name"],
+            scopes=manifest["scopes"],
+            group=manifest.get("group", "auto"),
+            expires_in_days=manifest.get("expires_in_days", 90),
+            description=manifest.get("description"),
+            rotate_existing=manifest.get("rotate_existing", True),
+            memberships=manifest.get("memberships"),
+            token_id=manifest.get("token_id"),
+            service_account_user_id=manifest.get("service_account_user_id"),
+        )
+
 
 # ---------------------------------------------------------------------------
 # Bundle manifest – makes this provider extractable as a standalone package.
@@ -662,13 +875,31 @@ def _get_bundle_manifest() -> BundleManifest:  # noqa: F821
             "gitlab_project_token": (
                 "secretzero.generators.gitlab_project_token:GitLabProjectTokenGenerator"
             ),
+            "gitlab_group_token": (
+                "secretzero.generators.gitlab_group_token:GitLabGroupTokenGenerator"
+            ),
+            "gitlab_group_service_account": (
+                "secretzero.generators.gitlab_group_service_account:"
+                "GitLabGroupServiceAccountGenerator"
+            ),
         },
         targets={
             "gitlab_variable": "secretzero.targets.gitlab:GitLabVariableTarget",
             "gitlab_group_variable": "secretzero.targets.gitlab:GitLabGroupVariableTarget",
+            "gitlab_service_account_member": (
+                "secretzero.targets.gitlab:GitLabServiceAccountMemberTarget"
+            ),
         },
-        generator_kinds=["gitlab_project_token"],
-        target_kinds=["gitlab_variable", "gitlab_group_variable"],
+        generator_kinds=[
+            "gitlab_project_token",
+            "gitlab_group_token",
+            "gitlab_group_service_account",
+        ],
+        target_kinds=[
+            "gitlab_variable",
+            "gitlab_group_variable",
+            "gitlab_service_account_member",
+        ],
         terraform_provider={
             "name": "gitlab",
             "source": "gitlabhq/gitlab",
