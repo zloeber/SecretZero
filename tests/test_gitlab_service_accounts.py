@@ -1,5 +1,11 @@
 """Tests for GitLab group service account REST helpers."""
 
+from __future__ import annotations
+
+import ast
+import importlib
+import sys
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import gitlab
@@ -11,6 +17,30 @@ from secretzero.providers.gitlab_service_accounts import (
     create_group_service_account,
     create_service_account_pat,
 )
+
+
+def test_module_has_no_toplevel_gitlab_import() -> None:
+    """python-gitlab is extras-only; module import must not require it."""
+    src = (
+        Path(__file__).resolve().parents[1] / "src/secretzero/providers/gitlab_service_accounts.py"
+    )
+    tree = ast.parse(src.read_text(encoding="utf-8"))
+    for node in tree.body:
+        if isinstance(node, ast.Import):
+            assert all(alias.name != "gitlab" for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            module = node.module or ""
+            assert module != "gitlab" and not module.startswith("gitlab.")
+
+
+def test_gitlab_service_accounts_importable_without_python_gitlab(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Simulate a bare install without the gitlab extra."""
+    monkeypatch.setitem(sys.modules, "gitlab", None)
+    monkeypatch.delitem(sys.modules, "secretzero.providers.gitlab_service_accounts", raising=False)
+    mod = importlib.import_module("secretzero.providers.gitlab_service_accounts")
+    assert callable(mod.create_group_service_account)
 
 
 def test_create_group_service_account():

@@ -19,6 +19,7 @@ from secretzero.mcp_server import (
     ensure_agent_mode,
     generate_mcp_config,
     resolve_mcp_paths,
+    resolve_mcp_server_cls,
 )
 
 
@@ -93,6 +94,42 @@ class TestDiscoverPayload:
         rows = _discover_candidates_payload(result)
         assert rows[0]["name"] == "api_key"
         assert "raw_value" not in rows[0]
+
+
+class TestMcpServerClassResolver:
+    def test_resolve_prefers_mcp_server_when_available(self) -> None:
+        cls = resolve_mcp_server_cls()
+        assert cls is not None
+        assert callable(cls)
+
+    def test_resolve_falls_back_to_fastmcp(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import sys
+        import types
+
+        import mcp.server as mcp_server_mod
+
+        sentinel = type("FakeFastMCP", (), {})
+        fake_fastmcp = types.ModuleType("mcp.server.fastmcp")
+        fake_fastmcp.FastMCP = sentinel  # type: ignore[attr-defined]
+
+        monkeypatch.delattr(mcp_server_mod, "MCPServer", raising=False)
+        monkeypatch.setitem(sys.modules, "mcp.server.fastmcp", fake_fastmcp)
+
+        assert resolve_mcp_server_cls() is sentinel
+
+    def test_resolve_error_reports_found_version(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import sys
+
+        import mcp.server as mcp_server_mod
+
+        monkeypatch.delattr(mcp_server_mod, "MCPServer", raising=False)
+        monkeypatch.setitem(sys.modules, "mcp.server.fastmcp", None)
+        monkeypatch.setattr(
+            "secretzero.mcp_server._mcp_package_version",
+            lambda: "1.27.0",
+        )
+        with pytest.raises(ImportError, match=r"Found mcp 1\.27\.0"):
+            resolve_mcp_server_cls()
 
 
 class TestMcpPaths:

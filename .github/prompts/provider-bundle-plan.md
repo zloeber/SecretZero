@@ -96,6 +96,7 @@ The core registry discovers bundles at startup:
 # secretzero/bundles/registry.py
 import importlib.metadata
 
+
 def discover_bundles() -> list[BundleManifest]:
     """Discover all installed provider bundles via entry points."""
     bundles = []
@@ -153,14 +154,13 @@ The core `secretzero` package keeps only the base classes and bundle framework.
 # src/secretzero/bundles/__init__.py
 from pydantic import BaseModel, Field
 
+
 class BundleManifest(BaseModel):
     """Manifest describing a provider bundle's contents."""
 
     name: str = Field(description="Provider bundle name (e.g. 'github')")
     version: str = Field(default="1.0.0")
-    provider_class: str = Field(
-        description="Dotted path to provider class 'pkg.module:ClassName'"
-    )
+    provider_class: str = Field(description="Dotted path to provider class 'pkg.module:ClassName'")
     generators: dict[str, str] = Field(
         default_factory=dict,
         description="Map of generator_kind -> dotted class path",
@@ -183,6 +183,7 @@ class BundleManifest(BaseModel):
 # src/secretzero/bundles/loader.py
 import importlib
 
+
 def load_class(dotted_path: str) -> type:
     """Import a class from 'package.module:ClassName' format."""
     module_path, _, class_name = dotted_path.rpartition(":")
@@ -197,6 +198,7 @@ def load_class(dotted_path: str) -> type:
 import importlib.metadata
 from secretzero.bundles import BundleManifest
 from secretzero.bundles.loader import load_class
+
 
 class BundleRegistry:
     """Central registry for provider bundles."""
@@ -269,8 +271,10 @@ Replace both hard-coded chains:
 
 ```python
 # _generate_secret_value – current:
-if kind == "random_password": ...
-elif kind == "github_pat": ...
+if kind == "random_password":
+    ...
+elif kind == "github_pat":
+    ...
 
 # _generate_secret_value – new:
 generator_class = self._bundle_registry.get_generator_class(kind)

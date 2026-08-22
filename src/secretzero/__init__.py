@@ -12,8 +12,8 @@ if _own in _sys.path:
 _sys.path.insert(0, _own)
 del _sys, _sc, _own
 
-import os
-from os import path
+import os  # noqa: E402  — must follow PYTHONPATH guard above
+from os import path  # noqa: E402
 
 here = path.abspath(path.dirname(__file__))
 

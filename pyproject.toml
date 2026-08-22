@@ -57,7 +57,7 @@ override-dependencies = [
     "langsmith>=0.11.1",
     "msgpack>=1.2.1",
     "lxml>=6.1.2",
-    "mcp>=2.0.0",
+    "mcp>=1.27.0",
     "ollama>=0.6.2",
     "pillow>=12.3.0",
     "pip>=26.2.1",
@@ -180,7 +180,9 @@ all = [
     "keepercommander>=18.1.0",
 ]
 mcp = [
-    "mcp>=2.0.0",
+    # 1.x (FastMCP) and 2.x (MCPServer) are both supported via create_mcp_server shim.
+    # Keep floor at 1.27 so hosts that pin mcp via fastmcp (mcp<2) still resolve.
+    "mcp>=1.27.0",
 ]
 
 [project.entry-points."secretzero.providers"]
