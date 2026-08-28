@@ -13,7 +13,7 @@ edges:
     condition: when failure is a registration or optional dependency problem
   - target: patterns/add-secret.md
     condition: when failure is caused by manifest/target/secret configuration
-last_updated: 2026-04-10
+last_updated: 2026-08-28
 ---
 
 # Debug Sync
@@ -35,6 +35,7 @@ Troubleshoot `secretzero sync` by isolating boundary: config parse/interpolation
 - **Provider not initialized** -> target references provider alias not defined in `providers:`.
 - **Partial sync skipped** -> existing value could not be retrieved from prior tracked targets.
 - **Unexpected empty values** -> interpolation key typo or wrong var-file merge assumptions.
+- **Import reports unchanged but status shows pending** -> Compact status paints definition `drift` as pending. Import must refresh `definition_hash` and per-target hashes even when values already match, and stamp `target_provenance` with `operation: lockfile_import`. See `.mex/patterns/lockfile-import.md`.
 
 ## Verify
 - [ ] Boundary is identified before changing code/config.
