@@ -5,13 +5,35 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from secretzero.lockfile import Lockfile
+from secretzero.lockfile import Lockfile, SecretLockEntry
 from secretzero.models import Secret, Secretfile, Template
+from secretzero.secret_definition_hash import hash_secret_definition
 from secretzero.sync import SyncEngine
 
 
 def _import_actor(engine: SyncEngine) -> dict[str, Any]:
-    return {"operation": "lockfile_import", "client": engine.sync_client}
+    """Provenance actor for values read from targets during lockfile import."""
+    return engine._target_provenance_actor(
+        {
+            "operation": "lockfile_import",
+            "source": "target",
+            "client": engine.sync_client,
+        }
+    )
+
+
+def _hashes_and_targets_current(
+    entry: SecretLockEntry | None,
+    canonical: str,
+    matched_targets: list[str],
+) -> bool:
+    """True when secret-level and per-target hashes already match retrieved values."""
+    if entry is None or entry.hash != canonical:
+        return False
+    tracked = set(entry.targets.keys())
+    if not tracked.issuperset(set(matched_targets)):
+        return False
+    return all(entry.targets.get(tid) == canonical for tid in matched_targets)
 
 
 def _retrieve_plain(engine: SyncEngine, secret: Secret) -> tuple[str | None, str | None]:
@@ -58,22 +80,21 @@ def _apply_plain_import(
         out["detail"] = "not_retrievable"
         return out
 
+    def_hash = hash_secret_definition(secret, secretfile=engine.secretfile)
     entry = engine.lockfile.get_secret_info(name)
-    if entry and entry.hash == canonical:
-        tracked = set(entry.targets.keys())
-        if tracked.issuperset(set(matched_targets)):
-            out["status"] = "unchanged"
-            out["detail"] = "hash_and_targets_current"
-            return out
+    if _hashes_and_targets_current(entry, canonical, matched_targets):
+        if not dry_run:
+            engine.lockfile.record_definition_hash(name, def_hash)
+            for tid in matched_targets:
+                engine.lockfile.record_target_update(name, tid, actor=_import_actor(engine))
+        out["status"] = "unchanged"
+        out["detail"] = "hash_and_targets_current"
+        return out
 
     if dry_run:
         out["status"] = "would_import" if not entry else "would_update"
         out["detail"] = "dry_run"
         return out
-
-    from secretzero.secret_definition_hash import hash_secret_definition
-
-    def_hash = hash_secret_definition(secret, secretfile=engine.secretfile)
 
     for tid in matched_targets:
         engine.lockfile.add_secret(name, value, target_id=tid, definition_hash=def_hash)
@@ -102,8 +123,6 @@ def _import_template_fields(
 
     any_change = False
     any_error = False
-
-    from secretzero.secret_definition_hash import hash_secret_definition
 
     def_hash = hash_secret_definition(secret, secretfile=engine.secretfile)
 
@@ -144,13 +163,15 @@ def _import_template_fields(
             continue
 
         entry = engine.lockfile.get_secret_info(field_secret_name)
-        if entry and entry.hash == canonical:
-            tracked = set(entry.targets.keys())
-            if tracked.issuperset(set(matched)):
-                out["fields"].append(
-                    {"field": field_name, "status": "unchanged", "detail": "current"}
-                )
-                continue
+        if _hashes_and_targets_current(entry, canonical, matched):
+            if not dry_run:
+                engine.lockfile.record_definition_hash(field_secret_name, def_hash)
+                for tid in matched:
+                    engine.lockfile.record_target_update(
+                        field_secret_name, tid, actor=_import_actor(engine)
+                    )
+            out["fields"].append({"field": field_name, "status": "unchanged", "detail": "current"})
+            continue
 
         any_change = True
         if dry_run:
@@ -269,13 +290,20 @@ def run_lockfile_import(
             )
             errors += 1
 
-    if not dry_run and (
+    should_track_source = (
         imported
         or updated
-        or refresh.get("mismatch_targets", 0)
-        or refresh.get("mismatch_secrets", 0)
-    ):
-        engine.lockfile.track_secretfile(secretfile_path, secretfile_content)
+        or bool(refresh.get("mismatch_targets", 0) or refresh.get("mismatch_secrets", 0))
+    )
+    # Full import still refreshes Secretfile tracking/identity after an all-unchanged
+    # reconcile so status definition-drift and provenance stay aligned with targets.
+    reconciled = imported or updated or unchanged
+    if not dry_run and (should_track_source or (not secret_names and reconciled)):
+        engine.lockfile.track_secretfile(
+            secretfile_path,
+            secretfile_content,
+            sync_identity=engine._resolve_sync_identity(),
+        )
         engine.lockfile.track_variable_context(
             list(active_var_files or []),
             dict(secretfile.variables or {}),

@@ -19,6 +19,7 @@ Lookup table for all pattern files in this directory. Check here before starting
 | [gitnexus-metagit-integration.md](gitnexus-metagit-integration.md) | GitNexus `secrets_overlay`, MetaGit registry, discovery bindings, blast-radius CLI |
 | [debug-sync.md](debug-sync.md) | Diagnosing sync failures across config/provider/generator/target boundaries |
 | [file-target-tfvars.md](file-target-tfvars.md) | Local `file` target `format: tfvars` for Terraform `.tfvars` assignment files |
+| [lockfile-import.md](lockfile-import.md) | Changing `secretzero import` / `run_lockfile_import` (hashes, status parity, import provenance) |
 | [lockfile-state-parity.md](lockfile-state-parity.md) | Changing synced/pending/drift target-state logic across web/graph/CLI surfaces |
 | [lockfile-sync-identity.md](lockfile-sync-identity.md) | Extending lockfile operator/CI identity metadata or sync provenance |
 | [mcp-server.md](mcp-server.md) | Native `secretzero-mcp` server, tool parity, spill guards |
