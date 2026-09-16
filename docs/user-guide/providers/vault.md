@@ -1,6 +1,6 @@
 # HashiCorp Vault Provider
 
-The HashiCorp Vault provider enables SecretZero to store and manage secrets in Vault's KV (Key-Value) secrets engine. It supports multiple authentication methods including token and AppRole authentication.
+The HashiCorp Vault provider enables SecretZero to store and manage secrets in Vault's KV (Key-Value) secrets engine, and to **source** existing values from KV, cubbyhole, or other logical paths via `source.kind: provider_read`. It supports token, ambient (environment / `vault login`), and AppRole authentication.
 
 ## Overview
 
@@ -17,9 +17,33 @@ The HashiCorp Vault provider is ideal for:
 
 | Target Type | Description | Use Case |
 |-------------|-------------|----------|
-| `kv` | Key-Value v2 secrets engine | Application secrets, configuration data, API keys, credentials |
+| `kv` / `vault_kv` | Key-Value secrets engine (v1 or v2) | Application secrets, configuration data, API keys, credentials |
 
 ## Authentication Methods
+
+User authentication is the default local workflow: export **`VAULT_ADDR`** and **`VAULT_TOKEN`**, or run `vault login` (which writes `~/.vault-token`). SecretZero reads those standard Vault client variables without requiring the token to be copied into `Secretfile.yml`.
+
+### Ambient / environment authentication
+
+```yaml
+providers:
+  vault:
+    kind: vault
+    auth:
+      kind: ambient
+      config:
+        url: ${VAULT_ADDR}   # optional; VAULT_ADDR is used when omitted
+```
+
+```bash
+export VAULT_ADDR=https://vault.example.com:8200
+export VAULT_TOKEN=hvs.CAESID...   # or: vault login
+secretzero sync
+```
+
+Credentials may also live under `auth.config` (schema-canonical) or as siblings of `auth.kind` (`url`, `token`, `address`). All three shapes are accepted.
+
+**When to use**: Local development after `vault login`, CI jobs that inject `VAULT_ADDR`/`VAULT_TOKEN`, agent hosts that already have a Vault token in the environment.
 
 ### Token Authentication
 
@@ -31,8 +55,9 @@ providers:
     kind: vault
     auth:
       kind: token
-      url: https://vault.example.com:8200
-      token: s.xyz123abc456def789
+      config:
+        url: https://vault.example.com:8200
+        token: ${VAULT_TOKEN}
 ```
 
 **When to use**: Local development, testing, one-time operations, CI/CD with short-lived tokens.
@@ -85,6 +110,43 @@ providers:
       secret_id: 98765432-9876-5432-9876-543210987654
       namespace: engineering/myapp
 ```
+
+## Source existing secrets (`provider_read`)
+
+Read a value from Vault and write it to other SecretZero targets. This is the supported path for secrets that already live in KV or another Vault location.
+
+```yaml
+providers:
+  vault:
+    kind: vault
+    auth:
+      kind: ambient
+
+secrets:
+  - name: db_password
+    kind: static
+    source:
+      kind: provider_read
+      required: true
+      config:
+        provider: vault
+        kind: vault_kv
+        read:
+          path: secret/data/myapp/db
+          field: password
+          mount_point: secret          # KV mount (default: secret)
+          # kv_version: 2              # 1 for KV v1 mounts
+          # engine: cubbyhole          # or generic for identity/transit logical paths
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: .env.local
+          format: dotenv
+          key: DB_PASSWORD
+```
+
+`read.path` / `read.name` are accepted locators. KV v2 paths may include the mount and `/data/` prefix; SecretZero strips them before calling HVAC. For cubbyhole or other logical paths set `read.engine: cubbyhole` or `generic`.
 
 ## Configuration
 

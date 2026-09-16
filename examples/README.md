@@ -317,6 +317,17 @@ providers:
 
 ### HashiCorp Vault
 
+**Ambient / user login** (`VAULT_ADDR` + `VAULT_TOKEN`, or `vault login`):
+```yaml
+providers:
+  vault:
+    kind: vault
+    auth:
+      kind: ambient
+```
+
+See `examples/vault-kv-source.yml` for `provider_read` from KV into a local file.
+
 **Token Authentication**:
 ```yaml
 providers:

@@ -1,0 +1,62 @@
+# Example: source secrets from HashiCorp Vault KV
+#
+# Prerequisites:
+#   export VAULT_ADDR=https://vault.example.com:8200
+#   export VAULT_TOKEN=hvs....          # or: vault login
+#
+# Usage:
+#   secretzero sync -f examples/vault-kv-source.yml --dry-run
+
+providers:
+  vault:
+    kind: vault
+    auth:
+      kind: ambient
+      config:
+        url: ${VAULT_ADDR}
+
+secrets:
+  # Copy a KV v2 field into a local dotenv file
+  - name: db_password
+    kind: static
+    config:
+      value: null
+    source:
+      kind: provider_read
+      required: true
+      config:
+        provider: vault
+        kind: vault_kv
+        read:
+          path: secret/data/myapp/db
+          field: password
+          mount_point: secret
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: .env.local
+          format: dotenv
+          key: DB_PASSWORD
+
+  # Optional: cubbyhole / other logical paths
+  # - name: session_token
+  #   kind: static
+  #   source:
+  #     kind: provider_read
+  #     config:
+  #       provider: vault
+  #       kind: vault_kv
+  #       read:
+  #         path: session-token
+  #         engine: cubbyhole
+  #         field: value
+  #   targets:
+  #     - provider: local
+  #       kind: file
+  #       config:
+  #         path: .env.local
+  #         format: dotenv
+  #         key: SESSION_TOKEN
+
+templates: {}
