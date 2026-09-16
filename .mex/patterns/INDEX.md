@@ -30,3 +30,4 @@ Lookup table for all pattern files in this directory. Check here before starting
 | [deps-upgrade.md](deps-upgrade.md) | `task deps:upgrade` / `deps:upgrade:verify` — lock refresh, pyproject floor sync, full QA gate |
 | [sz-agent-mode-spill-guard.md](sz-agent-mode-spill-guard.md) | `SZ_AGENT_MODE`, spill-safe CLI guards, `ingest preseed`, strict manifest plaintext validation |
 | [secretfile-authoring.md](secretfile-authoring.md) | Editing Secretfile structure, variables, provider mappings, and interpolation usage |
+| [vault-env-auth.md](vault-env-auth.md) | HashiCorp Vault `VAULT_ADDR`/`VAULT_TOKEN` auth and KV/`provider_read` sources |

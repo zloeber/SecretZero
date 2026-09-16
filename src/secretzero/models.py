@@ -5,7 +5,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from secretzero.cli_config import AppConfig
 
@@ -166,6 +166,7 @@ class AuthKind(str, Enum):
     MANAGED_IDENTITY = "managed_identity"
     CLI = "cli"
     PROFILE = "profile"
+    APPROLE = "approle"
 
 
 class GeneratorKind(str, Enum):
@@ -278,12 +279,16 @@ class FileFormat(str, Enum):
 class AuthProfile(BaseModel):
     """Authentication profile configuration."""
 
+    model_config = ConfigDict(extra="allow")
+
     kind: AuthKind
     config: dict[str, Any] = Field(default_factory=dict)
 
 
 class ProviderAuth(BaseModel):
     """Provider authentication configuration."""
+
+    model_config = ConfigDict(extra="allow")
 
     kind: AuthKind | None = None
     config: dict[str, Any] = Field(default_factory=dict)

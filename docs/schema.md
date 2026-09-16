@@ -135,8 +135,9 @@ providers:
 
 ### Authentication Kinds
 
-- `ambient`: Use environment credentials (IAM roles, managed identities)
+- `ambient`: Use environment credentials (IAM roles, managed identities, `VAULT_ADDR`/`VAULT_TOKEN`)
 - `token`: Use explicit token or API key
+- `approle`: HashiCorp Vault AppRole (`role_id` / `secret_id`)
 - `assume_role`: Assume a specific role
 - `static`: Static credentials
 
@@ -200,6 +201,24 @@ secrets:
         kind: secrets_manager
         read:
           name: /prod/shared/token
+```
+
+HashiCorp Vault KV (or cubbyhole / logical) source example. Set `VAULT_ADDR` and `VAULT_TOKEN` (or complete `vault login`) before sync:
+
+```yaml
+secrets:
+  - name: db_password
+    kind: static
+    source:
+      kind: provider_read
+      required: true
+      config:
+        provider: vault
+        kind: vault_kv
+        read:
+          path: secret/data/myapp/db
+          field: password
+          mount_point: secret
 ```
 
 AWS IAM user credential source example:

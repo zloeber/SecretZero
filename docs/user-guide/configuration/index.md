@@ -233,6 +233,37 @@ secrets:
           format: json
 ```
 
+Example (`provider_read` from HashiCorp Vault KV using `VAULT_ADDR` / `VAULT_TOKEN`):
+
+```yaml
+providers:
+  vault:
+    kind: vault
+    auth:
+      kind: ambient
+
+secrets:
+  - name: db_password
+    kind: static
+    source:
+      kind: provider_read
+      required: true
+      config:
+        provider: vault
+        kind: vault_kv
+        read:
+          path: secret/data/myapp/db
+          field: password
+          mount_point: secret
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: .env.local
+          format: dotenv
+          key: DB_PASSWORD
+```
+
 `secret_ref` behavior:
 
 - references a previously resolved non-template secret in the same sync run

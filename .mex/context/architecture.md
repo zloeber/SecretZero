@@ -40,7 +40,7 @@ Template targets collect values during sync and render in a deferred final pass.
 
 ## External Dependencies
 - **AWS (`boto3`)** — supports SSM parameter + Secrets Manager providers/targets.
-- **Vault (`hvac`)** — supports token-auth secret retrieval/storage in Vault KV.
+- **Vault (`hvac`)** — token/ambient (`VAULT_ADDR`/`VAULT_TOKEN`/`~/.vault-token`) and AppRole; KV plus logical-path retrieval/storage.
 - **Azure (`azure-identity`, `azure-keyvault-secrets`)** — supports Azure Key Vault target/provider paths.
 - **GitHub/GitLab/Jenkins/Kubernetes SDKs** — provider-specific targets for CI/CD and cluster secret delivery.
 - **FastAPI/Uvicorn** — optional `secretzero-api` service layer for programmatic operations.
