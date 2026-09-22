@@ -96,14 +96,17 @@ def _should_emit_gitnexus_sidecar(
     results: dict[str, Any],
     cleaned_entries: list[str],
 ) -> bool:
-    """Mirror lockfile persist conditions for GitNexus sidecar emission."""
+    """Emit a GitNexus overlay only when sync actually changed lockfile state.
+
+    ``secretfile_changed`` is a bool on every sync result (``False`` when the
+    manifest is unchanged). Treat only a real change, stored secrets, or
+    cleaned orphans as a reason to refresh the overlay.
+    """
     if dry_run:
         return False
     if results.get("secrets_stored", 0) > 0 or cleaned_entries:
         return True
-    if results.get("secretfile_changed") is not None:
-        return True
-    return False
+    return bool(results.get("secretfile_changed"))
 
 
 def _try_emit_gitnexus_sidecar(
@@ -111,6 +114,8 @@ def _try_emit_gitnexus_sidecar(
 ) -> dict[str, Any] | None:
     try:
         summary = emit_gitnexus_sidecars(secretfile_path=file_path, secretfile=config)
+        if summary.get("skipped") and summary.get("reason") == "no_gitnexus_workspace":
+            return None
         if echo and not summary.get("skipped") and summary.get("secrets_overlay"):
             console.print(f"[dim]GitNexus overlay:[/dim] {summary['secrets_overlay']}")
         return summary
