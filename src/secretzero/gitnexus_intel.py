@@ -3,6 +3,11 @@
 Produces `.gitnexus/secrets_overlay.json` for knowledge-graph ingestion and
 optional `~/.metagit.yml` fragments for workspace situational awareness.
 
+The overlay is written only into a ``.gitnexus`` directory that already exists
+(a GitNexus index or ``secretzero discover`` bindings). Set
+``SZ_GITNEXUS_OVERLAY=1`` to create that directory anyway.
+``SZ_NO_GITNEXUS_OVERLAY=1`` skips the write entirely.
+
 No network I/O — local files and optional subprocess calls when GitNexus CLI
 is installed.
 """
@@ -34,6 +39,76 @@ def gitnexus_overlay_disabled() -> bool:
         "true",
         "yes",
     )
+
+
+def gitnexus_overlay_forced() -> bool:
+    """True when the operator asked to create ``.gitnexus`` even if none exists."""
+    return os.environ.get("SZ_GITNEXUS_OVERLAY", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+
+
+def _git_toplevel(start: Path) -> Path | None:
+    """Return the git work tree that contains ``start``, if any."""
+    cwd = start if start.is_dir() else start.parent
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0:
+        return None
+    text = result.stdout.strip()
+    return Path(text) if text else None
+
+
+def resolve_gitnexus_dir(
+    secretfile_path: Path,
+    repo_root: Path,
+    *,
+    create: bool = False,
+) -> Path | None:
+    """Find an existing ``.gitnexus`` directory.
+
+    Prefers the git work-tree index, then ``repo_root``, then the Secretfile
+    directory. A new directory is created only when ``create`` is true.
+    """
+    secretfile_dir = secretfile_path.parent.resolve()
+    root = repo_root.resolve()
+    candidates: list[Path] = []
+    toplevel = _git_toplevel(root if root.is_dir() else root.parent)
+    if toplevel is None:
+        toplevel = _git_toplevel(secretfile_dir)
+    if toplevel is not None:
+        candidates.append(toplevel / ".gitnexus")
+    candidates.append(root / ".gitnexus")
+    candidates.append(secretfile_dir / ".gitnexus")
+
+    seen: set[Path] = set()
+    for path in candidates:
+        try:
+            key = path.resolve()
+        except OSError:
+            key = path
+        if key in seen:
+            continue
+        seen.add(key)
+        if path.is_dir():
+            return path
+
+    if not create:
+        return None
+    dest = secretfile_dir / ".gitnexus"
+    dest.mkdir(parents=True, exist_ok=True)
+    return dest
 
 
 def metagit_registry_enabled() -> bool:
@@ -154,10 +229,15 @@ def build_secrets_overlay(
     }
 
 
-def write_secrets_overlay(secretfile_path: Path, overlay: dict[str, Any]) -> Path:
-    out_dir = secretfile_path.parent / ".gitnexus"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    path = out_dir / "secrets_overlay.json"
+def write_secrets_overlay(
+    secretfile_path: Path,
+    overlay: dict[str, Any],
+    *,
+    out_dir: Path | None = None,
+) -> Path:
+    dest = out_dir if out_dir is not None else secretfile_path.parent / ".gitnexus"
+    dest.mkdir(parents=True, exist_ok=True)
+    path = dest / "secrets_overlay.json"
     path.write_text(json.dumps(overlay, indent=2, sort_keys=False) + "\n", encoding="utf-8")
     return path
 
@@ -207,12 +287,27 @@ def emit_gitnexus_sidecars(
     secretfile: Secretfile,
     repo_root: Path | None = None,
 ) -> dict[str, Any]:
-    """Write overlay (and optionally MetaGit registry). Returns summary dict."""
+    """Write overlay (and optionally MetaGit registry). Returns summary dict.
+
+    Does not create ``.gitnexus`` unless that directory already exists or
+    ``SZ_GITNEXUS_OVERLAY`` is set. ``SZ_NO_GITNEXUS_OVERLAY`` always wins.
+    """
     if gitnexus_overlay_disabled():
         return {"skipped": True, "reason": "SZ_NO_GITNEXUS_OVERLAY"}
     root = repo_root if repo_root is not None else secretfile_path.parent.resolve()
-    overlay = build_secrets_overlay(secretfile, secretfile_path=secretfile_path, repo_root=root)
-    overlay_path = write_secrets_overlay(secretfile_path, overlay)
+    out_dir = resolve_gitnexus_dir(
+        secretfile_path,
+        root,
+        create=gitnexus_overlay_forced(),
+    )
+    if out_dir is None:
+        return {"skipped": True, "reason": "no_gitnexus_workspace"}
+    overlay = build_secrets_overlay(
+        secretfile,
+        secretfile_path=secretfile_path,
+        repo_root=out_dir.parent,
+    )
+    overlay_path = write_secrets_overlay(secretfile_path, overlay, out_dir=out_dir)
     out: dict[str, Any] = {
         "secrets_overlay": str(overlay_path),
         "skipped": False,

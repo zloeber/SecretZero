@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 from pathlib import Path
 
 import pytest
 import yaml
+from click.testing import CliRunner
 
+from secretzero.cli import _should_emit_gitnexus_sidecar, main
 from secretzero.gitnexus_intel import (
     build_secrets_overlay,
     emit_gitnexus_sidecars,
@@ -99,5 +102,219 @@ def test_emit_respects_disable_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
         sf_path.write_text("secrets: []\n", encoding="utf-8")
         res = emit_gitnexus_sidecars(secretfile_path=sf_path, secretfile=Secretfile())
         assert res.get("skipped") is True
+        assert not (tmp_path / ".gitnexus").exists()
     finally:
         os.environ.pop("SZ_NO_GITNEXUS_OVERLAY", None)
+
+
+def test_emit_does_not_create_gitnexus_without_workspace(tmp_path: Path) -> None:
+    """Sync-style emission must not invent a .gitnexus directory."""
+    sf_path = tmp_path / "Secretfile.yml"
+    sf_path.write_text("secrets: []\n", encoding="utf-8")
+    res = emit_gitnexus_sidecars(secretfile_path=sf_path, secretfile=Secretfile())
+    assert res.get("skipped") is True
+    assert res.get("reason") == "no_gitnexus_workspace"
+    assert not (tmp_path / ".gitnexus").exists()
+
+
+def test_emit_writes_into_existing_gitnexus_dir(tmp_path: Path) -> None:
+    sf_path = tmp_path / "Secretfile.yml"
+    sf_path.write_text("secrets: []\n", encoding="utf-8")
+    (tmp_path / ".gitnexus").mkdir()
+    (tmp_path / ".gitnexus" / "meta.json").write_text("{}\n", encoding="utf-8")
+    res = emit_gitnexus_sidecars(secretfile_path=sf_path, secretfile=Secretfile())
+    assert res.get("skipped") is False
+    overlay = tmp_path / ".gitnexus" / "secrets_overlay.json"
+    assert overlay.is_file()
+    assert Path(res["secrets_overlay"]) == overlay
+
+
+def test_emit_uses_repo_root_index_not_a_nested_dir(tmp_path: Path) -> None:
+    """An existing GitNexus index at the git root is the overlay destination."""
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    index = tmp_path / ".gitnexus"
+    index.mkdir()
+    (index / "meta.json").write_text("{}\n", encoding="utf-8")
+    app = tmp_path / "app"
+    app.mkdir()
+    sf_path = app / "Secretfile.yml"
+    sf_path.write_text("secrets: []\n", encoding="utf-8")
+
+    res = emit_gitnexus_sidecars(secretfile_path=sf_path, secretfile=Secretfile())
+    assert res.get("skipped") is False
+    assert (index / "secrets_overlay.json").is_file()
+    assert not (app / ".gitnexus").exists()
+
+
+def test_emit_force_env_creates_overlay(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("SZ_GITNEXUS_OVERLAY", "1")
+    sf_path = tmp_path / "Secretfile.yml"
+    sf_path.write_text("secrets: []\n", encoding="utf-8")
+    res = emit_gitnexus_sidecars(secretfile_path=sf_path, secretfile=Secretfile())
+    assert res.get("skipped") is False
+    assert (tmp_path / ".gitnexus" / "secrets_overlay.json").is_file()
+
+
+def test_disable_env_wins_over_existing_workspace(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("SZ_NO_GITNEXUS_OVERLAY", "1")
+    monkeypatch.setenv("SZ_GITNEXUS_OVERLAY", "1")
+    (tmp_path / ".gitnexus").mkdir()
+    sf_path = tmp_path / "Secretfile.yml"
+    sf_path.write_text("secrets: []\n", encoding="utf-8")
+    res = emit_gitnexus_sidecars(secretfile_path=sf_path, secretfile=Secretfile())
+    assert res.get("skipped") is True
+    assert res.get("reason") == "SZ_NO_GITNEXUS_OVERLAY"
+    assert not (tmp_path / ".gitnexus" / "secrets_overlay.json").exists()
+
+
+def test_should_emit_sidecar_ignores_unchanged_secretfile() -> None:
+    """secretfile_changed is always a bool; False must not force an overlay write."""
+    assert (
+        _should_emit_gitnexus_sidecar(
+            False,
+            {"secrets_stored": 0, "secretfile_changed": False},
+            [],
+        )
+        is False
+    )
+    assert (
+        _should_emit_gitnexus_sidecar(
+            False,
+            {"secrets_stored": 0, "secretfile_changed": True},
+            [],
+        )
+        is True
+    )
+    assert (
+        _should_emit_gitnexus_sidecar(
+            False,
+            {"secrets_stored": 1, "secretfile_changed": False},
+            [],
+        )
+        is True
+    )
+    assert (
+        _should_emit_gitnexus_sidecar(
+            True,
+            {"secrets_stored": 1, "secretfile_changed": True},
+            [],
+        )
+        is False
+    )
+
+
+def _local_sync_secretfile(tmp_path: Path) -> Path:
+    env_file = tmp_path / ".env.test"
+    secretfile = tmp_path / "Secretfile.yml"
+    secretfile.write_text(
+        f"""
+version: '1.0'
+variables: {{}}
+providers:
+  local:
+    kind: local
+secrets:
+  - name: test_secret
+    kind: random_password
+    config:
+      length: 16
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: {env_file}
+          format: dotenv
+templates: {{}}
+""",
+        encoding="utf-8",
+    )
+    return secretfile
+
+
+def test_sync_does_not_create_gitnexus_overlay(tmp_path: Path) -> None:
+    secretfile = _local_sync_secretfile(tmp_path)
+    result = CliRunner().invoke(
+        main,
+        ["sync", "--file", str(secretfile), "--lockfile", str(tmp_path / ".lock")],
+    )
+    assert result.exit_code == 0, result.output
+    assert not (tmp_path / ".gitnexus").exists()
+    assert "GitNexus overlay" not in result.output
+
+
+def test_import_does_not_create_gitnexus_overlay(tmp_path: Path) -> None:
+    env_path = tmp_path / ".env"
+    env_path.write_text("APP_TOKEN=seeded-token-value\n", encoding="utf-8")
+    secretfile = tmp_path / "Secretfile.yml"
+    secretfile.write_text(
+        f"""
+providers:
+  local:
+    kind: local
+secrets:
+  - name: app_token
+    kind: static
+    config: {{}}
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: {env_path}
+          format: dotenv
+          key: APP_TOKEN
+""",
+        encoding="utf-8",
+    )
+    result = CliRunner().invoke(
+        main,
+        ["import", "-f", str(secretfile), "-l", str(tmp_path / ".gitsecrets.lock")],
+    )
+    assert result.exit_code == 0, result.output
+    assert not (tmp_path / ".gitnexus").exists()
+
+
+def test_get_does_not_create_gitnexus_overlay(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    secretfile = tmp_path / "Secretfile.yml"
+    secretfile.write_text(
+        """
+providers:
+  local:
+    kind: local
+secrets: []
+""",
+        encoding="utf-8",
+    )
+
+    def _fake_get(self, provider_name, secret_id, method_name=None, method_args=None):
+        return {
+            "provider": provider_name,
+            "method": method_name or "retrieve_secret",
+            "retrieved": True,
+            "revealable": False,
+            "value": None,
+            "notes": None,
+        }
+
+    monkeypatch.setattr("secretzero.cli.SyncEngine.get_provider_secret", _fake_get)
+    result = CliRunner().invoke(
+        main,
+        [
+            "get",
+            "--file",
+            str(secretfile),
+            "--provider",
+            "local",
+            "--secret-id",
+            "app/secret",
+            "--format",
+            "json",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert "gitnexus" not in payload
+    assert not (tmp_path / ".gitnexus").exists()
