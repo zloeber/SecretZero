@@ -39,6 +39,8 @@ from secretzero.api.schemas import (
     RotationCheckResponse,
     RotationExecuteRequest,
     RotationExecuteResponse,
+    SecretAuthorRequest,
+    SecretAuthorResponse,
     SecretDetailResponse,
     SecretListResponse,
     SecretStatusResponse,
@@ -226,6 +228,77 @@ def create_app(secretfile_path: str = "Secretfile.yml") -> FastAPI:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to list secrets: {str(e)}",
             )
+
+    @app.post("/secrets", response_model=SecretAuthorResponse)
+    async def author_secret(body: SecretAuthorRequest, _auth: str = RequireAuth):
+        """Create or edit one secret's generator, optional source, and targets.
+
+        Static-like generator config must use null or ``${VAR}`` placeholders.
+        Plaintext secret values are rejected.
+        """
+        from secretzero.secret_author import (
+            SecretAuthorError,
+            SecretDraft,
+            SourceDraft,
+            TargetDraft,
+            apply_secret_draft,
+        )
+
+        audit_logger = get_audit_logger()
+        config_path = Path(app.state.secretfile_path)
+        if body.mode not in {"create", "edit", "upsert"}:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="mode must be create, edit, or upsert",
+            )
+        source = None
+        if body.source is not None:
+            source = SourceDraft(
+                kind=body.source.kind,
+                required=body.source.required,
+                config=body.source.config,
+            )
+        draft = SecretDraft(
+            name=body.name,
+            kind=body.kind,
+            config=body.config,
+            targets=[
+                TargetDraft(
+                    provider=item.provider,
+                    kind=item.kind,
+                    config=item.config,
+                    identity_policies=item.identity_policies,
+                )
+                for item in body.targets
+            ],
+            source=source,
+        )
+        try:
+            result = apply_secret_draft(
+                config_path,
+                draft,
+                mode=body.mode,  # type: ignore[arg-type]
+                replace_targets=body.replace_targets,
+                update_source=body.source is not None or body.clear_source,
+                dry_run=body.dry_run,
+            )
+        except SecretAuthorError as exc:
+            audit_logger.log(
+                action="author_secret",
+                resource=body.name,
+                details={"error": str(exc)},
+                success=False,
+            )
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+        audit_logger.log(
+            action="author_secret",
+            resource=body.name,
+            details={"action": result.action, "dry_run": result.dry_run},
+        )
+        return SecretAuthorResponse(
+            **{k: v for k, v in result.as_dict().items() if k != "yaml_preview"}
+        )
 
     @app.get("/secrets/{secret_name}/status", response_model=SecretStatusResponse)
     async def get_secret_status(secret_name: str, _auth: str = RequireAuth):
