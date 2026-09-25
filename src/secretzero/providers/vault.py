@@ -3,6 +3,7 @@
 import json
 import os
 import secrets
+from pathlib import Path
 from typing import Any
 
 from secretzero.providers.base import BaseProvider, ProviderAuth
@@ -18,6 +19,26 @@ def _nonempty_str(value: Any) -> str | None:
         return None
     text = str(value).strip()
     return text or None
+
+
+def _home_vault_token() -> str | None:
+    """Load a Vault token from the user home directory.
+
+    ``vault login`` writes ``~/.vault-token``. ``~/.vault_token`` is accepted too.
+    The first non-empty file wins. File contents are not logged.
+    """
+    home = Path.home()
+    for name in (".vault-token", ".vault_token"):
+        path = home / name
+        try:
+            if not path.is_file():
+                continue
+            text = path.read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+        if text:
+            return text
+    return None
 
 
 def flatten_vault_auth_config(raw: dict[str, Any] | None) -> dict[str, Any]:
@@ -83,7 +104,7 @@ class VaultAuth(ProviderAuth):
     """HashiCorp Vault authentication handler.
 
     Supports authentication via:
-    - Token / ambient (VAULT_TOKEN, config token, or ``~/.vault-token``)
+    - Token / ambient (config token, VAULT_TOKEN, ``~/.vault-token``, or ``~/.vault_token``)
     - AppRole authentication
 
     Environment variables checked:
@@ -120,8 +141,8 @@ class VaultAuth(ProviderAuth):
 
         Attempts to authenticate using:
             1. Explicit credentials from config (flat or nested ``auth.config``)
-            2. Environment variables (VAULT_ADDR, VAULT_TOKEN, VAULT_NAMESPACE)
-            3. HVAC default token file (``~/.vault-token``) when no token is set
+            2. ``VAULT_TOKEN`` when it is set
+            3. A token file in the home directory (``~/.vault-token``, then ``~/.vault_token``)
         """
         try:
             import hvac
@@ -153,10 +174,13 @@ class VaultAuth(ProviderAuth):
                 response = self._client.auth.approle.login(role_id=role_id, secret_id=secret_id)
                 self._client.token = response["auth"]["client_token"]
             else:
-                # token, ambient, default, or unknown: prefer explicit token, else env,
-                # else let hvac read VAULT_TOKEN / ~/.vault-token.
-                token = _nonempty_str(settings.get("token")) or _nonempty_str(
-                    os.environ.get(self.ENV_TOKEN)
+                # token, ambient, default, or unknown: config token, then VAULT_TOKEN,
+                # then a home token file. Pass the token explicitly so hvac does not
+                # pick a different file on its own.
+                token = (
+                    _nonempty_str(settings.get("token"))
+                    or _nonempty_str(os.environ.get(self.ENV_TOKEN))
+                    or _home_vault_token()
                 )
                 if token:
                     client_kwargs["token"] = token
@@ -245,7 +269,7 @@ class VaultProvider(BaseProvider):
     auth_class = VaultAuth
     auth_methods = {
         "token": "Use Vault token authentication (VAULT_TOKEN or auth.config.token)",
-        "ambient": "Use VAULT_ADDR / VAULT_TOKEN / ~/.vault-token (vault login)",
+        "ambient": "Use VAULT_ADDR / VAULT_TOKEN / ~/.vault-token or ~/.vault_token",
         "approle": "Use AppRole role_id and secret_id",
     }
     config_options = {
@@ -350,7 +374,7 @@ class VaultProvider(BaseProvider):
                 return (
                     False,
                     "Vault authentication failed. Set VAULT_ADDR and VAULT_TOKEN "
-                    "(or complete `vault login` so ~/.vault-token exists), "
+                    "(or complete `vault login` so ~/.vault-token or ~/.vault_token exists), "
                     "or configure auth.token / AppRole credentials.",
                 )
 

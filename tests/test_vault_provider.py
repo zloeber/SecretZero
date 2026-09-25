@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -111,14 +112,40 @@ class TestVaultAuthEnvironment:
         assert kwargs["url"] == "https://nested.example.com:8200"
         assert kwargs["token"] == "s.nested"
 
-    def test_missing_token_still_constructs_client_for_vault_token_file(self, monkeypatch) -> None:
+    def test_missing_env_token_loads_home_vault_token_file(self, monkeypatch, tmp_path) -> None:
         monkeypatch.delenv("VAULT_TOKEN", raising=False)
         monkeypatch.setenv("VAULT_ADDR", "https://vault.example.com:8200")
-        client = _client_authenticated()
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        (tmp_path / ".vault_token").write_text("s.from-home\n", encoding="utf-8")
+        client = _client_authenticated("s.from-home")
         with patch("hvac.Client", return_value=client) as mock_client:
             auth = VaultAuth({"kind": "token"})
             assert auth.authenticate() is True
-        assert "token" not in mock_client.call_args.kwargs
+        assert mock_client.call_args.kwargs["token"] == "s.from-home"
+
+    def test_vault_login_file_used_when_underscore_file_missing(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        monkeypatch.delenv("VAULT_TOKEN", raising=False)
+        monkeypatch.setenv("VAULT_ADDR", "https://vault.example.com:8200")
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        (tmp_path / ".vault-token").write_text("s.login-file", encoding="utf-8")
+        client = _client_authenticated("s.login-file")
+        with patch("hvac.Client", return_value=client) as mock_client:
+            auth = VaultAuth({"kind": "ambient"})
+            assert auth.authenticate() is True
+        assert mock_client.call_args.kwargs["token"] == "s.login-file"
+
+    def test_env_token_wins_over_home_file(self, monkeypatch, tmp_path) -> None:
+        monkeypatch.setenv("VAULT_ADDR", "https://vault.example.com:8200")
+        monkeypatch.setenv("VAULT_TOKEN", "s.from-env")
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        (tmp_path / ".vault_token").write_text("s.from-home", encoding="utf-8")
+        client = _client_authenticated("s.from-env")
+        with patch("hvac.Client", return_value=client) as mock_client:
+            auth = VaultAuth({"kind": "token"})
+            assert auth.authenticate() is True
+        assert mock_client.call_args.kwargs["token"] == "s.from-env"
 
     def test_get_client_authenticates_lazily(self, monkeypatch) -> None:
         monkeypatch.setenv("VAULT_ADDR", "https://vault.example.com:8200")

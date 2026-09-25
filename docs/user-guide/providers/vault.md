@@ -21,7 +21,7 @@ The HashiCorp Vault provider is ideal for:
 
 ## Authentication Methods
 
-User authentication is the default local workflow: export **`VAULT_ADDR`** and **`VAULT_TOKEN`**, or run `vault login` (which writes `~/.vault-token`). SecretZero reads those standard Vault client variables without requiring the token to be copied into `Secretfile.yml`.
+User authentication is the default local workflow: export **`VAULT_ADDR`** and **`VAULT_TOKEN`**, or run `vault login` (which writes `~/.vault-token`). When `VAULT_TOKEN` is unset, SecretZero reads `~/.vault-token` and then `~/.vault_token`. The token is not copied into `Secretfile.yml`.
 
 ### Ambient / environment authentication
 
