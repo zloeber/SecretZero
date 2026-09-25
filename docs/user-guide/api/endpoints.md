@@ -135,6 +135,39 @@ curl -H "X-API-Key: $API_KEY" http://localhost:8000/secrets
 
 ---
 
+### POST /secrets - Add or Edit a Secret
+
+Create or update one secret definition in the Secretfile. Same behavior as `secretzero add`.
+
+**Authentication:** Required
+
+Static-like `config.value` / `config.default` must be `null` or a `${VAR}` placeholder. Plaintext values return `400`.
+
+**Example Request:**
+```bash
+curl -X POST -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
+  http://localhost:8000/secrets \
+  -d '{"name":"db_password","kind":"random_password","mode":"create","targets":[{"provider":"local","kind":"file","config":{"path":".env.local","format":"dotenv"}}]}'
+```
+
+**Example Response:** `200 OK`
+```json
+{
+  "action": "created",
+  "path": "Secretfile.yml",
+  "name": "db_password",
+  "generator_kind": "random_password",
+  "source_kind": null,
+  "targets": [{"provider": "local", "kind": "file", "config": {"path": ".env.local", "format": "dotenv"}}],
+  "providers_added": [],
+  "dry_run": false
+}
+```
+
+The response omits generator config.
+
+---
+
 ### GET /secrets/{secret_name}/status - Get Secret Status
 
 Get detailed status information for a specific secret.

@@ -182,6 +182,7 @@ nav:
       - CLI Reference:
           - user-guide/cli/index.md
           - init: user-guide/cli/init.md
+          - add: user-guide/cli/add.md
           - validate: user-guide/cli/validate.md
           - sync: user-guide/cli/sync.md
           - show: user-guide/cli/show.md

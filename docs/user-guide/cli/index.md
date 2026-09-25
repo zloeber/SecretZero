@@ -27,6 +27,7 @@ These options work with all commands:
 |---------|-------------|
 | [`discover`](discover.md) | Discover secrets in your project using AI analysis (local-first) |
 | [`create`](create.md) | Create a new Secretfile from a template |
+| [`add`](add.md) | Add or edit one secret's generator, source, and targets (`new` is an alias) |
 | [`init`](init.md) | Initialize project by checking and installing provider dependencies |
 | [`validate`](validate.md) | Validate Secretfile configuration |
 | [`test`](test.md) | Test provider connectivity and authentication |
@@ -94,6 +95,26 @@ secretzero create --output my-secrets.yml
 ```
 
 [Learn more →](create.md)
+
+### Add or edit one secret
+
+```bash
+# Walk through generator, optional value source, and targets
+secretzero add
+
+# Same walkthrough
+secretzero new
+
+# Non-interactive create
+secretzero add db_password --kind random_password \
+  --target provider=local,kind=file,path=.env.local,format=dotenv
+
+# Edit an existing secret and append a target
+secretzero add db_password --edit --kind random_password \
+  --target provider=aws,kind=ssm_parameter,name=/app/db
+```
+
+[Learn more →](add.md)
 
 ### Initialize Dependencies
 

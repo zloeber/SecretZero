@@ -33,6 +33,7 @@ from secretzero.backup import (
     restore_backup_entries,
 )
 from secretzero.bundles import get_bundle_registry
+from secretzero.cli_add import add_command, new_command
 from secretzero.cli_catalog import catalog_command
 from secretzero.cli_config_cmd import config_group
 from secretzero.cli_format import format_command
@@ -5873,6 +5874,8 @@ main.add_command(format_command)
 main.add_command(providers_group)
 main.add_command(skills_group)
 main.add_command(catalog_command)
+main.add_command(add_command)
+main.add_command(new_command)
 
 
 @main.command()

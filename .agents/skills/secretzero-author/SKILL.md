@@ -155,6 +155,17 @@ Rules:
 
 ### Phase 3 — Add / edit loop (repeat until user says done)
 
+Humans can run the same loop in the CLI:
+
+```bash
+secretzero add
+secretzero new          # alias of add
+secretzero add db_password --kind random_password \
+  --target provider=local,kind=file,path=.env.local,format=dotenv
+```
+
+`secretzero add` writes generator kind, optional `source:`, and targets. It refuses plaintext static values. Enter those later with `secretzero web` or `secretzero sync`.
+
 This loop is the main **agent-assisted authoring** path for both new and existing manifests. Run it after Phase 1 merges discovery candidates, or anytime the user wants to extend the manifest without rescanning disk.
 
 **Loop prompt (each iteration):**
