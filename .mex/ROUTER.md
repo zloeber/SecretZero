@@ -14,7 +14,7 @@ edges:
     condition: when setting up the dev environment or running the project for the first time
   - target: patterns/INDEX.md
     condition: when starting a task — check the pattern index for a matching pattern file
-last_updated: 2026-09-22
+last_updated: 2026-09-25
 ---
 
 # Session Bootstrap
@@ -80,13 +80,14 @@ Then read this file fully before doing anything else in this session.
 - **Script SSH keypair example:** `examples/script-ssh-keypair/Secretfile.yml` demonstrates `script` generator usage with `zsh` + `ssh-keygen` to produce reusable Ed25519 private/public key fields and sync them via a local YAML file target.
 - **Entra Agent ID preview integration:** Added built-in `entra-agent-id` provider and `entra-agent-blueprint` generator kind for Microsoft Graph-driven blueprint lifecycle (create/update blueprint, credential reconciliation, optional child `agentIdentity` creation), plus docs and example manifest (`docs/ENTRA-AGENT-ID.md`, `examples/entra-agent-id-blueprint.yml`).
 - **Optional `ent-site/` app:** Standalone Next.js app (separate from MkDocs) used for project web experiments; not required for the open-source CLI and docs.
-- **HashiCorp Vault env/user auth + KV sources:** `VaultAuth` accepts `auth.kind: token|ambient|approle`, flattens nested `auth.config` and sibling `url`/`token` fields, and authenticates from `VAULT_ADDR` / `VAULT_TOKEN` (or `~/.vault-token` after `vault login`). `retrieve_secret` supports `provider_read` locators for KV v1/v2 (custom mounts, `/data/` prefixes), cubbyhole, and generic logical paths. See `examples/vault-kv-source.yml`, `.mex/patterns/vault-env-auth.md`.
+- **HashiCorp Vault env/user auth + KV sources:** `VaultAuth` accepts `auth.kind: token|ambient|approle`, flattens nested `auth.config` and sibling `url`/`token` fields, and authenticates from `VAULT_ADDR` / `VAULT_TOKEN` when set, otherwise `~/.vault-token` then `~/.vault_token`. `retrieve_secret` supports `provider_read` locators for KV v1/v2 (custom mounts, `/data/` prefixes), cubbyhole, and generic logical paths. See `examples/vault-kv-source.yml`, `.mex/patterns/vault-env-auth.md`.
 - **Keeper Password Manager provider + target:** Added built-in `keeper` provider and `keeper_record` target for vault record read/write via Commander SDK (`keepercommander` optional extra). Phase 1: scalar read/write; Phase 2: `create_if_missing`, dynamic lockfile target IDs (`keeper/keeper_record/<uid>`), import refresh; Phase 3: structured multi-field login records; Phase 4: `generate_password` + `rotate_secret`. Docs: `docs/user-guide/providers/keeper.md`, example: `examples/keeper-vault.yml`, tests: `tests/test_keeper_provider.py`.
 - **Self-contained multi-env policy example:** `examples/multi-env-aws-policies/` now includes a standalone `Secretfile.yml`, lane-specific `.szvar` files (`dev`, `staging`, `prod`), and workflow docs showing local `.env.local` generation plus AWS `provider_identity` guardrails (account + role + region).
 - **Static dict prompting:** `StaticGenerator` now fills dict/object static secrets by prompting for each scalar leaf that is `null`, blank, or a lone `${VAR}` placeholder (nested leaves only; top-level empty string remains a deliberate value). `static_payload_needs_prompt()` drives agent auto-sync classification for structured static secrets.
 - **Variable context / lockfile:** `variables_hash` was never persisted, so `variable_context_changed` was always true for manifests with `variables:` (vs `null` in the lock), forcing `ignore_foreign_context_targets` and spurious re-prompts. Missing baseline now means “not changed”; `secretzero sync` calls `track_variable_context` before saving the lockfile so real variable / `.szvar` changes are detected on subsequent runs.
 - **CLI rotate filtering:** `secretzero rotate --secret <name>` / `-s` (repeatable) limits rotation to those manifest secrets; same as optional positional `SECRET_NAME`, but do not combine `-s` with the positional.
 - **CLI version subcommand:** Added `secretzero version` with `--detailed` runtime metadata and `--format` output selection (`text`, `json`, `yaml`) for both human and agent-friendly version reporting.
+- **`secretzero add` / `new`:** Interactive or flag-driven create/edit of one secret's generator, optional `source:`, and targets. Writes `Secretfile.yml` in place (comments preserved), adds missing provider stubs, and rejects plaintext static values. `POST /secrets` uses the same `apply_secret_draft()` path. See `.mex/patterns/add-secret-wizard.md` and `docs/user-guide/cli/add.md`.
 - **CLI status compact mode:** Default `secretzero status` text output is now a compact color-coded secret→target mapping; prior full status report moved to `secretzero status --detailed` (`--verbose` implies `--detailed`).
 - **CLI status/provider readiness + clean command:** Compact status now uses provider connectivity preflight in addition to identity to classify unsynced targets (local/file no longer misclassified as unknown when connectivity succeeds). Added `secretzero clean` for lockfile orphan cleanup without running sync (`--dry-run`, `--format text|json`).
 - **Supply-chain hardening defaults:** CI/workflows now install `uv` via SHA-pinned `astral-sh/setup-uv`, use frozen dependency resolution (`uv sync --frozen ...`) in release/test/docs/agent pre-commit paths, pin PyPI publish action to a specific commit SHA, avoid mutable `wrangler@latest` installs in docs publishing, and keep `tool.uv.override-dependencies` floors current for pip-audit (including `pip>=26.1.2` for PYSEC-2026-196, `langsmith>=0.8.0` for CVE-2026-45134, `starlette>=1.3.1` for CVE-2026-54282/54283, and `httpx2>=2.12.0` for PYSEC-2026-3846/3848/3849). Repeatable maintenance: `task deps:upgrade:verify` (see `.mex/patterns/deps-upgrade.md`).
@@ -125,6 +126,7 @@ Load the relevant file based on the current task. Always load `context/architect
 | Making a design decision | `context/decisions.md` |
 | Setting up or running the project | `context/setup.md` |
 | Adding or modifying secrets in manifests | `patterns/add-secret.md` |
+| `secretzero add` / `new` wizard or `POST /secrets` | `patterns/add-secret-wizard.md` |
 | Editing Secretfile structure/variables/providers | `patterns/secretfile-authoring.md` |
 | Adding providers/generators/targets | `patterns/add-bundle.md` |
 | HashiCorp Vault env auth / KV sources | `patterns/vault-env-auth.md` |

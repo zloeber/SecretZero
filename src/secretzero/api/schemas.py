@@ -249,6 +249,50 @@ class AppConfigResponse(BaseModel):
     )
 
 
+class SecretAuthorTarget(BaseModel):
+    """One target in a secret add/edit request."""
+
+    provider: str
+    kind: str
+    config: dict[str, Any] = Field(default_factory=dict)
+    identity_policies: list[str] = Field(default_factory=list)
+
+
+class SecretAuthorSource(BaseModel):
+    """Optional non-human value source. Do not send plaintext secret material."""
+
+    kind: str
+    required: bool = True
+    config: dict[str, Any] = Field(default_factory=dict)
+
+
+class SecretAuthorRequest(BaseModel):
+    """Create or edit one secret definition. Static values must be null or ${VAR}."""
+
+    name: str
+    kind: str
+    config: dict[str, Any] = Field(default_factory=dict)
+    targets: list[SecretAuthorTarget] = Field(default_factory=list)
+    source: SecretAuthorSource | None = None
+    clear_source: bool = False
+    mode: str = Field(default="upsert", description="create, edit, or upsert")
+    replace_targets: bool = False
+    dry_run: bool = False
+
+
+class SecretAuthorResponse(BaseModel):
+    """Metadata-only result. Generator config is omitted."""
+
+    action: str
+    path: str
+    name: str
+    generator_kind: str
+    source_kind: str | None = None
+    targets: list[dict[str, Any]] = Field(default_factory=list)
+    providers_added: list[str] = Field(default_factory=list)
+    dry_run: bool = False
+
+
 class AgentSyncRequest(BaseModel):
     """Request for unified ``agent sync`` (CLI parity)."""
 

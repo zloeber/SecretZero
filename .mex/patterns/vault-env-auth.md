@@ -14,7 +14,7 @@ edges:
     condition: when AuthKind or Secretfile auth shape changes
   - target: patterns/secretfile-authoring.md
     condition: when documenting Vault provider blocks in manifests
-last_updated: 2026-09-16
+last_updated: 2026-09-25
 ---
 
 # Vault environment authentication and KV sources
@@ -24,7 +24,7 @@ The HashiCorp Vault provider (`src/secretzero/providers/vault.py`) authenticates
 
 ## Steps
 1. Flatten Secretfile auth with `flatten_vault_auth_config()` before constructing `VaultAuth` (nested `auth.config`, sibling fields, `address` alias, ignore provider `kind: vault`).
-2. Treat `token`, `ambient`, and omitted kind as user/token auth: `VAULT_ADDR`, `VAULT_TOKEN`, then HVAC `~/.vault-token`.
+2. Treat `token`, `ambient`, and omitted kind as user/token auth: config token, then `VAULT_TOKEN` when set, then `~/.vault-token`, then `~/.vault_token`. Pass the resolved token into the HVAC client.
 3. Keep AppRole as `auth.kind: approle` (must be a valid `AuthKind`).
 4. `retrieve_secret` must accept `provider_read` extras (`path`, `name`, `mount_point`, `kind`, `engine`, `kv_version`, `**_`) so sync source resolution does not TypeError.
 5. Normalize KV v2 paths (`secret/data/...`) and support cubbyhole/generic logical reads.

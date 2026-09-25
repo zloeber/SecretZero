@@ -10,6 +10,7 @@ Lookup table for all pattern files in this directory. Check here before starting
 | [add-bundle.md](add-bundle.md) | Adding a provider/generator/target through bundle manifest registration |
 | [add-cli-command.md](add-cli-command.md) | Adding or changing `secretzero` CLI commands/options |
 | [add-secret.md#task-add-a-simple-secret](add-secret.md#task-add-a-simple-secret) | Adding a standard secret definition to `Secretfile.yml` |
+| [add-secret-wizard.md](add-secret-wizard.md) | `secretzero add` / `new` walkthrough and `POST /secrets` |
 | [add-secret.md#task-add-a-template-secret](add-secret.md#task-add-a-template-secret) | Adding a template-backed multi-field secret |
 | [aws-json-target-format.md](aws-json-target-format.md) | Changing AWS `ssm_parameter` / `secrets_manager` structured JSON target behavior or docs |
 | [backup-cli-workflow.md](backup-cli-workflow.md) | Changing `secretzero backup create` / `backup restore` defaults, encryption mode, or environment fan-out |
