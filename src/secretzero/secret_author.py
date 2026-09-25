@@ -416,9 +416,9 @@ def _existing_targets(secret: dict[str, Any]) -> list[TargetDraft]:
                 provider=str(raw.get("provider") or ""),
                 kind=str(raw.get("kind") or ""),
                 config=dict(config),
-                identity_policies=[str(item) for item in policies]
-                if isinstance(policies, list)
-                else [],
+                identity_policies=(
+                    [str(item) for item in policies] if isinstance(policies, list) else []
+                ),
             )
         )
     return drafts
