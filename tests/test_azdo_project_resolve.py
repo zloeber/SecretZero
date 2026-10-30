@@ -33,3 +33,20 @@ def test_azdo_client_connection_data():
     client.get = MagicMock(return_value={"authenticatedUser": {"providerDisplayName": "Test User"}})
     data = client.connection_data()
     assert data["authenticatedUser"]["providerDisplayName"] == "Test User"
+
+
+def test_connection_data_requests_preview_api_version():
+    """connectionData rejects api-version 7.1; auth must call the preview version."""
+    client = AzdoClient("myorg", "pat-token")
+    response = MagicMock()
+    response.status_code = 200
+    response.content = b'{"authenticatedUser":{"providerDisplayName":"Test User"}}'
+    response.json.return_value = {"authenticatedUser": {"providerDisplayName": "Test User"}}
+    with patch.object(client._session, "get", return_value=response) as session_get:
+        data = client.connection_data()
+
+    assert data["authenticatedUser"]["providerDisplayName"] == "Test User"
+    session_get.assert_called_once()
+    url = session_get.call_args.args[0]
+    assert url == "https://dev.azure.com/myorg/_apis/connectionData"
+    assert session_get.call_args.kwargs["params"]["api-version"] == "7.1-preview.1"

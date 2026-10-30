@@ -24,4 +24,6 @@ exclude = [
   '^https://docs\.aws\.amazon\.com',
   # iso.org returns 403 to automated link checkers; URL is valid in browsers.
   '^https://www\.iso\.org/',
+  # deepwiki.com badges rate-limit CI (HTTP 429); the links are valid in browsers.
+  '^https://deepwiki\.com/',
 ]

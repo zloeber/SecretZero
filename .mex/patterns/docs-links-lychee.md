@@ -5,7 +5,7 @@ triggers:
   - "broken link"
   - "lychee"
   - "docs:links"
-last_updated: 2026-06-04
+last_updated: 2026-10-30
 ---
 
 # Docs hyperlink check (lychee)
@@ -31,8 +31,9 @@ task docs:links
 2. For intentional non-checkable URLs (localhost docs, placeholders, CI-blocked hosts like `kubernetes.io`), add a regex to `lychee.toml` `exclude` — do not disable the task.
 3. `kubernetes.io` links are valid but often fail lychee on GitHub Actions with "connection failed"; they remain excluded until upstream egress is reliable.
 4. `iso.org` links may return 403 to automated checkers; exclude in `lychee.toml` when the URL is valid in browsers.
-5. Install tool: `mise install` (see `mise.toml` `lychee` tool).
-6. CI installs via `scripts/ci-install-lychee.sh` (handles v0.24+ nested release tarballs).
+5. `deepwiki.com` badge URLs return HTTP 429 to GitHub Actions; exclude `^https://deepwiki\.com/` while the badge remains in README and docs.
+6. Install tool: `mise install` (see `mise.toml` `lychee` tool).
+7. CI installs via `scripts/ci-install-lychee.sh` (handles v0.24+ nested release tarballs).
 
 ## Example manifest links
 

@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- fix(azdo): connectionData requires a preview api-version; ADO auth always failed
+- Raised dependency floors so `pip-audit` clears aiohttp, black, certifi, filelock, langgraph-sdk, msgpack, multidict, oauthlib, opentelemetry-api, pillow, pyjwt, setuptools, urllib3, and werkzeug. The `mcp` extra floor stays `>=1.27` so FastMCP hosts can still resolve 1.x; the lockfile resolves a patched 2.x.
 - Import no longer crashes when a caller (e.g. Hermes) injects a `PYTHONPATH` that shadows SecretZero's bundled `pydantic` with an incompatible install (`ModuleNotFoundError: No module named pydantic_core._pydantic_core`). Package `__init__` now forces the interpreter's own `site-packages` ahead of env-injected paths without clearing `PYTHONPATH`.
 
 ### Added
