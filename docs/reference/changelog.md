@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- fix(azdo): connectionData requires a preview api-version; ADO auth always failed
 - Import no longer crashes when a caller (e.g. Hermes) injects a `PYTHONPATH` that shadows SecretZero's bundled `pydantic` with an incompatible install (`ModuleNotFoundError: No module named pydantic_core._pydantic_core`). Package `__init__` now forces the interpreter's own `site-packages` ahead of env-injected paths without clearing `PYTHONPATH`.
 
 ### Added

@@ -92,4 +92,8 @@ class AzdoClient:
         response.raise_for_status()
 
     def connection_data(self) -> dict[str, Any]:
-        return self.get(self._url("_apis/connectionData"), params={"api-version": "7.1"}) or {}
+        # connectionData is preview-only; api-version 7.1 returns HTTP 400.
+        return (
+            self.get(self._url("_apis/connectionData"), params={"api-version": "7.1-preview.1"})
+            or {}
+        )
