@@ -225,12 +225,16 @@ class TestMcpTools:
 
     def test_reveal_blocked_on_sync(self, tmp_path: Path, mcp_server) -> None:
         _write_minimal_manifest(tmp_path)
-        with pytest.raises(Exception, match="reveal"):
+        with pytest.raises(Exception) as exc_info:
             _call_tool(
                 mcp_server,
                 "sz_sync",
                 {"workspace": str(tmp_path), "reveal": True},
             )
+        # mcp 2.3 wraps tool errors; the block reason stays on the cause.
+        cause = exc_info.value.__cause__
+        text = f"{exc_info.value} {cause or ''}"
+        assert "reveal" in text
 
 
 def _run_list_tools(server):
