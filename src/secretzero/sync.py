@@ -147,6 +147,21 @@ class SyncEngine:
         )
         self._lockfile_source_recorded = True
 
+    # Config keys that distinguish one remote object from another. ``name`` and
+    # ``path`` stay first so existing file/keeper ids do not change.
+    _TARGET_ID_KEYS = (
+        "target_id",
+        "record_uid",
+        "name",
+        "path",
+        "title",
+        "variable_group",
+        "pipeline",
+        "environment",
+        "file_name",
+        "vault_name",
+    )
+
     @staticmethod
     def _build_target_id(target_config) -> str:
         """Build a consistent target identifier.
@@ -159,43 +174,72 @@ class SyncEngine:
         """
         provider = target_config.provider
         kind = target_config.kind
+        config = target_config.config or {}
 
         # For file targets, use path as the identifier
         if kind == "file":
-            identifier = target_config.config.get("path", "")
+            identifier = config.get("path", "")
         else:
-            identifier = (
-                target_config.config.get("target_id")
-                or target_config.config.get("record_uid")
-                or target_config.config.get("name")
-                or target_config.config.get("path")
-                or target_config.config.get("title")
-                or ""
-            )
+            identifier = ""
+            for key in SyncEngine._TARGET_ID_KEYS:
+                value = config.get(key)
+                if isinstance(value, str) and value.strip():
+                    identifier = value.strip()
+                    break
 
         return f"{provider}/{kind}/{identifier}"
 
-    def _is_target_tracked(self, target_config: Any, tracked_targets: set[str]) -> bool:
-        """Return True if *target_config* appears in the lockfile target map."""
-        target_id = self._build_target_id(target_config)
-        if target_id in tracked_targets:
-            return True
+    @staticmethod
+    def _target_id_aliases(target_config: Any, siblings: list[Any] | None = None) -> list[str]:
+        """Return lockfile ids that refer to *target_config*.
+
+        Includes the pre-identifier form ``provider/kind/`` for file targets and
+        for a provider kind that appears only once on the secret. That keeps
+        older Azure DevOps lockfiles (``azdo/azdo_variable_group/``) tracked
+        without letting two groups share the empty id.
+        """
+        primary = SyncEngine._build_target_id(target_config)
+        aliases = [primary]
+        empty = f"{target_config.provider}/{target_config.kind}/"
+        if empty == primary:
+            return aliases
         if target_config.kind == "file":
-            old_target_id = f"{target_config.provider}/{target_config.kind}/"
-            if old_target_id in tracked_targets:
-                return True
-        return False
+            aliases.append(empty)
+            return aliases
+        if siblings is None:
+            return aliases
+        kind = target_config.kind
+        same = [
+            item
+            for item in siblings
+            if item.provider == target_config.provider and item.kind == kind
+        ]
+        if len(same) == 1:
+            aliases.append(empty)
+        return aliases
+
+    def _is_target_tracked(
+        self,
+        target_config: Any,
+        tracked_targets: set[str],
+        siblings: list[Any] | None = None,
+    ) -> bool:
+        """Return True if *target_config* appears in the lockfile target map."""
+        return any(
+            target_id in tracked_targets
+            for target_id in self._target_id_aliases(target_config, siblings)
+        )
 
     def _valid_target_ids_for_secret(self, secret: Secret) -> set[str]:
         """Return lockfile target IDs that are valid for *secret* now.
 
-        Includes legacy file target IDs to avoid false mismatches for older lockfiles.
+        Includes legacy file target IDs and the empty ``provider/kind/`` id when
+        that kind is configured only once, so older lockfiles are not pruned.
         """
         valid: set[str] = set()
-        for target_config in secret.targets:
-            valid.add(self._build_target_id(target_config))
-            if target_config.kind == "file":
-                valid.add(f"{target_config.provider}/{target_config.kind}/")
+        siblings = list(secret.targets)
+        for target_config in siblings:
+            valid.update(self._target_id_aliases(target_config, siblings))
         return valid
 
     def _definition_hash_for(self, secret: Secret) -> str:
@@ -302,7 +346,7 @@ class SyncEngine:
             tid = self._build_target_id(tc)
             if tid in seen:
                 continue
-            if self._is_target_tracked(tc, tracked_targets):
+            if self._is_target_tracked(tc, tracked_targets, siblings=all_target_configs):
                 seen.add(tid)
                 ordered.append(tc)
         return ordered
@@ -1069,7 +1113,13 @@ class SyncEngine:
         for target_config in secret.targets:
             target_id = self._build_target_id(target_config)
             force_this = bool(force_target_ids and target_id in force_target_ids)
-            needs_sync = force_rotation or target_id not in tracked_targets or force_this
+            needs_sync = (
+                force_rotation
+                or force_this
+                or not self._is_target_tracked(
+                    target_config, tracked_targets, siblings=list(secret.targets)
+                )
+            )
 
             # For file targets, also check if the file actually exists
             if (
@@ -1215,11 +1265,13 @@ class SyncEngine:
                 self._record_secret_definition_hash(secret)
         else:
             result["dry_run"] = True
+            result["would_store"] = True
             for target_config in targets_to_sync:
                 result["targets"].append(
                     {
                         "provider": target_config.provider,
                         "kind": target_config.kind,
+                        "target_id": self._build_target_id(target_config),
                         "status": "would_store",
                     }
                 )
@@ -1292,7 +1344,13 @@ class SyncEngine:
             for target_config in all_targets:
                 target_id = self._build_target_id(target_config)
                 force_this = bool(force_target_ids and target_id in force_target_ids)
-                if force_rotation or target_id not in tracked_targets or force_this:
+                if (
+                    force_rotation
+                    or force_this
+                    or not self._is_target_tracked(
+                        target_config, tracked_targets, siblings=list(all_targets)
+                    )
+                ):
                     targets_to_sync.append(target_config)
 
             # If no targets need syncing, skip
@@ -1375,11 +1433,14 @@ class SyncEngine:
                     result["errors"].extend(field_result["errors"])
             else:
                 field_result["dry_run"] = True
+                field_result["would_store"] = True
+                result["would_store"] = True
                 for target_config in targets_to_sync:
                     field_result["targets"].append(
                         {
                             "provider": target_config.provider,
                             "kind": target_config.kind,
+                            "target_id": self._build_target_id(target_config),
                             "status": "would_store",
                         }
                     )

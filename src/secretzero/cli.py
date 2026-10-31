@@ -2327,6 +2327,63 @@ def _show_provider_details(provider_name: str, target_name: str | None, verbose:
             )
 
 
+def _resolve_force_target_id(requested: str, allowed: set[str]) -> str | None:
+    """Match a ``--force-target`` value to one canonical target id.
+
+    Accepts the full id, the same id with or without a trailing slash, and a
+    ``provider/kind`` prefix when exactly one allowed id starts with it.
+    """
+    if requested in allowed:
+        return requested
+    alt = requested[:-1] if requested.endswith("/") else f"{requested}/"
+    if alt in allowed:
+        return alt
+    prefix = requested.rstrip("/")
+    matches = [tid for tid in allowed if tid.rstrip("/") == prefix or tid.startswith(f"{prefix}/")]
+    if len(matches) == 1:
+        return matches[0]
+    return None
+
+
+def _detail_would_write(detail: dict[str, Any]) -> bool:
+    """True when a sync detail would create or update a target."""
+    if detail.get("stored") or detail.get("would_store"):
+        return True
+    targets = list(detail.get("targets") or [])
+    for field in detail.get("fields") or []:
+        if isinstance(field, dict) and (field.get("stored") or field.get("would_store")):
+            return True
+        if isinstance(field, dict):
+            targets.extend(field.get("targets") or [])
+    return any(str(target.get("status")) in {"would_store", "stored"} for target in targets)
+
+
+def _plan_action(detail: dict[str, Any], *, tracked: bool) -> str:
+    """Classify one secret for ``sync --plan``.
+
+    Dry-run never sets ``stored``. Writes are detected from ``would_store``.
+    ``All targets already synced`` is unchanged; other skips stay skips.
+    """
+    if _detail_would_write(detail):
+        return "update" if tracked else "create"
+    reason = str(detail.get("reason") or "")
+    if detail.get("skipped") and "already synced" in reason:
+        return "unchanged"
+    if detail.get("skipped"):
+        return "skip"
+    return "unchanged"
+
+
+def _secret_is_tracked(config: Any, lock: Lockfile, local_lock: Lockfile, name: str) -> bool:
+    """True when *name* already has a shared or machine-local lockfile entry."""
+    from secretzero.local_secrets import resolve_lockfile_for_secret
+
+    secret = next((item for item in config.secrets if item.name == name), None)
+    if secret is None:
+        return lock.get_secret_info(name) is not None
+    return resolve_lockfile_for_secret(lock, local_lock, secret).get_secret_info(name) is not None
+
+
 def _cli_force_targets_map(
     config: Any,
     secret_names: tuple[str, ...],
@@ -2346,13 +2403,20 @@ def _cli_force_targets_map(
     if sec is None:
         raise click.BadParameter(f"Secret {name!r} not found in Secretfile")
     allowed = {SyncEngine._build_target_id(t) for t in sec.targets}
-    bad = [ft for ft in force_target_args if ft not in allowed]
+    resolved: list[str] = []
+    bad: list[str] = []
+    for requested in force_target_args:
+        match = _resolve_force_target_id(requested, allowed)
+        if match is None:
+            bad.append(requested)
+        else:
+            resolved.append(match)
     if bad:
         opts = ", ".join(sorted(allowed)) or "(none)"
         raise click.BadParameter(
             f"Unknown --force-target {bad[0]!r} for secret {name!r}. Valid: {opts}"
         )
-    return {name: frozenset(force_target_args)}
+    return {name: frozenset(resolved)}
 
 
 @main.command()
@@ -2438,8 +2502,10 @@ def _cli_force_targets_map(
     multiple=True,
     help=(
         "Re-push the current secret value to these target IDs only (repeatable). "
-        "Target IDs match the lockfile (e.g. local/file/.env, github/github_secret/…). "
-        "Requires exactly one --secret. Use when multiple targets exist and at least one is already synced."
+        "IDs match the lockfile (for example local/file/.env or "
+        "azdo/azdo_variable_group/production-secrets). "
+        "A provider/kind prefix is enough when the secret has one target of that kind, "
+        "and a trailing slash is optional. Requires exactly one --secret."
     ),
 )
 def sync(
@@ -2646,17 +2712,10 @@ def sync(
             if plan:
                 plan_details = []
                 for detail in results.get("details", []):
-                    is_stored = detail.get("stored")
-                    is_skipped = detail.get("skipped")
-                    exists = lock.get_secret_info(detail["name"]) is not None
-                    if is_stored and not exists:
-                        action = "create"
-                    elif is_stored:
-                        action = "update"
-                    elif is_skipped:
-                        action = "skip"
-                    else:
-                        action = "unchanged"
+                    action = _plan_action(
+                        detail,
+                        tracked=_secret_is_tracked(config, lock, local_lock, detail["name"]),
+                    )
                     plan_details.append(
                         {
                             "name": detail["name"],
@@ -2716,31 +2775,41 @@ def sync(
             plan_table.add_column("Type", style="dim")
             plan_table.add_column("Targets")
 
+            action_styles = {
+                "create": "[green]create[/green]",
+                "update": "[blue]update[/blue]",
+                "skip": "[yellow]skip[/yellow]",
+                "unchanged": "[dim]unchanged[/dim]",
+            }
+            plan_actions: list[str] = []
             for detail in results["details"]:
                 secret_name = detail["name"]
                 secret_kind = detail["kind"]
-                is_skipped = detail.get("skipped")
-                is_stored = detail.get("stored")
-                existing = lock.get_secret_info(secret_name)
-
-                if is_skipped:
-                    action = "[yellow]skip[/yellow]"
-                elif is_stored and not existing:
-                    action = "[green]create[/green]"
-                elif is_stored:
-                    action = "[blue]update[/blue]"
-                else:
-                    action = "[dim]unchanged[/dim]"
-
+                action_name = _plan_action(
+                    detail,
+                    tracked=_secret_is_tracked(config, lock, local_lock, secret_name),
+                )
+                plan_actions.append(action_name)
                 targets_str = (
                     ", ".join(f"{t['provider']}/{t['kind']}" for t in detail.get("targets", []))
                     or "[dim]none[/dim]"
                 )
-                plan_table.add_row(action, secret_name, secret_kind, targets_str)
+                plan_table.add_row(
+                    action_styles.get(action_name, action_name),
+                    secret_name,
+                    secret_kind,
+                    targets_str,
+                )
 
+            write_count = sum(action in {"create", "update"} for action in plan_actions)
+            skip_count = sum(action == "skip" for action in plan_actions)
             console.print(plan_table)
             console.print(
-                f"\n[dim]Plan summary: {success_count} create/update, {skipped_count} skip[/dim]"
+                f"\n[dim]Plan summary: {write_count} create/update, {skip_count} skip[/dim]"
+            )
+            console.print(
+                "[dim]Plan compares the manifest to the lockfile. "
+                "It does not read live targets.[/dim]"
             )
             console.print("\n[cyan]Run 'secretzero sync' to apply this plan.[/cyan]")
             return
@@ -3666,6 +3735,10 @@ def rotate(
 
     Limit to specific secrets with ``--secret`` / ``-s`` (repeatable) or a single
     optional ``SECRET_NAME`` positional argument — not both.
+
+    A secret with ``rotation_period`` and no shared or machine-local lockfile
+    entry is due (no rotation history). That includes a fresh clone whose
+    lockfile was never committed.
     """
     try:
         file_path, config, env_ctx = _load_secretfile_for_cli(
@@ -3680,9 +3753,16 @@ def rotate(
             console.print(f"[red]Error loading Secretfile:[/red] {e}")
         sys.exit(EXIT_CONFIG_ERROR)
 
-    # Load lockfile
+    # Load shared and machine-local lockfiles. `local: true` history lives in
+    # the workstation lock, which a fresh clone does not have.
+    from secretzero.local_secrets import (
+        load_lockfile_pair,
+        resolve_lockfile_for_secret,
+        save_lockfile_pair,
+    )
+
     lockfile_path = env_ctx.resolved_lockfile
-    lock = Lockfile.load(lockfile_path)
+    lock, local_lock = load_lockfile_pair(lockfile_path)
 
     if output_format == "text":
         console.print("[bold]Checking secrets for rotation...[/bold]\n")
@@ -3727,10 +3807,10 @@ def rotate(
         if not secret.rotation_period:
             continue
 
-        # Get lockfile entry
-        entry = lock.get_secret_info(secret.name)
-        if not entry:
-            continue
+        # Missing history is due. A workstation-local or uncommitted lockfile
+        # must not turn `rotate` into a silent success.
+        entry_lock = resolve_lockfile_for_secret(lock, local_lock, secret)
+        entry = entry_lock.get_secret_info(secret.name)
 
         # Check if one_time secret
         if secret.one_time:
@@ -3744,8 +3824,8 @@ def rotate(
         # Check if rotation needed
         should_rotate_flag, reason = should_rotate_secret(
             secret.rotation_period,
-            entry.last_rotated,
-            entry.created_at,
+            entry.last_rotated if entry else None,
+            entry.created_at if entry else None,
         )
 
         if should_rotate_flag or force:
@@ -3812,6 +3892,7 @@ def rotate(
         secretfile_path=file_path,
         secretfile_content=secretfile_content,
         hide_input=not show_input,
+        local_lockfile=local_lock,
     )
 
     # Filter secrets for rotation
@@ -3865,7 +3946,7 @@ def rotate(
                     )
 
         # Save lockfile regardless of output format
-        lock.save(lockfile_path)
+        save_lockfile_pair(lockfile_path, lock, local_lock)
         if output_format != "json":
             console.print(f"\n[green]✓[/green] Lockfile updated: {lockfile_path}")
 

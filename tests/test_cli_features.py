@@ -761,6 +761,42 @@ templates: {{}}
         assert payload["targets"][0]["config"]["path"] == ".env.dev"
 
 
+def test_rotate_without_lockfile_entry_is_due(runner: CliRunner) -> None:
+    """A rotation policy with no lockfile entry is due; it must not exit as a no-op."""
+    with TemporaryDirectory() as tmpdir:
+        sf = Path(tmpdir) / "Secretfile.yml"
+        sf.write_text("""
+version: '1.0'
+variables: {}
+providers:
+  local:
+    kind: local
+secrets:
+  - name: db_password
+    kind: random_password
+    rotation_period: 90d
+    config:
+      length: 16
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: .env.test
+          format: dotenv
+templates: {}
+""")
+        lock = Path(tmpdir) / ".lock"
+        result = runner.invoke(
+            main,
+            ["rotate", "--file", str(sf), "--lockfile", str(lock), "--dry-run", "--format", "json"],
+        )
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["would_rotate"] == ["db_password"]
+        assert payload["details"][0]["status"] == "needs_rotation"
+        assert "No secrets need rotation" not in result.output
+
+
 def test_rotate_json_output_dry_run(runner: CliRunner) -> None:
     """Test rotate command JSON output in dry-run mode."""
     with TemporaryDirectory() as tmpdir:
@@ -1059,6 +1095,116 @@ templates: {{}}
         # The file should NOT be created when --plan is used
         assert not env_file.exists()
         assert not lock.exists()
+
+
+def test_sync_plan_marks_untracked_secret_as_create(runner: CliRunner) -> None:
+    """Dry-run plan must show create when the lockfile has no entry."""
+    with TemporaryDirectory() as tmpdir:
+        env_file = Path(tmpdir) / ".env.test"
+        sf = Path(tmpdir) / "Secretfile.yml"
+        sf.write_text(f"""
+version: '1.0'
+variables: {{}}
+providers:
+  local:
+    kind: local
+secrets:
+  - name: db_password
+    kind: random_password
+    config:
+      length: 16
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: {env_file}
+          format: dotenv
+templates: {{}}
+""")
+        lock = Path(tmpdir) / ".lock"
+        result = runner.invoke(
+            main,
+            ["sync", "--file", str(sf), "--lockfile", str(lock), "--plan", "--format", "json"],
+        )
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["plan_details"][0]["action"] == "create"
+        assert not env_file.exists()
+
+
+def test_sync_plan_marks_tracked_secret_as_unchanged(runner: CliRunner) -> None:
+    """A lockfile entry whose target id matches the manifest is unchanged, not a write."""
+    with TemporaryDirectory() as tmpdir:
+        env_file = Path(tmpdir) / ".env.test"
+        sf = Path(tmpdir) / "Secretfile.yml"
+        sf.write_text(f"""
+version: '1.0'
+variables: {{}}
+providers:
+  local:
+    kind: local
+secrets:
+  - name: db_password
+    kind: random_password
+    config:
+      length: 16
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: {env_file}
+          format: dotenv
+templates: {{}}
+""")
+        env_file.write_text("db_password=already-there\n")
+        lock = Path(tmpdir) / ".lock"
+        tracked = Lockfile()
+        tracked.add_secret("db_password", "already-there", target_id=f"local/file/{env_file}")
+        tracked.save(lock)
+        result = runner.invoke(
+            main,
+            ["sync", "--file", str(sf), "--lockfile", str(lock), "--plan", "--format", "json"],
+        )
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["plan_details"][0]["action"] == "unchanged"
+
+
+def test_sync_plan_marks_partial_target_as_update(runner: CliRunner) -> None:
+    """A secret tracked without this target is an update, not unchanged."""
+    with TemporaryDirectory() as tmpdir:
+        env_file = Path(tmpdir) / ".env.test"
+        sf = Path(tmpdir) / "Secretfile.yml"
+        sf.write_text(f"""
+version: '1.0'
+variables: {{}}
+providers:
+  local:
+    kind: local
+secrets:
+  - name: db_password
+    kind: static
+    config:
+      value: kept-value
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: {env_file}
+          format: dotenv
+templates: {{}}
+""")
+        lock = Path(tmpdir) / ".lock"
+        tracked = Lockfile()
+        tracked.add_secret("db_password", "kept-value")
+        tracked.save(lock)
+        result = runner.invoke(
+            main,
+            ["sync", "--file", str(sf), "--lockfile", str(lock), "--plan", "--format", "json"],
+        )
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["plan_details"][0]["action"] == "update"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
