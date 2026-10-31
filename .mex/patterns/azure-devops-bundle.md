@@ -5,7 +5,7 @@ triggers:
   - "azure devops"
   - "azdo_variable_group"
   - "azdo_pat"
-last_updated: 2026-08-19
+last_updated: 2026-10-30
 ---
 
 # Azure DevOps Bundle
@@ -27,6 +27,7 @@ Services-only (`dev.azure.com`). Reject on-prem `server`/`collection` config.
 2. Use helper modules (`azdo_variable_groups.py`, etc.) from targets — no SyncEngine branching.
 3. Secret variables: never log plaintext; retrieve returns `None` for `is_secret: true`.
 4. Run `task schema:update` after enum changes.
+5. Target ids include `variable_group`, `pipeline`, `environment`, `file_name`, or `vault_name`. Keep the empty `provider/kind/` alias only when that kind appears once, so older lockfiles stay tracked.
 
 ## Verify
 

@@ -25,17 +25,19 @@ def target_id(target: TargetConfig) -> str:
 
 
 def lock_hash_for_target(
-    entry: SecretLockEntry | None, tid: str, target: TargetConfig
+    entry: SecretLockEntry | None,
+    tid: str,
+    target: TargetConfig,
+    siblings: list[TargetConfig] | None = None,
 ) -> str | None:
-    """Resolve per-target hash from lockfile, including legacy file target ids."""
+    """Resolve per-target hash from lockfile, including legacy target ids."""
     if not entry or not entry.targets:
         return None
-    h = entry.targets.get(tid)
-    if h is not None:
-        return h
-    if kind_str(target.kind) == "file":
-        return entry.targets.get(f"{target.provider}/file/")
-    return None
+    for alias in SyncEngine._target_id_aliases(target, siblings):
+        found = entry.targets.get(alias)
+        if found is not None:
+            return found
+    return entry.targets.get(tid)
 
 
 def secretfile_tracking_changed(
@@ -113,5 +115,6 @@ def sync_state_for_secret_target(
 
     entry = lockfile.get_secret_info(secret_name)
     tid = target_id(target)
-    locked = lock_hash_for_target(entry, tid, target)
+    siblings = list(secret.targets) if secret is not None else None
+    locked = lock_hash_for_target(entry, tid, target, siblings=siblings)
     return sync_state_for_target(entry, locked, definition_drift=definition_drift)

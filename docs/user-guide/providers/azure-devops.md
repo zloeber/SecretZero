@@ -41,6 +41,18 @@ Environment variables:
 
 Azure DevOps does not return secret variable values via REST after write. `retrieve()` is metadata-only for secret targets.
 
+## Target ids
+
+Lockfile and `--force-target` ids include the object name, for example `azdo/azdo_variable_group/production-secrets`. A `provider/kind` prefix is enough when the secret has one target of that kind, and the trailing slash is optional:
+
+```bash
+secretzero sync -s database_password --force-target azdo/azdo_variable_group
+```
+
+`sync --plan` compares the manifest with the lockfile. It does not read the live variable group. `secretzero drift` and a real `sync` are the checks against Azure DevOps.
+
+`secretzero rotate` treats a secret with `rotation_period` and no lockfile entry as due. A fresh clone does not exit 0 with "No secrets need rotation" for those secrets.
+
 ## Example
 
 See `examples/azure-devops-complete.yml`.

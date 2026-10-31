@@ -5,8 +5,10 @@ from pathlib import Path
 
 import pytest
 
+from secretzero.cli import _resolve_force_target_id
 from secretzero.config import ConfigLoader
 from secretzero.lockfile import Lockfile
+from secretzero.models import TargetConfig
 from secretzero.sync import SyncEngine
 
 
@@ -41,6 +43,57 @@ secrets:
           format: dotenv
 """)
     return p
+
+
+def test_azdo_variable_group_target_id_includes_group_name() -> None:
+    """Variable-group targets must not collapse to a bare trailing slash."""
+    target = TargetConfig(
+        provider="azdo",
+        kind="azdo_variable_group",
+        config={"variable_group": "production-secrets", "project": "auto"},
+    )
+    assert SyncEngine._build_target_id(target) == "azdo/azdo_variable_group/production-secrets"
+
+
+def test_force_target_kind_prefix_does_not_require_trailing_slash() -> None:
+    """``provider/kind`` matches the one canonical id with or without a trailing slash."""
+    allowed = {"azdo/azdo_variable_group/production-secrets"}
+    assert (
+        _resolve_force_target_id("azdo/azdo_variable_group", allowed)
+        == "azdo/azdo_variable_group/production-secrets"
+    )
+    assert (
+        _resolve_force_target_id("azdo/azdo_variable_group/", allowed)
+        == "azdo/azdo_variable_group/production-secrets"
+    )
+
+
+def test_legacy_empty_azdo_target_id_stays_tracked() -> None:
+    """Older lockfiles keyed ``azdo/azdo_variable_group/`` still alias a single group."""
+    target = TargetConfig(
+        provider="azdo",
+        kind="azdo_variable_group",
+        config={"variable_group": "production-secrets"},
+    )
+    aliases = SyncEngine._target_id_aliases(target, [target])
+    assert aliases[0] == "azdo/azdo_variable_group/production-secrets"
+    assert "azdo/azdo_variable_group/" in aliases
+
+
+def test_legacy_empty_target_id_is_not_shared_by_two_groups() -> None:
+    """Two variable groups must not both claim the old empty target id."""
+    first = TargetConfig(
+        provider="azdo",
+        kind="azdo_variable_group",
+        config={"variable_group": "one"},
+    )
+    second = TargetConfig(
+        provider="azdo",
+        kind="azdo_variable_group",
+        config={"variable_group": "two"},
+    )
+    aliases = SyncEngine._target_id_aliases(first, [first, second])
+    assert "azdo/azdo_variable_group/" not in aliases
 
 
 def test_sync_skips_when_all_targets_tracked(
