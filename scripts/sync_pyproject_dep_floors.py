@@ -23,6 +23,12 @@ from pathlib import Path
 DEP_LINE_RE = re.compile(r'^(\s*)"(.+)"(,?\s*)$')
 SPEC_FLOOR_RE = re.compile(r"^([^>\[]+)(?:\[[^\]]*\])?>=(.+)$")
 
+# Floors that must not track the locked version. secretzero[mcp] stays on 1.27
+# so hosts that pin fastmcp (mcp<2) can still resolve; the lock may use 2.x.
+PRESERVE_FLOORS = {
+    "mcp": "1.27.0",
+}
+
 
 def _parse_floor_spec(spec: str) -> tuple[str, str, str] | None:
     """Return (package_name, floor_version, trailing_constraints) for a >= spec."""
@@ -37,14 +43,29 @@ def _parse_floor_spec(spec: str) -> tuple[str, str, str] | None:
     return name, rest.strip(), ""
 
 
+def _older_version(left: str, right: str) -> bool:
+    """True when ``left`` is an older version than ``right``."""
+    try:
+        from packaging.version import Version
+    except ImportError:
+        return left < right
+    return Version(left) < Version(right)
+
+
 def _lock_versions(lock_path: Path) -> dict[str, str]:
     data = tomllib.loads(lock_path.read_text(encoding="utf-8"))
     versions: dict[str, str] = {}
     for entry in data.get("package", []):
         name = entry.get("name")
         version = entry.get("version")
-        if name and version:
-            versions[name] = version
+        if not name or not version:
+            continue
+        # Multi-Python resolutions (ansible-core 2.21 on 3.12, 2.22 on 3.13+)
+        # must floor at the oldest locked version so requires-python still solves.
+        existing = versions.get(name)
+        if existing is not None and _older_version(existing, version):
+            continue
+        versions[name] = version
     return versions
 
 
@@ -58,6 +79,12 @@ def _bump_spec(spec: str, versions: dict[str, str]) -> str | None:
     if parsed is None:
         return None
     name, current_ver, trailing = parsed
+    if name in PRESERVE_FLOORS:
+        preserved = PRESERVE_FLOORS[name]
+        if current_ver == preserved:
+            return None
+        prefix, _, _ = spec.rpartition(">=")
+        return f"{prefix}>={preserved}{trailing}"
     if name not in versions:
         return None
     locked = versions[name]

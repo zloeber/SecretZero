@@ -8,7 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Azure DevOps variable group creates and updates use the organization-scoped Variable Groups API. Project-scoped writes returned HTTP 400 and left the target pending while `sync` and `rotate` still exited 0.
 - fix(azdo): connectionData requires a preview api-version; ADO auth always failed
+
+### Changed
+- Upgraded locked dependencies to the newest releases outside the 7-day window, including `oauthlib` 4.0.1 and `soupsieve` 4.1. `ansible-core` stays on 2.21.6 for Python 3.12 (2.22 is used on 3.13+). The `mcp` extra floor stays `>=1.27`.
 - Raised dependency floors so `pip-audit` clears aiohttp, black, certifi, filelock, langgraph-sdk, msgpack, multidict, oauthlib, opentelemetry-api, pillow, pyjwt, setuptools, urllib3, and werkzeug. The `mcp` extra floor stays `>=1.27` so FastMCP hosts can still resolve 1.x; the lockfile resolves a patched 2.x.
 - Import no longer crashes when a caller (e.g. Hermes) injects a `PYTHONPATH` that shadows SecretZero's bundled `pydantic` with an incompatible install (`ModuleNotFoundError: No module named pydantic_core._pydantic_core`). Package `__init__` now forces the interpreter's own `site-packages` ahead of env-injected paths without clearing `PYTHONPATH`.
 
