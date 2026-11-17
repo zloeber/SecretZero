@@ -14,7 +14,7 @@ edges:
     condition: when setting up the dev environment or running the project for the first time
   - target: patterns/INDEX.md
     condition: when starting a task — check the pattern index for a matching pattern file
-last_updated: 2026-10-30
+last_updated: 2026-11-17
 ---
 
 # Session Bootstrap
@@ -101,7 +101,7 @@ Then read this file fully before doing anything else in this session.
 - Fully automated release/deployment orchestration from scaffold itself.
 - **GitLab bundle extension (implemented, scope D):** `gitlab_variable` hardening, registered `gitlab_group_variable`, `project: auto` resolution, and `gitlab_project_token` generator. GitLab Secrets Manager deferred. See `docs/superpowers/specs/2026-06-11-gitlab-cicd-variables-and-project-tokens-design.md`, `.mex/patterns/gitlab-bundle-extension.md`, `examples/gitlab-project-token.yml`.
 - **GitLab group automation (implemented):** `gitlab_group_token`, `gitlab_group_service_account`, `gitlab_service_account_member`, `group: auto`, structured SA sync via target `value_field: token`. Examples: `examples/gitlab-group-token.yml`, `examples/gitlab-group-service-account.yml`.
-- **Azure DevOps bundle (implemented, Services-only):** `azure_devops` provider with targets `azdo_variable_group`, `azdo_pipeline_variable`, `azdo_environment_variable`, `azdo_secure_file`, `azdo_keyvault_variable_group`, and generator `azdo_pat`. Target ids include the group, pipeline, environment, or file name (`azdo/azdo_variable_group/production-secrets`). `--force-target azdo/azdo_variable_group` matches that id when it is the only target of the kind; the trailing slash is optional. Older `provider/kind/` lockfile keys stay valid for a single target of that kind. See `docs/superpowers/specs/2026-08-19-azdo-gitlab-group-automation-design.md`, `.mex/patterns/azure-devops-bundle.md`, `examples/azure-devops-complete.yml`.
+- **Azure DevOps bundle (implemented, Services-only):** `azure_devops` provider with targets `azdo_variable_group`, `azdo_pipeline_variable`, `azdo_environment_variable`, `azdo_secure_file`, `azdo_keyvault_variable_group`, and generator `azdo_pat`. Target ids include the group, pipeline, environment, or file name (`azdo/azdo_variable_group/production-secrets`). `--force-target azdo/azdo_variable_group` matches that id when it is the only target of the kind; the trailing slash is optional. Older `provider/kind/` lockfile keys stay valid for a single target of that kind. Variable group create/update calls are organization-scoped (`AzdoClient.organization_url`); name lookup stays project-scoped. HTTP failures include the Azure DevOps JSON `message` and omit the raw body. See `docs/superpowers/specs/2026-08-19-azdo-gitlab-group-automation-design.md`, `.mex/patterns/azure-devops-bundle.md`, `examples/azure-devops-complete.yml`.
 - **`sync --plan` and `rotate` without a lockfile entry:** `--plan` classifies dry-run `would_store` results as create or update, and already-synced secrets as unchanged. It compares the manifest to the lockfile and does not read live targets. `rotate` treats a `rotation_period` secret missing from both the shared lockfile and `.gitsecrets.local.lock` as due, instead of printing "No secrets need rotation" and exiting 0.
 - **`secretzero catalog`:** machine-complete generator/target/bundle catalog from `BundleRegistry` (`secretzero catalog --format json`); `secret-types` now delegates to the same source. Author skill updated to prefer catalog for agent discovery.
 

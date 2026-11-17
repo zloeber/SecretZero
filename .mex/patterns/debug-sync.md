@@ -38,6 +38,7 @@ Troubleshoot `secretzero sync` by isolating boundary: config parse/interpolation
 - **Import reports unchanged but status shows pending** -> Compact status paints definition `drift` as pending. Import must refresh `definition_hash` and per-target hashes even when values already match, and stamp `target_provenance` with `operation: lockfile_import`. See `.mex/patterns/lockfile-import.md`.
 - **`sync --plan` says unchanged for a new secret** -> Plan reads dry-run `would_store`, not `stored` (dry-run never persists). Create/update come from that flag plus the lockfile entry. Plan does not read live targets; a wrong variable group name still plans as create until `drift` or a real sync.
 - **`rotate` prints "No secrets need rotation" on a fresh clone** -> A secret with `rotation_period` and no shared or `.gitsecrets.local.lock` entry is due. `--force-target azdo/azdo_variable_group` (no trailing slash) matches the single variable-group target.
+- **Azure DevOps variable group update returns 400 "Project information name is not valid for variable group."** -> `PUT`/`POST` for variable groups must be organization-scoped (`https://dev.azure.com/{org}/_apis/distributedtask/variablegroups`). The project belongs in `variableGroupProjectReferences`. `GET` by `groupName` stays project-scoped. `sync` and `rotate` exit `127` when that store fails; the lockfile still records targets that succeeded.
 
 ## Verify
 - [ ] Boundary is identified before changing code/config.

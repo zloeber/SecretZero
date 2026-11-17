@@ -12,6 +12,7 @@ from secretzero.cli import (
     EXIT_CONFIG_ERROR,
     EXIT_DRIFT_DETECTED,
     EXIT_SUCCESS,
+    EXIT_UNKNOWN_ERROR,
     EXIT_VALIDATION_ERROR,
     main,
 )
@@ -795,6 +796,64 @@ templates: {}
         assert payload["would_rotate"] == ["db_password"]
         assert payload["details"][0]["status"] == "needs_rotation"
         assert "No secrets need rotation" not in result.output
+
+
+def _stub_sync_target_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_sync(_self, **_kwargs):
+        return {
+            "secrets_generated": 0,
+            "secrets_stored": 0,
+            "secrets_skipped": 0,
+            "errors": ["db_password -> azdo/azdo_variable_group: 400 Client Error: Bad Request"],
+            "details": [
+                {
+                    "name": "db_password",
+                    "kind": "random_password",
+                    "errors": ["db_password -> azdo/azdo_variable_group: 400 Client Error"],
+                    "targets": [
+                        {
+                            "provider": "azdo",
+                            "kind": "azdo_variable_group",
+                            "status": "error",
+                            "message": "400 Client Error: Bad Request",
+                        }
+                    ],
+                }
+            ],
+        }
+
+    monkeypatch.setattr("secretzero.cli.SyncEngine.sync", fake_sync)
+
+
+def test_sync_text_exits_nonzero_when_target_store_fails(
+    runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _stub_sync_target_failure(monkeypatch)
+    with TemporaryDirectory() as tmpdir:
+        sf = Path(tmpdir) / "Secretfile.yml"
+        sf.write_text(SECRETFILE_WITH_SECRETS)
+        lock = Path(tmpdir) / ".lock"
+        result = runner.invoke(main, ["sync", "--file", str(sf), "--lockfile", str(lock)])
+        assert result.exit_code == EXIT_UNKNOWN_ERROR, result.output
+        assert "400 Client Error" in result.output
+
+
+def test_rotate_exits_nonzero_when_target_store_fails(
+    runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _stub_sync_target_failure(monkeypatch)
+    with TemporaryDirectory() as tmpdir:
+        sf = Path(tmpdir) / "Secretfile.yml"
+        sf.write_text(SECRETFILE_WITH_SECRETS)
+        lock = Path(tmpdir) / ".lock"
+        result = runner.invoke(
+            main,
+            ["rotate", "--file", str(sf), "--lockfile", str(lock), "--format", "json"],
+        )
+        assert result.exit_code == EXIT_UNKNOWN_ERROR, result.output
+        payload = json.loads(result.output)
+        assert payload["errors"]
+        assert "400 Client Error" in payload["errors"][0]
 
 
 def test_rotate_json_output_dry_run(runner: CliRunner) -> None:

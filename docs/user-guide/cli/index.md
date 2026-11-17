@@ -447,11 +447,14 @@ SecretZero uses standard exit codes:
 | Code | Meaning |
 |------|---------|
 | `0` | Success |
-| `1` | General error |
-| `2` | Command line usage error |
-| `3` | Validation error |
-| `4` | Provider connection error |
-| `5` | Policy violation |
+| `1` | Validation error |
+| `2` | Missing optional dependency |
+| `3` | Authentication failure |
+| `4` | Drift detected |
+| `5` | Configuration error |
+| `127` | Target store or other runtime failure (`secretzero sync`, `secretzero rotate`) |
+
+`secretzero sync` and `secretzero rotate` exit `127` when a target store fails. Targets that succeeded are still recorded in the lockfile before the command exits.
 
 **Usage in scripts:**
 

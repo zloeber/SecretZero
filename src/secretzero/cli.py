@@ -3004,6 +3004,9 @@ def sync(
                 "\n[yellow]This was a dry run. Use 'secretzero sync' to apply changes.[/yellow]"
             )
 
+        if results.get("errors"):
+            sys.exit(EXIT_UNKNOWN_ERROR)
+
     except RuntimeError as e:
         # RuntimeError from validation or sync has detailed error message
         if output_format == "json":
@@ -3949,6 +3952,9 @@ def rotate(
         save_lockfile_pair(lockfile_path, lock, local_lock)
         if output_format != "json":
             console.print(f"\n[green]✓[/green] Lockfile updated: {lockfile_path}")
+
+        if results.get("errors"):
+            sys.exit(EXIT_UNKNOWN_ERROR)
 
     except Exception as e:
         if output_format == "json":
