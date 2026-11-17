@@ -5,7 +5,7 @@ triggers:
   - "azure devops"
   - "azdo_variable_group"
   - "azdo_pat"
-last_updated: 2026-10-30
+last_updated: 2026-11-17
 ---
 
 # Azure DevOps Bundle
@@ -28,6 +28,7 @@ Services-only (`dev.azure.com`). Reject on-prem `server`/`collection` config.
 3. Secret variables: never log plaintext; retrieve returns `None` for `is_secret: true`.
 4. Run `task schema:update` after enum changes.
 5. Target ids include `variable_group`, `pipeline`, `environment`, `file_name`, or `vault_name`. Keep the empty `provider/kind/` alias only when that kind appears once, so older lockfiles stay tracked.
+6. Variable group **writes** (`azdo_variable_group` upsert and `azdo_keyvault_variable_group` create) use `AzdoClient.organization_url()`. List/get by `groupName` stays on `project_url()`. A project-scoped `PUT`/`POST` returns HTTP 400: "Project information name is not valid for variable group."
 
 ## Verify
 

@@ -41,6 +41,12 @@ Environment variables:
 
 Azure DevOps does not return secret variable values via REST after write. `retrieve()` is metadata-only for secret targets.
 
+## Variable group REST scope
+
+Library variable group reads stay on the project path `_apis/distributedtask/variablegroups` (under `{organization}/{project}`). Creates and updates use that same path at organization scope, with no project segment. Azure DevOps returns HTTP 400 (`Project information name is not valid for variable group.`) when `POST` or `PUT` includes the project in the URL. The project is sent in `variableGroupProjectReferences` instead. This applies to `azdo_variable_group` and `azdo_keyvault_variable_group`.
+
+Failed Azure DevOps calls include the service `message` field in the error text. The raw response body is not printed.
+
 ## Target ids
 
 Lockfile and `--force-target` ids include the object name, for example `azdo/azdo_variable_group/production-secrets`. A `provider/kind` prefix is enough when the secret has one target of that kind, and the trailing slash is optional:

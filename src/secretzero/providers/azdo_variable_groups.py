@@ -10,7 +10,21 @@ API_VERSION = "7.1"
 
 
 def _variable_groups_url(client: AzdoClient, project: str) -> str:
+    """Project-scoped list/get. ``groupName`` lookup works at project scope."""
     return client.project_url(project, "_apis/distributedtask/variablegroups")
+
+
+def _variable_groups_write_url(client: AzdoClient, group_id: Any | None = None) -> str:
+    """Organization-scoped create/update.
+
+    Azure DevOps rejects project-scoped ``POST``/``PUT`` with
+    "Project information name is not valid for variable group." The project
+    stays in ``variableGroupProjectReferences``.
+    """
+    path = "_apis/distributedtask/variablegroups"
+    if group_id is not None:
+        path = f"{path}/{group_id}"
+    return client.organization_url(path)
 
 
 def get_variable_group_by_name(
@@ -61,7 +75,7 @@ def upsert_variable_group_secret(
                 }
             ],
         }
-        url = _variable_groups_url(client, project)
+        url = _variable_groups_write_url(client)
         return client.post(url, json=body, params={"api-version": API_VERSION}) or {}
 
     variables = dict(existing.get("variables") or {})
@@ -70,7 +84,7 @@ def upsert_variable_group_secret(
     if description:
         existing["description"] = description
     group_id = existing.get("id")
-    url = f"{_variable_groups_url(client, project)}/{group_id}"
+    url = _variable_groups_write_url(client, group_id)
     return client.put(url, json=existing, params={"api-version": API_VERSION}) or existing
 
 

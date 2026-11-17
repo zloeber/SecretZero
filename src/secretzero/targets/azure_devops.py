@@ -208,7 +208,7 @@ class AzdoKeyVaultVariableGroupTarget(_AzdoProjectMixin, BaseTarget):
                 }
             ],
         }
-        url = client.project_url(project, "_apis/distributedtask/variablegroups")
+        url = client.organization_url("_apis/distributedtask/variablegroups")
         client.post(url, json=body, params={"api-version": "7.1"})
         return True
 
