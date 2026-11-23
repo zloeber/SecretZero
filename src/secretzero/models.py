@@ -245,6 +245,8 @@ class TargetKind(str, Enum):
     AZDO_ENVIRONMENT_VARIABLE = "azdo_environment_variable"
     AZDO_SECURE_FILE = "azdo_secure_file"
     AZDO_KEYVAULT_VARIABLE_GROUP = "azdo_keyvault_variable_group"
+    TFC_WORKSPACE_VARIABLE = "tfc_workspace_variable"
+    TFC_VARSET_VARIABLE = "tfc_varset_variable"
     JENKINS_CREDENTIAL = "jenkins_credential"
 
     @classmethod

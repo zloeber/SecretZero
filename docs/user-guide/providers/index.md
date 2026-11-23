@@ -22,6 +22,7 @@ SecretZero supports the following providers:
 | [Azure](azure.md) | Microsoft Azure | `key_vault` | Azure cloud services, App Service, AKS |
 | [Azure DevOps](azure-devops.md) | Azure DevOps Services | `azdo_variable_group`, `azdo_pipeline_variable`, `azdo_environment_variable`, `azdo_secure_file`, `azdo_keyvault_variable_group` | Azure Pipelines library secrets (Services only) |
 | [Vault](vault.md) | HashiCorp Vault | `kv` | Multi-cloud secrets, centralized secret management |
+| [Terraform Cloud](terraform-cloud.md) | HCP Terraform / Terraform Enterprise | `tfc_workspace_variable`, `tfc_varset_variable` | Workspace and variable-set delivery. Sensitive values are write-only. |
 | [GitHub](github.md) | GitHub Actions | `github_secret` | CI/CD pipelines, GitHub workflows |
 | [GitLab](gitlab.md) | GitLab CI/CD | `gitlab_variable`, `gitlab_group_variable`, `gitlab_service_account_member` | CI/CD pipelines, group tokens / service accounts |
 | [Jenkins](jenkins.md) | Jenkins | `jenkins_credential` | Build automation, deployment pipelines |
@@ -406,6 +407,7 @@ secretzero sync
 - [AWS Provider Documentation](aws.md)
 - [Azure Provider Documentation](azure.md)
 - [HashiCorp Vault Provider Documentation](vault.md)
+- [Terraform Cloud Provider Documentation](terraform-cloud.md)
 - [GitHub Provider Documentation](github.md)
 - [GitLab Provider Documentation](gitlab.md)
 - [Jenkins Provider Documentation](jenkins.md)

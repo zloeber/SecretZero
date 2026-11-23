@@ -160,6 +160,8 @@ class SyncEngine:
         "environment",
         "file_name",
         "vault_name",
+        "workspace",
+        "varset",
     )
 
     @staticmethod

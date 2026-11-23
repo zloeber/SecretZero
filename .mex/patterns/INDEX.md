@@ -32,3 +32,4 @@ Lookup table for all pattern files in this directory. Check here before starting
 | [sz-agent-mode-spill-guard.md](sz-agent-mode-spill-guard.md) | `SZ_AGENT_MODE`, spill-safe CLI guards, `ingest preseed`, strict manifest plaintext validation |
 | [secretfile-authoring.md](secretfile-authoring.md) | Editing Secretfile structure, variables, provider mappings, and interpolation usage |
 | [vault-env-auth.md](vault-env-auth.md) | HashiCorp Vault `VAULT_ADDR`/`VAULT_TOKEN` auth and KV/`provider_read` sources |
+| [terraform-cloud-provider.md](terraform-cloud-provider.md) | HCP Terraform workspace variables, variable sets, and write-only sensitive reads |

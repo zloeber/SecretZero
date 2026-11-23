@@ -151,6 +151,7 @@ nav:
           - Azure: user-guide/providers/azure.md
           - Azure DevOps: user-guide/providers/azure-devops.md
           - HashiCorp Vault: user-guide/providers/vault.md
+          - Terraform Cloud: user-guide/providers/terraform-cloud.md
           - GitHub: user-guide/providers/github.md
           - GitLab: user-guide/providers/gitlab.md
           - Jenkins: user-guide/providers/jenkins.md

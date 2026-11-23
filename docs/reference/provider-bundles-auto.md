@@ -20,6 +20,7 @@ It complements the hand-written workflow pages under `user-guide/providers/*`.
 | `keeper` | `1.1.0` | `keeper` | `secretzero.providers.keeper:KeeperProvider` | `keeper_record` | `default`, `token` | `keepercommander` (`secretzero[keeper]`) |
 | `kubernetes` | `1.0.0` | `kubernetes` | `secretzero.providers.kubernetes:KubernetesProvider` | `external_secret`, `kubernetes_secret` | `ambient`, `kubeconfig` | `kubernetes` (`secretzero[kubernetes]`) |
 | `sops` | `1.0.0` | `sops` | `secretzero.providers.sops:SopsProvider` | `sops_file` | `ambient` | None |
+| `terraform_cloud` | `1.0.0` | `terraform_cloud` | `secretzero.providers.terraform_cloud:TerraformCloudProvider` | `tfc_varset_variable`, `tfc_workspace_variable` | `token` | `requests` (`secretzero[terraform-cloud]`) |
 | `vault` | `1.0.0` | `vault` | `secretzero.providers.vault:VaultProvider` | `kv`, `vault_kv` | `ambient`, `approle`, `token` | `hvac` (`secretzero[vault]`) |
 | `vercel` | `1.0.0` | `vercel` | `secretzero.providers.vercel:VercelProvider` | `vercel_env` | `token` | `requests` (`secretzero[vercel]`) |
 
