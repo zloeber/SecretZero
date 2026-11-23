@@ -32,6 +32,12 @@ def test_upsert_variable_group_secret_creates_group():
 
 
 def test_upsert_variable_group_secret_updates_at_org_scope():
+    """Org-scoped PUT must supply project refs when the GET left them null.
+
+    The project-scoped groupName lookup returns ``variableGroupProjectReferences:
+    null`` for groups created outside SecretZero. Azure DevOps rejects the
+    organization-scoped update without that list.
+    """
     client = MagicMock()
     client.project_url.return_value = (
         "https://dev.azure.com/org/my-project/_apis/distributedtask/variablegroups"
@@ -43,6 +49,7 @@ def test_upsert_variable_group_secret_updates_at_org_scope():
                 "id": 42,
                 "name": "prod-secrets",
                 "variables": {"OLD": {"value": "kept", "isSecret": True}},
+                "variableGroupProjectReferences": None,
             }
         ]
     }
