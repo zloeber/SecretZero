@@ -14,7 +14,7 @@ edges:
     condition: when AuthKind or Secretfile auth shape changes
   - target: patterns/secretfile-authoring.md
     condition: when documenting Vault provider blocks in manifests
-last_updated: 2026-09-25
+last_updated: 2026-11-23
 ---
 
 # Vault environment authentication and KV sources
@@ -32,11 +32,12 @@ The HashiCorp Vault provider (`src/secretzero/providers/vault.py`) authenticates
 ## Gotchas
 - Pydantic `ProviderAuth` must use `extra="allow"` or sibling `url`/`token` fields are dropped before the provider sees them.
 - `test_connection` must not read provider `kind: vault` as the auth method.
+- `test_connection` must call `sys.read_seal_status()`, not `sys.read_health_status()`. hvac returns a dict only for HTTP 200 JSON. Health answers 429/472/473 on HA standby, DR secondary, and performance standby, so those nodes arrive as a `Response` and `.get` raises. Seal status is HTTP 200 on every node role. A sealed cluster (`sealed: true`) is not reachable.
 - `VaultAuth.get_client()` should authenticate lazily; targets call `get_client()` after sync auth but CLI/token-info paths may not.
 - Do not log or interpolate plaintext tokens into agent context; keep `${VAULT_TOKEN}` placeholders in docs.
 
 ## Verify
-- [ ] `tests/test_vault_provider.py` covers env auth, ambient, nested config, provider_read kwargs, KV v1, cubbyhole/generic
+- [ ] `tests/test_vault_provider.py` covers env auth, ambient, nested config, provider_read kwargs, KV v1, cubbyhole/generic, HA standby seal status, and a sealed node
 - [ ] `kind: approle` validates on `Secretfile`
 - [ ] Example `examples/vault-kv-source.yml` documents `auth.kind: ambient` + `provider_read`
 

@@ -1164,6 +1164,14 @@ jobs:
          secret_id: secret-id
    ```
 
+### HA standby, DR secondary, or performance standby
+
+**Symptom**: sync reports `No accessible targets found` with `'Response' object has no attribute 'get'`, while `vault status` on that address shows a standby (or another non-active) node and KV reads and writes still succeed.
+
+SecretZero checks connectivity with `GET /sys/seal-status`. That endpoint returns HTTP 200 on active, standby, DR secondary, and performance standby nodes. `GET /sys/health` does not: a standby answers 429, a DR secondary 472, and a performance standby 473. Point `VAULT_ADDR` at the cluster API address. Standby nodes forward KV reads and writes to the active node.
+
+A sealed node still fails the check with `Vault is sealed`.
+
 ### Sealed Vault
 
 **Error**: `Vault is sealed`

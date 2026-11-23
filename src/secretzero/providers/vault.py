@@ -21,6 +21,26 @@ def _nonempty_str(value: Any) -> str | None:
     return text or None
 
 
+def _connection_from_seal_status(seal: Any) -> tuple[bool, str]:
+    """Turn ``sys.read_seal_status()`` into a connectivity result.
+
+    hvac returns a dict only for HTTP 200 with a JSON body. ``/sys/health``
+    answers 429 on a standby, 472 on a DR secondary, and 473 on a performance
+    standby, so those healthy nodes come back as a ``Response`` and ``.get``
+    raises. ``/sys/seal-status`` answers 200 on every node role.
+    """
+    if not isinstance(seal, dict):
+        status = getattr(seal, "status_code", None)
+        detail = f" (HTTP {status})" if isinstance(status, int) else ""
+        return False, f"Vault seal status returned an unexpected response{detail}"
+    if seal.get("sealed"):
+        return False, "Vault is sealed"
+    version = seal.get("version")
+    if isinstance(version, str) and version.strip():
+        return True, f"Connected to Vault {version.strip()} (Sealed: False)"
+    return True, "Connected to Vault (Sealed: False)"
+
+
 def _home_vault_token() -> str | None:
     """Load a Vault token from the user home directory.
 
@@ -383,9 +403,7 @@ class VaultProvider(BaseProvider):
             if isinstance(self.auth, VaultAuth):
                 client = self.auth.get_client()
                 if client and client.is_authenticated():
-                    # Get seal status to verify connection
-                    seal_status = client.sys.read_health_status()
-                    return True, f"Connected to Vault (Sealed: {seal_status.get('sealed', False)})"
+                    return _connection_from_seal_status(client.sys.read_seal_status())
             return False, "Invalid auth instance"
 
         except Exception as e:

@@ -15,6 +15,7 @@ def _client_authenticated(token: str = "s.env-token") -> MagicMock:
     client = MagicMock()
     client.is_authenticated.return_value = True
     client.token = token
+    client.sys.read_seal_status.return_value = {"sealed": False, "version": "1.15.0"}
     return client
 
 
@@ -180,11 +181,62 @@ class TestVaultProviderInitAndConnection:
         monkeypatch.setenv("VAULT_TOKEN", "s.env-token")
         provider = VaultProvider("vault", config={"kind": "vault"})
         client = _client_authenticated()
-        client.sys.read_health_status.return_value = {"sealed": False}
         with patch("hvac.Client", return_value=client):
             ok, message = provider.test_connection()
         assert ok is True
-        assert message is not None
+        assert message == "Connected to Vault 1.15.0 (Sealed: False)"
+        client.sys.read_health_status.assert_not_called()
+
+    def test_connection_succeeds_when_health_would_be_standby_429(self, monkeypatch) -> None:
+        """HA standby /sys/health is HTTP 429 and hvac returns the raw Response.
+
+        Seal status is HTTP 200 on standby, DR secondary, and performance
+        standby nodes, so sync can still reach a cluster address that lands
+        on a non-active node.
+        """
+        monkeypatch.setenv("VAULT_ADDR", "https://vault.example.com:8200")
+        monkeypatch.setenv("VAULT_TOKEN", "s.env-token")
+        provider = VaultProvider("vault", config={"kind": "vault"})
+        client = _client_authenticated()
+        health = MagicMock()
+        health.status_code = 429
+        health.get.side_effect = AttributeError("'Response' object has no attribute 'get'")
+        client.sys.read_health_status.return_value = health
+        client.sys.read_seal_status.return_value = {
+            "sealed": False,
+            "standby": True,
+            "version": "1.7.2",
+        }
+        with patch("hvac.Client", return_value=client):
+            ok, message = provider.test_connection()
+        assert ok is True
+        assert message == "Connected to Vault 1.7.2 (Sealed: False)"
+        client.sys.read_health_status.assert_not_called()
+        client.sys.read_seal_status.assert_called_once_with()
+
+    def test_connection_reports_sealed_vault(self, monkeypatch) -> None:
+        monkeypatch.setenv("VAULT_ADDR", "https://vault.example.com:8200")
+        monkeypatch.setenv("VAULT_TOKEN", "s.env-token")
+        provider = VaultProvider("vault", config={"kind": "vault"})
+        client = _client_authenticated()
+        client.sys.read_seal_status.return_value = {"sealed": True, "version": "1.15.0"}
+        with patch("hvac.Client", return_value=client):
+            ok, message = provider.test_connection()
+        assert ok is False
+        assert message == "Vault is sealed"
+
+    def test_connection_rejects_non_dict_seal_status(self, monkeypatch) -> None:
+        monkeypatch.setenv("VAULT_ADDR", "https://vault.example.com:8200")
+        monkeypatch.setenv("VAULT_TOKEN", "s.env-token")
+        provider = VaultProvider("vault", config={"kind": "vault"})
+        client = _client_authenticated()
+        seal = MagicMock()
+        seal.status_code = 429
+        client.sys.read_seal_status.return_value = seal
+        with patch("hvac.Client", return_value=client):
+            ok, message = provider.test_connection()
+        assert ok is False
+        assert message == "Vault seal status returned an unexpected response (HTTP 429)"
 
     def test_supported_targets_include_kv_aliases(self) -> None:
         provider = VaultProvider("vault")

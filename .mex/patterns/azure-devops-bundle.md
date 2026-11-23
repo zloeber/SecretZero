@@ -5,7 +5,7 @@ triggers:
   - "azure devops"
   - "azdo_variable_group"
   - "azdo_pat"
-last_updated: 2026-11-20
+last_updated: 2026-11-23
 ---
 
 # Azure DevOps Bundle
@@ -34,6 +34,7 @@ Services-only (`dev.azure.com`). Reject on-prem `server`/`collection` config.
 
 ## Verify
 
-- [ ] `pytest tests/test_azdo_*.py` passes
+- [ ] `pytest tests/test_azdo_*.py` passes, including an update whose GET has `variableGroupProjectReferences: null`
+- [ ] Failed `sync` / `rotate` target stores exit non-zero (`EXIT_UNKNOWN_ERROR`); `AzdoClient` errors include the Azure DevOps JSON `message` and omit the raw body
 - [ ] Bundle lists all five target kinds + `azdo_pat`
 - [ ] `examples/azure-devops-complete.yml` validates

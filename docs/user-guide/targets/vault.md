@@ -1338,6 +1338,12 @@ vault operator raft snapshot inspect backup.snap
    vault kv enable-versioning secret/
    ```
 
+### HA standby address
+
+**Problem:** sync reports `No accessible targets found` and `'Response' object has no attribute 'get'`, but `vault status` shows a standby node and KV operations work.
+
+**Solution:** SecretZero probes `GET /sys/seal-status`, which returns HTTP 200 on standby, DR secondary, and performance standby nodes. `/sys/health` does not (429, 472, and 473). Keep `VAULT_ADDR` on the cluster API; standby nodes forward KV reads and writes.
+
 ### Sealed Vault
 
 **Problem:** `Vault is sealed` error.
