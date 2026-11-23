@@ -131,6 +131,9 @@ keeper = [
     "keepercommander>=18.1.9",
 ]
 azure-devops = []
+terraform-cloud = [
+    "requests>=2.34.2",
+]
 cicd = [
     "PyGithub>=2.1.0",
     "PyNaCl>=1.5.0",
@@ -209,6 +212,7 @@ entra_agent_id = "secretzero.providers.entra_agent_id:_get_bundle_manifest"
 vercel = "secretzero.providers.vercel:_get_bundle_manifest"
 keeper = "secretzero.providers.keeper:_get_bundle_manifest"
 azure_devops = "secretzero.providers.azure_devops:_get_bundle_manifest"
+terraform_cloud = "secretzero.providers.terraform_cloud:_get_bundle_manifest"
 
 [project.scripts]
 secretzero = "secretzero.cli:main"

@@ -110,6 +110,7 @@ class AzureDevOpsProvider(BaseProvider):
             auth = AzureDevOpsAuth(auth_config)
         super().__init__(name, config, auth)
 
+    @property
     def provider_kind(self) -> str:
         return "azure_devops"
 

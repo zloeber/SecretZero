@@ -83,6 +83,18 @@ def upsert_variable_group_secret(
     existing["variables"] = variables
     if description:
         existing["description"] = description
+    if not existing.get("variableGroupProjectReferences"):
+        # Project-scoped GET by groupName returns this field as null. The
+        # organization-scoped PUT rejects a body without it
+        # ("Project information name is not valid for variable group").
+        # Keep references that are already present so shared groups stay shared.
+        existing["variableGroupProjectReferences"] = [
+            {
+                "name": existing.get("name") or group_name,
+                "description": existing.get("description") or "",
+                "projectReference": {"name": project},
+            }
+        ]
     group_id = existing.get("id")
     url = _variable_groups_write_url(client, group_id)
     return client.put(url, json=existing, params={"api-version": API_VERSION}) or existing

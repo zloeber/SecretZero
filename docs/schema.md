@@ -367,6 +367,8 @@ targets:
 | `azdo_environment_variable` | Azure DevOps environment variable | azure_devops |
 | `azdo_secure_file` | Azure DevOps secure file | azure_devops |
 | `azdo_keyvault_variable_group` | Azure DevOps Key Vault–linked variable group mapping | azure_devops |
+| `tfc_workspace_variable` | HCP Terraform workspace variable (sensitive values are write-only) | terraform_cloud |
+| `tfc_varset_variable` | HCP Terraform organization variable-set variable (sensitive values are write-only) | terraform_cloud |
 
 ### File Target Configuration
 

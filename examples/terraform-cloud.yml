@@ -1,0 +1,64 @@
+# Example: HCP Terraform workspace and variable-set targets
+#
+# Prerequisites:
+#   pip install "secretzero[terraform-cloud]"
+#   export TFE_TOKEN=...
+#   export TFE_ORGANIZATION=example-org
+#
+# Usage:
+#   secretzero validate -f examples/terraform-cloud.yml
+#   secretzero sync -f examples/terraform-cloud.yml --dry-run
+
+providers:
+  tfc:
+    kind: terraform_cloud
+    auth:
+      kind: token
+      config:
+        token: ${TFE_TOKEN}
+        organization: example-org
+
+secrets:
+  - name: api_token
+    kind: random_string
+    config:
+      length: 32
+    targets:
+      - provider: tfc
+        kind: tfc_workspace_variable
+        config:
+          workspace: network-prod
+          key: API_TOKEN
+          category: env
+          sensitive: true
+      - provider: tfc
+        kind: tfc_varset_variable
+        config:
+          varset: shared-prod
+          key: API_TOKEN
+          category: env
+          sensitive: true
+
+  - name: log_level
+    kind: static
+    config:
+      value: null
+    source:
+      kind: provider_read
+      required: true
+      config:
+        provider: tfc
+        kind: tfc_workspace_variable
+        read:
+          name: LOG_LEVEL
+          workspace: network-prod
+          category: env
+    targets:
+      - provider: local
+        kind: file
+        config:
+          path: .env.local
+          format: dotenv
+          key: LOG_LEVEL
+
+templates: {}

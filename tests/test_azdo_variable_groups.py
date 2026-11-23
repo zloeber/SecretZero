@@ -66,6 +66,53 @@ def test_upsert_variable_group_secret_updates_at_org_scope():
     body = client.put.call_args.kwargs["json"]
     assert body["variables"]["API_KEY"]["value"] == "secret-value"
     assert "OLD" in body["variables"]
+    assert body["variableGroupProjectReferences"] == [
+        {
+            "name": "prod-secrets",
+            "description": "",
+            "projectReference": {"name": "my-project"},
+        }
+    ]
+
+
+def test_upsert_variable_group_secret_keeps_existing_project_references():
+    client = MagicMock()
+    client.project_url.return_value = (
+        "https://dev.azure.com/org/my-project/_apis/distributedtask/variablegroups"
+    )
+    client.organization_url.side_effect = lambda path: f"https://dev.azure.com/org/{path}"
+    shared_refs = [
+        {
+            "name": "prod-secrets",
+            "projectReference": {"id": "proj-a", "name": "project-a"},
+        },
+        {
+            "name": "prod-secrets",
+            "projectReference": {"id": "proj-b", "name": "project-b"},
+        },
+    ]
+    client.get.return_value = {
+        "value": [
+            {
+                "id": 42,
+                "name": "prod-secrets",
+                "variables": {},
+                "variableGroupProjectReferences": shared_refs,
+            }
+        ]
+    }
+    client.put.return_value = {"id": 42}
+
+    upsert_variable_group_secret(
+        client,
+        "my-project",
+        "prod-secrets",
+        "API_KEY",
+        "secret-value",
+    )
+
+    body = client.put.call_args.kwargs["json"]
+    assert body["variableGroupProjectReferences"] == shared_refs
 
 
 def test_keyvault_variable_group_create_is_org_scoped():
