@@ -1,0 +1,47 @@
+# Example: several secrets share one Vault KV document.
+#
+# Each target sets `field`. Sync reads the current document, updates that key,
+# and on KV v2 writes it back with check-and-set. Omit `field` to replace the
+# whole document under the key `value`.
+#
+# Prerequisites:
+#   export VAULT_ADDR=https://vault.example.com:8200
+#   export VAULT_TOKEN=hvs....          # or: vault login
+#
+# Usage:
+#   secretzero sync -f examples/vault-kv-shared-fields.yml --dry-run
+
+providers:
+  vault:
+    kind: vault
+    auth:
+      kind: ambient
+      config:
+        url: ${VAULT_ADDR}
+
+secrets:
+  - name: tls_chain
+    kind: static
+    config:
+      value: null
+    targets:
+      - provider: vault
+        kind: kv
+        config:
+          mount_point: kv
+          path: app/tls/example
+          version: 2
+          field: chain
+
+  - name: tls_key
+    kind: static
+    config:
+      value: null
+    targets:
+      - provider: vault
+        kind: kv
+        config:
+          mount_point: kv
+          path: app/tls/example
+          version: 2
+          field: key

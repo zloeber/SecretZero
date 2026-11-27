@@ -311,6 +311,11 @@ class VaultProvider(BaseProvider):
                 "path": "Secret path in KV engine (e.g., secret/data/myapp/config)",
                 "mount_point": "KV mount point (default: secret)",
                 "version": "KV version: 1 or 2 (default: 2)",
+                "field": (
+                    "Optional document key. When set, sync merges this key into the "
+                    "existing KV document (KV v2 uses check-and-set). When omitted, "
+                    "the write replaces the document and stores strings under value."
+                ),
             },
             "example": """targets:
   - provider: vault

@@ -251,9 +251,12 @@ Vault's KV v2 secrets engine provides versioned key-value secret storage with au
 
 | Option | Type | Required | Default | Description |
 |--------|------|----------|---------|-------------|
-| `path` | string | Yes | - | Full path to secret including mount point (e.g., secret/data/myapp/db/password) |
-| `mount_point` | string | No | `secret` | KV v2 mount point |
-| `cas` | integer | No | - | Check-and-Set value for optimistic concurrency control |
+| `path` | string | Yes | - | Secret path relative to the KV mount (e.g., `myapp/db/password`) |
+| `mount_point` | string | No | `secret` | KV mount point |
+| `version` | integer | No | `2` | KV engine version: `1` or `2` |
+| `field` | string | No | - | Merge this key into the existing document instead of replacing it |
+
+When `field` is set, KV v2 writes use check-and-set from the version just read. That value is not a Secretfile option. KV v1 field writes are last-writer-wins. See [Vault targets](../targets/vault.md#one-field-of-a-shared-path).
 
 ### Example: Basic Secret
 

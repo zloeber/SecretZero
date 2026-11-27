@@ -212,6 +212,7 @@ targets:
       path: string          # Secret path (required)
       mount_point: string   # KV mount point (optional, default: "secret")
       version: integer      # KV version: 1 or 2 (optional, default: 2)
+      field: string         # Optional key to merge into the existing document
 ```
 
 ### Configuration Options
@@ -221,6 +222,45 @@ targets:
 | `path` | string | Yes | - | Secret path in KV engine (e.g., `"myapp/config"`) |
 | `mount_point` | string | No | `"secret"` | KV mount point path |
 | `version` | integer | No | `2` | KV engine version: `1` or `2` |
+| `field` | string | No | - | Document key to merge. Omit it to replace the whole document. |
+
+### One field of a shared path
+
+Without `field`, a string secret is stored as `{"value": "<secret>"}` and replaces every other key at that path. Set `field` when several secrets must share one KV path (a TLS bundle, an id plus a secret, and so on).
+
+KV v2 reads the current version, sets that one key, and writes the merged map back with check-and-set. A concurrent writer fails the sync instead of dropping the other key. KV v1 has no check-and-set, so the same read-modify-write is last-writer-wins.
+
+`retrieve` with `field` returns that key only, so status and drift compare the value SecretZero stored. `delete` with `field` removes that key and deletes the path only when the map is empty.
+
+```yaml
+secrets:
+  - name: tls_chain
+    kind: static
+    config:
+      value: null
+    targets:
+      - provider: vault
+        kind: kv
+        config:
+          mount_point: kv
+          path: app/tls/example
+          version: 2
+          field: chain
+  - name: tls_key
+    kind: static
+    config:
+      value: null
+    targets:
+      - provider: vault
+        kind: kv
+        config:
+          mount_point: kv
+          path: app/tls/example
+          version: 2
+          field: key
+```
+
+Terraform export uses the same field name inside `data_json`. It still emits one resource per secret, so two resources aimed at one path overwrite each other in Terraform. Use `secretzero sync` when the fields must be merged.
 
 ### Path Structure
 

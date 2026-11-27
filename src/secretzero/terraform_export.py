@@ -450,8 +450,10 @@ def _map_target_to_resources(
 
         path = cfg.get("path", f"secret/data/{secret.name}")
         mount_point = cfg.get("mount_point", "secret")
+        field_name = str(cfg.get("field") or "").strip() or "value"
+        field_literal = format_hcl_string(field_name)
 
-        data_expr = f'${{jsonencode({{"value" = {value_expr}}})}}'
+        data_expr = f"${{jsonencode({{{field_literal} = {value_expr}}})}}"
 
         attrs: dict[str, Any] = {
             "mount": mount_point,

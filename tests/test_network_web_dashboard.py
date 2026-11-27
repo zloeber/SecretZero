@@ -91,6 +91,19 @@ def test_compute_is_unsynced() -> None:
     assert compute_is_unsynced(has_targets=True, in_lock=True, target_groups=g2) is True
 
 
+def test_build_target_lane_ui_vault_kv_field() -> None:
+    tc = TargetConfig(
+        provider="vault",
+        kind="kv",
+        config={"path": "app/tls/example", "mount_point": "kv", "field": "chain"},
+    )
+    ui = build_target_lane_ui("tls_chain", tc)
+    assert ui["dest"] == "app/tls/example"
+    labels = {d["label"]: d["value"] for d in ui["details"]}
+    assert labels["Mount"] == "kv"
+    assert labels["Field"] == "chain"
+
+
 def test_build_target_lane_ui_github_secret() -> None:
     tc = TargetConfig(
         provider="github",

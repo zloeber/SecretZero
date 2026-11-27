@@ -353,6 +353,8 @@ secrets:
           secret_name: app-secret
 ```
 
+Vault KV targets (`kind: kv` or `vault_kv`) accept optional `config.field`. Set it when several secrets must share one path; each sync merges that key and, on KV v2, uses check-and-set. Omit `field` to keep the previous behavior: a string replaces the document as `{"value": "..."}`. KV v1 field writes are last-writer-wins. Details: [Vault targets](../targets/vault.md#one-field-of-a-shared-path).
+
 ### Variables
 
 Variables enable dynamic configuration and reusability:

@@ -105,13 +105,14 @@ def build_target_lane_ui(secret_name: str, tc: TargetConfig) -> dict[str, Any]:
         return {"dest": dest, "details": details}
 
     # --- Vault KV ---
-    if kind == "vault_kv":
+    if kind in ("vault_kv", "kv"):
         path = str(cfg.get("path", "") or cfg.get("name", "") or "")
         dest = path if path else "—"
         add("Mount", str(cfg.get("mount_point", "secret")))
         ver = cfg.get("version")
         if ver is not None:
             add("KV version", str(ver))
+        add("Field", str(cfg.get("field", "") or ""))
         return {"dest": dest, "details": details}
 
     # --- Azure Key Vault ---

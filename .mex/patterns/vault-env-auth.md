@@ -14,7 +14,7 @@ edges:
     condition: when AuthKind or Secretfile auth shape changes
   - target: patterns/secretfile-authoring.md
     condition: when documenting Vault provider blocks in manifests
-last_updated: 2026-11-23
+last_updated: 2026-11-25
 ---
 
 # Vault environment authentication and KV sources
@@ -28,16 +28,22 @@ The HashiCorp Vault provider (`src/secretzero/providers/vault.py`) authenticates
 3. Keep AppRole as `auth.kind: approle` (must be a valid `AuthKind`).
 4. `retrieve_secret` must accept `provider_read` extras (`path`, `name`, `mount_point`, `kind`, `engine`, `kv_version`, `**_`) so sync source resolution does not TypeError.
 5. Normalize KV v2 paths (`secret/data/...`) and support cubbyhole/generic logical reads.
+6. KV target `config.field` merges one key into the existing document. KV v2 reads the current version and writes with `cas` set to that version (`cas=0` when the path is missing). Only `hvac.exceptions.InvalidPath` means "missing"; any other read error must fail the write. KV v1 has no CAS, so the same read-modify-write is last-writer-wins. Omit `field` to replace the whole document (`{"value": ...}` for strings). `retrieve`/`delete` with `field` operate on that key; delete the path only when the remaining map is empty.
 
 ## Gotchas
 - Pydantic `ProviderAuth` must use `extra="allow"` or sibling `url`/`token` fields are dropped before the provider sees them.
 - `test_connection` must not read provider `kind: vault` as the auth method.
 - `test_connection` must call `sys.read_seal_status()`, not `sys.read_health_status()`. hvac returns a dict only for HTTP 200 JSON. Health answers 429/472/473 on HA standby, DR secondary, and performance standby, so those nodes arrive as a `Response` and `.get` raises. Seal status is HTTP 200 on every node role. A sealed cluster (`sealed: true`) is not reachable.
+- Do not treat a non-`InvalidPath` read failure as an empty document. That would let a permission error wipe sibling keys on the next field write.
+- KV v2 `PATCH` needs the `patch` capability. Read plus CAS write needs `read` plus `create`/`update`.
+- Terraform export names `data_json` from `field` but still emits one resource per secret, so shared-path merges belong to `secretzero sync`, not generated Terraform.
+- `source.read.field` (provider_read) and target `config.field` are different knobs. The first selects a key while copying a secret out. The second selects a key while writing a secret in.
 - `VaultAuth.get_client()` should authenticate lazily; targets call `get_client()` after sync auth but CLI/token-info paths may not.
 - Do not log or interpolate plaintext tokens into agent context; keep `${VAULT_TOKEN}` placeholders in docs.
 
 ## Verify
 - [ ] `tests/test_vault_provider.py` covers env auth, ambient, nested config, provider_read kwargs, KV v1, cubbyhole/generic, HA standby seal status, and a sealed node
+- [ ] `tests/test_vault_kv_target.py` covers field merge, CAS conflict, unchanged no-field writes, KV v1 last-writer-wins, and field delete
 - [ ] `kind: approle` validates on `Secretfile`
 - [ ] Example `examples/vault-kv-source.yml` documents `auth.kind: ambient` + `provider_read`
 

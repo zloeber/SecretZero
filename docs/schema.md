@@ -370,6 +370,21 @@ targets:
 | `tfc_workspace_variable` | HCP Terraform workspace variable (sensitive values are write-only) | terraform_cloud |
 | `tfc_varset_variable` | HCP Terraform organization variable-set variable (sensitive values are write-only) | terraform_cloud |
 
+### Vault KV field
+
+`kind: kv` or `vault_kv` accepts optional `config.field`. When it is set, sync updates only that key in the KV document (KV v2 uses check-and-set). When it is omitted, a string secret replaces the document under the key `value`.
+
+```yaml
+targets:
+  - provider: vault
+    kind: kv
+    config:
+      mount_point: kv
+      path: app/tls/example
+      version: 2
+      field: chain
+```
+
 ### File Target Configuration
 
 ```yaml

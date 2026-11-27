@@ -36,6 +36,14 @@ last_updated: 2026-04-10
 **Alternatives considered:** Encrypted lockfile payloads (rejected due to key-management burden and unnecessary risk surface).  
 **Consequences:** Partial sync for existing secrets may require retrieving values from existing targets when adding new targets.
 
+### Keep SHA-256 fingerprints; do not treat them as password hashes
+**Date:** 2026-11-25  
+**Status:** Active  
+**Decision:** Lockfile fingerprints, API-key comparison, and the one-shot web bootstrap digest stay unsalted SHA-256. Do not switch them to Argon2, bcrypt, or a "post-quantum hash" unless a later change is specifically about low-entropy static secrets.  
+**Reasoning:** These hashes are equality checks, not login verifiers. SHA-256 is not inverted by Shor's algorithm. Grover's algorithm cuts preimage search from 2^256 to 2^128, which is still the NIST long-term floor, and only matters when the secret itself has less entropy than that. Generated secrets and `token_urlsafe(32)` API keys are already above that line. A fast hash is what drift detection and request authentication need. Argon2id would slow every status/sync/API call and still would not raise security above the entropy of a human-chosen password.  
+**Alternatives considered:** SHA-384/SHA-512 fingerprints (more quantum preimage margin, breaks every existing lockfile, does not protect short passwords); Argon2id for every lockfile entry (cost without benefit for high-entropy values); HMAC with an out-of-repo pepper (stops offline guessing, but drift then requires the pepper everywhere). Pepper or Argon2id remains appropriate only for a future low-entropy static-secret lane.  
+**Consequences:** A git clone of `.gitsecrets.lock` can still be dictionary-attacked when a static secret is low entropy. That is a classical problem first. Quantum search makes it worse by a square root, not by reversing the hash.
+
 ### Open kind handling for extensibility
 **Date:** 2024-01-01 (inferred)  
 **Status:** Active  
